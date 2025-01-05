@@ -622,8 +622,8 @@ try {
 }
 catch {}
 
-if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
-  if ([string]::IsNullOrEmpty($Env:autonome_test)) {  
-    Restart-Computer
-  }
-}
+#if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
+#  if ([string]::IsNullOrEmpty($Env:autonome_test)) {  
+#    Restart-Computer
+#  }
+#}
