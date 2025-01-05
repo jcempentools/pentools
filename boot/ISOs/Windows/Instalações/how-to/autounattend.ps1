@@ -480,7 +480,7 @@ if ([string]::IsNullOrEmpty($Env:install_cru)) {
       #$shaname = sha256 $line    
       download_save "$line" "$image_folder\$i.jpg"
       $shaname = (Get-FileHash "$image_folder\$i.jpg" -Algorithm SHA256).Hash    
-      Move-Item -Path "$image_folder\$i.jpg" "$image_folder\$shaname.jpg"
+      Move-Item -Path "$image_folder\$i.jpg" "$image_folder\$shaname.jpg" -Force
       $i++
     }  
   }
