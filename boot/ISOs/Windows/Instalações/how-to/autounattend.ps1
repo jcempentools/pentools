@@ -13,6 +13,10 @@ $url_lockscreen = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/ma
 $url_defwallpapper = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/wallpappers/default.lst"
 $appsinstall_folder = "" # manter vazio
 
+if (-Not ([string]::IsNullOrEmpty($is_test))) {  
+  $Env:autonome_test = "1"
+}
+
 if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
   $image_folder = "C:\Users\${env:USERNAME}\Pictures"
 }
@@ -103,8 +107,7 @@ function sha256 {
   $hash = $hasher.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($ClearString))
 
   $hashString = [System.BitConverter]::ToString($hash)
-  $hashString.Replace('-', '')  
-  return $hashString
+  return $hashString.trim().Replace('-', '')  
 }
 
 ####
@@ -488,7 +491,8 @@ if ([string]::IsNullOrEmpty($Env:install_cru)) {
     $ext = "png"
     foreach ($line in Get-Content "$image_folder\download.lst") {
       #$destname = $i
-      $destname = sha256 $line    
+      $destname = sha256($line)
+      #$destname = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($line))
       download_save "$line" "$image_folder\$destname.$ext"
       
       #$shaname = (Get-FileHash "$image_folder\$i.$ext" -Algorithm SHA256).Hash    
@@ -505,8 +509,8 @@ if ([string]::IsNullOrEmpty($Env:install_cru)) {
 
       $i++
     }  
-  }
-  
+  }  
+
   show_log_title "### Definindo tela de bloqueio personalizada"
   $regKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP'  
   # create the key if it doesn't already exist
@@ -583,6 +587,7 @@ if ([string]::IsNullOrEmpty($Env:install_cru)) {
     else {
       Write-Host "---> Lista de apps online inexistente, usando o padrao..."  
 
+      isowin_install_app "Microsoft.PowerToys"
       isowin_install_app "VideoLAN.VLC"  
       isowin_install_app "Google.Chrome"
       isowin_install_app "Brave.Brave"
