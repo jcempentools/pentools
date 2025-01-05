@@ -15,3 +15,5 @@
 /CustomDrivers
 /Programs
 *.log
+!/ventoy/**/*
+/boot/ventoy/
