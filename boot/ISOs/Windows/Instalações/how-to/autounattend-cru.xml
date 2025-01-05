@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
-	<!--https://schneegans.de/windows/unattend-generator/?LanguageMode=Unattended&UILanguage=pt-BR&Locale=pt-BR&Keyboard=00010416&GeoLocation=32&ProcessorArchitecture=amd64&BypassRequirementsCheck=true&BypassNetworkCheck=true&ComputerNameMode=Random&CompactOsMode=Default&TimeZoneMode=Explicit&TimeZone=E.+South+America+Standard+Time&PartitionMode=Interactive&WindowsEditionMode=Custom&ProductKey=VK7JG-NPHTM-C97JM-9MPGT-3V66T&UserAccountMode=Unattended&AccountName0=admin&AccountPassword0=12345678&AccountGroup0=Administrators&AccountName1=&AccountName2=&AccountName3=&AccountName4=&AutoLogonMode=Own&ObscurePasswords=true&PasswordExpirationMode=Unlimited&LockoutMode=Default&HideFiles=None&ShowFileExtensions=true&ClassicContextMenu=true&TaskbarSearch=Hide&TaskbarIconsMode=Empty&DisableWidgets=true&LeftTaskbar=true&HideTaskViewButton=true&DisableBingResults=true&StartTilesMode=Empty&StartPinsMode=Empty&DisableSystemRestore=true&EnableLongPaths=true&AllowPowerShellScripts=true&PreventAutomaticReboot=true&TurnOffSystemSounds=true&DisableAppSuggestions=true&PreventDeviceEncryption=true&HideEdgeFre=true&MakeEdgeUninstallable=true&DisablePointerPrecision=true&VBoxGuestAdditions=true&WifiMode=Skip&ExpressSettings=DisableAll&KeysMode=Configure&CapsLockInitial=Off&CapsLockBehavior=Toggle&NumLockInitial=On&NumLockBehavior=Toggle&ScrollLockInitial=Off&ScrollLockBehavior=Toggle&ColorMode=Custom&SystemColorTheme=Dark&AppsColorTheme=Dark&AccentColor=%23323232&AccentColorOnStart=true&AccentColorOnBorders=true&EnableTransparency=true&WallpaperMode=Script&WallpaperScript=%24url+%3D+%27https%3A%2F%2F4kwallpapers.com%2Fimages%2Fwallpapers%2Fmacro-surface-3d-background-sci-fi-purple-background-3840x2160-7863.png%27%3B%0D%0Areturn+%28+Invoke-WebRequest+-Uri+%24url+-UseBasicParsing+-TimeoutSec+30+%29.Content%3B&RemoveBingSearch=true&RemoveCamera=true&RemoveClipchamp=true&RemoveClock=true&RemoveCopilot=true&RemoveCortana=true&RemoveDevHome=true&RemoveFamily=true&RemoveFeedbackHub=true&RemoveGetHelp=true&RemoveHandwriting=true&RemoveInternetExplorer=true&RemoveMailCalendar=true&RemoveMaps=true&RemoveMathInputPanel=true&RemoveMediaFeatures=true&RemoveMixedReality=true&RemoveZuneVideo=true&RemoveNews=true&RemoveOffice365=true&RemoveOneDrive=true&RemoveOneNote=true&RemoveOneSync=true&RemoveOpenSSHClient=true&RemoveOutlook=true&RemovePaint3D=true&RemovePeople=true&RemovePowerAutomate=true&RemovePowerShell2=true&RemoveQuickAssist=true&RemoveRecall=true&RemoveRdpClient=true&RemoveSkype=true&RemoveSnippingTool=true&RemoveSolitaire=true&RemoveSpeech=true&RemoveStepsRecorder=true&RemoveTeams=true&RemoveGetStarted=true&RemoveToDo=true&RemoveVoiceRecorder=true&RemoveWallet=true&RemoveWeather=true&RemoveFaxAndScan=true&RemoveWindowsHello=true&RemoveWindowsMediaPlayer=true&RemoveZuneMusic=true&RemoveWordPad=true&RemoveXboxApps=true&RemoveYourPhone=true&SystemScript0=powercfg.exe+-h+off&SystemScriptType0=Cmd&SystemScript1=Set-MpPreference+-DisableRealtimeMonitoring+%24true%3B&SystemScriptType1=Ps1&SystemScript2=write-host+%22...%22++%0D%0A%0D%0Afunction+show_log_title%7B%0D%0A++++param%28%0D%0A++++++++%5Bstring%5D%24str_menssagem%0D%0A++++%29++++%0D%0A%0D%0A++++write-host+%22.%22++++%0D%0A++++write-host+%22.%22%0D%0A++++write-host+%22%24str_menssagem%22%0D%0A%7D%0D%0A%0D%0Awrite-host+%22Iniciando...%22%0D%0Ashow_log_title+%22%23%23%23+Desabilitando+anima%C3%A7%C3%B5es%22%0D%0Atry%7B%0D%0A++++REG+ADD+%22HKEY_CURRENT_USER%5CControl+Panel%5CDesktop%5CWindowMetrics%22+%2Fv+MinAnimate+%2Ft+REG_SZ+%2Fd+0+%2Ff%0D%0A%7Dcatch%7B+%0D%0A++++write-host+%22%3F%3F%3F%3F%3F+falha+ao+adicionar+registro+de+anima%C3%A7%C3%B5es.%22%0D%0A%7D%0D%0A%0D%0Ashow_log_title+%22%23%23%23+For%C3%A7ando+Pol%C3%ADtica%22%0D%0Atry%7B%0D%0A++++Set-ExecutionPolicy+-ExecutionPolicy+Bypass+-Force%0D%0A%7Dcatch%7B+%0D%0A++++write-host+%22%3F%3F%3F%3F%3F+falha+ao+setar+pol%C3%ADtica+de+execu%C3%A7ao.%22%0D%0A%7D%0D%0A%0D%0Ashow_log_title+%22%23%23%23+Renomeando+drive+do+sistema%22%0D%0Atry%7B%0D%0A++++Set-Volume+-DriveLetter+C+-NewFileSystemLabel+%22SISTEMA%22%0D%0A%7Dcatch%7B+%0D%0A++++write-host+%22%3F%3F%3F%3F%3F+falha+ao+renomear+disco+do+sistema%22%0D%0A%7D%0D%0A&SystemScriptType2=Ps1&FirstLogonScript0=write-host+%22...%22++%0D%0A%0D%0Afunction+show_log_title%7B%0D%0A++++param%28%0D%0A++++++++%5Bstring%5D%24str_menssagem%0D%0A++++%29++++%0D%0A%0D%0A++++write-host+%22.%22++++%0D%0A++++write-host+%22.%22%0D%0A++++write-host+%22%24str_menssagem%22%0D%0A%7D%0D%0A%0D%0Awrite-host+%22Iniciando...%22%0D%0Ashow_log_title+%22%23%23%23+Desabilitando+anima%C3%A7%C3%B5es%22%0D%0Atry%7B%0D%0A++++REG+ADD+%22HKEY_CURRENT_USER%5CControl+Panel%5CDesktop%5CWindowMetrics%22+%2Fv+MinAnimate+%2Ft+REG_SZ+%2Fd+0+%2Ff%0D%0A%7Dcatch%7B+%0D%0A++++write-host+%22%3F%3F%3F%3F%3F+falha+ao+adicionar+registro+de+anima%C3%A7%C3%B5es.%22%0D%0A%7D%0D%0A%0D%0Ashow_log_title+%22%23%23%23+For%C3%A7ando+Pol%C3%ADtica%22%0D%0Atry%7B%0D%0A++++Set-ExecutionPolicy+-ExecutionPolicy+Bypass+-Force%0D%0A%7Dcatch%7B+%0D%0A++++write-host+%22%3F%3F%3F%3F%3F+falha+ao+setar+pol%C3%ADtica+de+execu%C3%A7ao.%22%0D%0A%7D%0D%0A%0D%0Ashow_log_title+%22%23%23%23+Renomeando+drive+do+sistema%22%0D%0Atry%7B%0D%0A++++Set-Volume+-DriveLetter+C+-NewFileSystemLabel+%22SISTEMA%22%0D%0A%7Dcatch%7B+%0D%0A++++write-host+%22%3F%3F%3F%3F%3F+falha+ao+renomear+disco+do+sistema%22%0D%0A%7D%0D%0A&FirstLogonScriptType0=Ps1&UserOnceScript0=REG+ADD+%22HKEY_CURRENT_USER%5CControl+Panel%5CDesktop%5CWindowMetrics%22+%2Fv+MinAnimate+%2Ft+REG_SZ+%2Fd+0+%2Ff&UserOnceScriptType0=Cmd&UserOnceScript1=Windows+Registry+Editor+Version+5.00%0D%0A%0D%0A%0D%0A%3BApply+the+following+registry+values+to+disable+the+settings%0D%0A%0D%0A%0D%0A%3BThis+is+a+must+-+set+appearance+options+to+%22custom%22%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CCurrentVersion%5CExplorer%5CVisualEffects%5D%0D%0A%22VisualFXSetting%22%3Ddword%3A2%0D%0A%0D%0A%0D%0A%3BThis+disables+the+following+8+settings%3A%0D%0A%3BAnimate+controls+and+elements+inside+windows%0D%0A%3BFade+or+slide+menus+into+view%0D%0A%3BFade+or+slide+ToolTips+into+view%0D%0A%3BFade+out+menu+items+after+clicking%0D%0A%3BShow+shadows+under+mouse+pointer%0D%0A%3BShow+shadows+under+windows%0D%0A%3BSlide+open+combo+boxes%0D%0A%3BSmooth-scroll+list+boxes%0D%0A%5BHKEY_CURRENT_USER%5CControl+Panel%5CDesktop%5D%0D%0A%22UserPreferencesMask%22%3Dhex%282%29%3A90%2C12%2C03%2C80%2C10%2C00%2C00%2C00%0D%0A%0D%0A%0D%0A%3BAnimate+windows+when+minimizing+and+maximizing%0D%0A%5BHKEY_CURRENT_USER%5CControl+Panel%5CDesktop%5CWindowMetrics%5D%0D%0A%22MinAnimate%22%3D%220%22%0D%0A%0D%0A%0D%0A%3BAnimations+in+the+taskbar%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CCurrentVersion%5CExplorer%5CAdvanced%5D%0D%0A%22TaskbarAnimations%22%3Ddword%3A0%0D%0A%0D%0A%0D%0A%3BEnable+Peek%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CDWM%5D%0D%0A%22EnableAeroPeek%22%3Ddword%3A0%0D%0A%0D%0A%0D%0A%3BSave+taskbar+thumbnail+previews%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CDWM%5D%0D%0A%22AlwaysHibernateThumbnails%22%3Ddword%3A0%0D%0A%0D%0A%0D%0A%3BShow+thumbnails+instead+of+icons%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CCurrentVersion%5CExplorer%5CAdvanced%5D%0D%0A%22IconsOnly%22%3Ddword%3A1%0D%0A%0D%0A%0D%0A%3BShow+translucent+selection+rectangle%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CCurrentVersion%5CExplorer%5CAdvanced%5D%0D%0A%22ListviewAlphaSelect%22%3Ddword%3A0%0D%0A%0D%0A%0D%0A%3BShow+window+contents+while+dragging%0D%0A%5BHKEY_CURRENT_USER%5CControl+Panel%5CDesktop%5D%0D%0A%22DragFullWindows%22%3D%220%22%0D%0A%0D%0A%0D%0A%3BSmooth+edges+of+screen+fonts%0D%0A%5BHKEY_CURRENT_USER%5CControl+Panel%5CDesktop%5D%0D%0A%22FontSmoothing%22%3D%220%22%0D%0A%0D%0A%0D%0A%3BUse+drop+shadows+for+icon+labels+on+the+desktop%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CCurrentVersion%5CExplorer%5CAdvanced%5D%0D%0A%22ListviewShadow%22%3Ddword%3A0%0D%0A%0D%0A%3B+end&UserOnceScriptType1=Reg&WdacMode=Skip-->
+	<!--https://schneegans.de/windows/unattend-generator/?LanguageMode=Unattended&UILanguage=pt-BR&Locale=pt-BR&Keyboard=00010416&GeoLocation=32&ProcessorArchitecture=amd64&BypassRequirementsCheck=true&BypassNetworkCheck=true&ComputerNameMode=Random&CompactOsMode=Default&TimeZoneMode=Explicit&TimeZone=E.+South+America+Standard+Time&PartitionMode=Interactive&WindowsEditionMode=Custom&ProductKey=VK7JG-NPHTM-C97JM-9MPGT-3V66T&UserAccountMode=Unattended&AccountName0=admin&AccountPassword0=12345678&AccountGroup0=Administrators&AccountName1=&AccountName2=&AccountName3=&AccountName4=&AutoLogonMode=Own&ObscurePasswords=true&PasswordExpirationMode=Unlimited&LockoutMode=Default&HideFiles=HiddenSystem&ShowFileExtensions=true&ClassicContextMenu=true&LaunchToThisPC=true&TaskbarSearch=Hide&TaskbarIconsMode=Empty&DisableWidgets=true&LeftTaskbar=true&HideTaskViewButton=true&DisableBingResults=true&StartTilesMode=Empty&StartPinsMode=Empty&DisableSystemRestore=true&EnableLongPaths=true&AllowPowerShellScripts=true&PreventAutomaticReboot=true&TurnOffSystemSounds=true&DisableAppSuggestions=true&PreventDeviceEncryption=true&HideEdgeFre=true&MakeEdgeUninstallable=true&DisablePointerPrecision=true&DeleteWindowsOld=true&VBoxGuestAdditions=true&WifiMode=Interactive&ExpressSettings=DisableAll&KeysMode=Configure&CapsLockInitial=Off&CapsLockBehavior=Toggle&NumLockInitial=On&NumLockBehavior=Toggle&ScrollLockInitial=Off&ScrollLockBehavior=Toggle&ColorMode=Custom&SystemColorTheme=Dark&AppsColorTheme=Dark&AccentColor=%23323232&AccentColorOnStart=true&AccentColorOnBorders=true&EnableTransparency=true&WallpaperMode=Script&WallpaperScript=%24url+%3D+%27https%3A%2F%2F4kwallpapers.com%2Fimages%2Fwallpapers%2Fmacro-surface-3d-background-sci-fi-purple-background-3840x2160-7863.png%27%3B%0D%0Areturn+%28+Invoke-WebRequest+-Uri+%24url+-UseBasicParsing+-TimeoutSec+30+%29.Content%3B&RemoveBingSearch=true&RemoveCamera=true&RemoveClipchamp=true&RemoveClock=true&RemoveCopilot=true&RemoveCortana=true&RemoveDevHome=true&RemoveFamily=true&RemoveFeedbackHub=true&RemoveGetHelp=true&RemoveHandwriting=true&RemoveInternetExplorer=true&RemoveMailCalendar=true&RemoveMaps=true&RemoveMathInputPanel=true&RemoveMediaFeatures=true&RemoveMixedReality=true&RemoveZuneVideo=true&RemoveNews=true&RemoveOffice365=true&RemoveOneDrive=true&RemoveOneNote=true&RemoveOneSync=true&RemoveOpenSSHClient=true&RemoveOutlook=true&RemovePaint3D=true&RemovePeople=true&RemovePowerAutomate=true&RemovePowerShell2=true&RemoveQuickAssist=true&RemoveRecall=true&RemoveRdpClient=true&RemoveSkype=true&RemoveSnippingTool=true&RemoveSolitaire=true&RemoveSpeech=true&RemoveStepsRecorder=true&RemoveTeams=true&RemoveGetStarted=true&RemoveToDo=true&RemoveVoiceRecorder=true&RemoveWallet=true&RemoveWeather=true&RemoveFaxAndScan=true&RemoveWindowsHello=true&RemoveWindowsMediaPlayer=true&RemoveZuneMusic=true&RemoveWordPad=true&RemoveXboxApps=true&RemoveYourPhone=true&SystemScript0=powercfg.exe+-h+off&SystemScriptType0=Cmd&SystemScript1=Set-MpPreference+-DisableRealtimeMonitoring+%24true%3B&SystemScriptType1=Ps1&SystemScript2=try+%7B%0D%0A++Set-Volume+-DriveLetter+C+-NewFileSystemLabel+%22SISTEMA%22%0D%0A%7D%0D%0Acatch+%7B+%0D%0A++write-host+%22%3F%3F%3F%3F%3F+falha+ao+renomear+disco+do+sistema%22%0D%0A%7D%0D%0A&SystemScriptType2=Ps1&SystemScript3=%24Env%3Ainstall_cru+%3D+%221%22%0D%0A%24script+%3D+%22c%3A%5Cautonomo-install.ps1%22%0D%0Aif+%28-Not+%28Test-Path+-Path+%24script%29%29+%7B%0D%0A++Invoke-WebRequest+%22https%3A%2F%2Fraw.githubusercontent.com%2Fjcempentools%2Fpentools%2Frefs%2Fheads%2Fmaster%2Fboot%2FISOs%2FWindows%2FInstala%25C3%25A7%25C3%25B5es%2Fhow-to%2Fautounattend.ps1%22+-OutFile+%22%24script%22%0D%0A%7D%0D%0A%0D%0Atry+%7B%0D%0A++powershell.exe+-NoProfile+-Command+%22Get-Content+-LiteralPath+%27%24script%27+-Raw+%7C+Invoke-Expression%3B+%22%0D%0A%7D%0D%0Acatch+%7B++%0D%0A%7D%0D%0A%0D%0ARemove-Item+%22%24script%22+-Force&SystemScriptType3=Ps1&FirstLogonScript0=%24Env%3Ainstall_cru+%3D+%221%22%0D%0A%24script+%3D+%22c%3A%5Cautonomo-install.ps1%22%0D%0Aif+%28-Not+%28Test-Path+-Path+%24script%29%29+%7B%0D%0A++Invoke-WebRequest+%22https%3A%2F%2Fraw.githubusercontent.com%2Fjcempentools%2Fpentools%2Frefs%2Fheads%2Fmaster%2Fboot%2FISOs%2FWindows%2FInstala%25C3%25A7%25C3%25B5es%2Fhow-to%2Fautounattend.ps1%22+-OutFile+%22%24script%22%0D%0A%7D%0D%0A%0D%0Atry+%7B%0D%0A++powershell.exe+-NoProfile+-Command+%22Get-Content+-LiteralPath+%27%24script%27+-Raw+%7C+Invoke-Expression%3B+%22%0D%0A%7D%0D%0Acatch+%7B++%0D%0A%7D%0D%0A%0D%0ARemove-Item+%22%24script%22+-Force&FirstLogonScriptType0=Ps1&UserOnceScript0=REG+ADD+%22HKEY_CURRENT_USER%5CControl+Panel%5CDesktop%5CWindowMetrics%22+%2Fv+MinAnimate+%2Ft+REG_SZ+%2Fd+0+%2Ff&UserOnceScriptType0=Cmd&UserOnceScript1=Windows+Registry+Editor+Version+5.00%0D%0A%0D%0A%0D%0A%3BApply+the+following+registry+values+to+disable+the+settings%0D%0A%0D%0A%0D%0A%3BThis+is+a+must+-+set+appearance+options+to+%22custom%22%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CCurrentVersion%5CExplorer%5CVisualEffects%5D%0D%0A%22VisualFXSetting%22%3Ddword%3A2%0D%0A%0D%0A%0D%0A%3BThis+disables+the+following+8+settings%3A%0D%0A%3BAnimate+controls+and+elements+inside+windows%0D%0A%3BFade+or+slide+menus+into+view%0D%0A%3BFade+or+slide+ToolTips+into+view%0D%0A%3BFade+out+menu+items+after+clicking%0D%0A%3BShow+shadows+under+mouse+pointer%0D%0A%3BShow+shadows+under+windows%0D%0A%3BSlide+open+combo+boxes%0D%0A%3BSmooth-scroll+list+boxes%0D%0A%5BHKEY_CURRENT_USER%5CControl+Panel%5CDesktop%5D%0D%0A%22UserPreferencesMask%22%3Dhex%282%29%3A90%2C12%2C03%2C80%2C10%2C00%2C00%2C00%0D%0A%0D%0A%0D%0A%3BAnimate+windows+when+minimizing+and+maximizing%0D%0A%5BHKEY_CURRENT_USER%5CControl+Panel%5CDesktop%5CWindowMetrics%5D%0D%0A%22MinAnimate%22%3D%220%22%0D%0A%0D%0A%0D%0A%3BAnimations+in+the+taskbar%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CCurrentVersion%5CExplorer%5CAdvanced%5D%0D%0A%22TaskbarAnimations%22%3Ddword%3A0%0D%0A%0D%0A%0D%0A%3BEnable+Peek%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CDWM%5D%0D%0A%22EnableAeroPeek%22%3Ddword%3A0%0D%0A%0D%0A%0D%0A%3BSave+taskbar+thumbnail+previews%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CDWM%5D%0D%0A%22AlwaysHibernateThumbnails%22%3Ddword%3A0%0D%0A%0D%0A%0D%0A%3BShow+thumbnails+instead+of+icons%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CCurrentVersion%5CExplorer%5CAdvanced%5D%0D%0A%22IconsOnly%22%3Ddword%3A1%0D%0A%0D%0A%0D%0A%3BShow+translucent+selection+rectangle%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CCurrentVersion%5CExplorer%5CAdvanced%5D%0D%0A%22ListviewAlphaSelect%22%3Ddword%3A0%0D%0A%0D%0A%0D%0A%3BShow+window+contents+while+dragging%0D%0A%5BHKEY_CURRENT_USER%5CControl+Panel%5CDesktop%5D%0D%0A%22DragFullWindows%22%3D%220%22%0D%0A%0D%0A%0D%0A%3BSmooth+edges+of+screen+fonts%0D%0A%5BHKEY_CURRENT_USER%5CControl+Panel%5CDesktop%5D%0D%0A%22FontSmoothing%22%3D%220%22%0D%0A%0D%0A%0D%0A%3BUse+drop+shadows+for+icon+labels+on+the+desktop%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CCurrentVersion%5CExplorer%5CAdvanced%5D%0D%0A%22ListviewShadow%22%3Ddword%3A0%0D%0A%0D%0A%3B+end&UserOnceScriptType1=Reg&WdacMode=Skip-->
 	<settings pass="offlineServicing"></settings>
 	<settings pass="windowsPE">
 		<component name="Microsoft-Windows-International-Core-WinPE" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
@@ -100,7 +100,7 @@
 			<OOBE>
 				<ProtectYourPC>3</ProtectYourPC>
 				<HideEULAPage>true</HideEULAPage>
-				<HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
+				<HideWirelessSetupInOOBE>false</HideWirelessSetupInOOBE>
 				<HideOnlineAccountScreens>false</HideOnlineAccountScreens>
 			</OOBE>
 			<FirstLogonCommands>
@@ -642,79 +642,47 @@ powercfg.exe -h off
 Set-MpPreference -DisableRealtimeMonitoring $true;
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-03.ps1" transformation="Text">
-write-host "..."  
-
-function show_log_title{
-    param(
-        [string]$str_menssagem
-    )    
-
-    write-host "."    
-    write-host "."
-    write-host "$str_menssagem"
+try {
+  Set-Volume -DriveLetter C -NewFileSystemLabel "SISTEMA"
 }
-
-write-host "Iniciando..."
-show_log_title "### Desabilitando anima&#xE7;&#xF5;es"
-try{
-    REG ADD "HKEY_CURRENT_USER\Control Panel\Desktop\WindowMetrics" /v MinAnimate /t REG_SZ /d 0 /f
-}catch{ 
-    write-host "????? falha ao adicionar registro de anima&#xE7;&#xF5;es."
-}
-
-show_log_title "### For&#xE7;ando Pol&#xED;tica"
-try{
-    Set-ExecutionPolicy -ExecutionPolicy Bypass -Force
-}catch{ 
-    write-host "????? falha ao setar pol&#xED;tica de execu&#xE7;ao."
-}
-
-show_log_title "### Renomeando drive do sistema"
-try{
-    Set-Volume -DriveLetter C -NewFileSystemLabel "SISTEMA"
-}catch{ 
-    write-host "????? falha ao renomear disco do sistema"
+catch { 
+  write-host "????? falha ao renomear disco do sistema"
 }
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-04.ps1" transformation="Text">
-write-host "..."  
-
-function show_log_title{
-    param(
-        [string]$str_menssagem
-    )    
-
-    write-host "."    
-    write-host "."
-    write-host "$str_menssagem"
+$Env:install_cru = "1"
+$script = "c:\autonomo-install.ps1"
+if (-Not (Test-Path -Path $script)) {
+  Invoke-WebRequest "https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/ISOs/Windows/Instala%C3%A7%C3%B5es/how-to/autounattend.ps1" -OutFile "$script"
 }
 
-write-host "Iniciando..."
-show_log_title "### Desabilitando anima&#xE7;&#xF5;es"
-try{
-    REG ADD "HKEY_CURRENT_USER\Control Panel\Desktop\WindowMetrics" /v MinAnimate /t REG_SZ /d 0 /f
-}catch{ 
-    write-host "????? falha ao adicionar registro de anima&#xE7;&#xF5;es."
+try {
+  powershell.exe -NoProfile -Command "Get-Content -LiteralPath '$script' -Raw | Invoke-Expression; "
+}
+catch {  
 }
 
-show_log_title "### For&#xE7;ando Pol&#xED;tica"
-try{
-    Set-ExecutionPolicy -ExecutionPolicy Bypass -Force
-}catch{ 
-    write-host "????? falha ao setar pol&#xED;tica de execu&#xE7;ao."
-}
-
-show_log_title "### Renomeando drive do sistema"
-try{
-    Set-Volume -DriveLetter C -NewFileSystemLabel "SISTEMA"
-}catch{ 
-    write-host "????? falha ao renomear disco do sistema"
-}
+Remove-Item "$script" -Force
 		</File>
-		<File path="C:\Windows\Setup\Scripts\unattend-05.cmd" transformation="Text">
+		<File path="C:\Windows\Setup\Scripts\unattend-05.ps1" transformation="Text">
+$Env:install_cru = "1"
+$script = "c:\autonomo-install.ps1"
+if (-Not (Test-Path -Path $script)) {
+  Invoke-WebRequest "https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/ISOs/Windows/Instala%C3%A7%C3%B5es/how-to/autounattend.ps1" -OutFile "$script"
+}
+
+try {
+  powershell.exe -NoProfile -Command "Get-Content -LiteralPath '$script' -Raw | Invoke-Expression; "
+}
+catch {  
+}
+
+Remove-Item "$script" -Force
+		</File>
+		<File path="C:\Windows\Setup\Scripts\unattend-06.cmd" transformation="Text">
 REG ADD "HKEY_CURRENT_USER\Control Panel\Desktop\WindowMetrics" /v MinAnimate /t REG_SZ /d 0 /f
 		</File>
-		<File path="C:\Windows\Setup\Scripts\unattend-06.reg" transformation="Text">
+		<File path="C:\Windows\Setup\Scripts\unattend-07.reg" transformation="Text">
 Windows Registry Editor Version 5.00
 
 
@@ -879,6 +847,9 @@ $scripts = @(
 	{
 		Get-Content -LiteralPath 'C:\Windows\Setup\Scripts\unattend-03.ps1' -Raw | Invoke-Expression;
 	};
+	{
+		Get-Content -LiteralPath 'C:\Windows\Setup\Scripts\unattend-04.ps1' -Raw | Invoke-Expression;
+	};
 );
 
 &amp; {
@@ -912,6 +883,9 @@ $scripts = @(
 		Set-ItemProperty @params -Name '(Default)' -Value '' -Type 'String';
 	};
 	{
+		Set-ItemProperty -LiteralPath 'Registry::HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name 'LaunchTo' -Type 'DWord' -Value 1;
+	};
+	{
 		Set-ItemProperty -LiteralPath 'Registry::HKCU\Software\Microsoft\Windows\CurrentVersion\Search' -Name 'SearchboxTaskbarMode' -Type 'DWord' -Value 0;
 	};
 	{
@@ -921,10 +895,10 @@ $scripts = @(
 		Get-Content -LiteralPath 'C:\Windows\Setup\Scripts\SetWallpaper.ps1' -Raw | Invoke-Expression;
 	};
 	{
-		C:\Windows\Setup\Scripts\unattend-05.cmd;
+		C:\Windows\Setup\Scripts\unattend-06.cmd;
 	};
 	{
-		reg.exe import "C:\Windows\Setup\Scripts\unattend-06.reg";
+		reg.exe import "C:\Windows\Setup\Scripts\unattend-07.reg";
 	};
 	{
 		Get-Process -Name 'explorer' -ErrorAction 'SilentlyContinue' | Where-Object -FilterScript {
@@ -960,9 +934,6 @@ $scripts = @(
 	};
 	{
 		reg.exe add "HKU\DefaultUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v "Hidden" /t REG_DWORD /d 1 /f;
-	};
-	{
-		reg.exe add "HKU\DefaultUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v "ShowSuperHidden" /t REG_DWORD /d 1 /f;
 	};
 	{
 		reg.exe add "HKU\DefaultUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v ShowTaskViewButton /t REG_DWORD /d 0 /f;
@@ -1042,7 +1013,10 @@ $scripts = @(
 		Disable-ComputerRestore -Drive 'C:\';
 	};
 	{
-		Get-Content -LiteralPath 'C:\Windows\Setup\Scripts\unattend-04.ps1' -Raw | Invoke-Expression;
+		cmd.exe /c "rmdir C:\Windows.old";
+	};
+	{
+		Get-Content -LiteralPath 'C:\Windows\Setup\Scripts\unattend-05.ps1' -Raw | Invoke-Expression;
 	};
 );
 
