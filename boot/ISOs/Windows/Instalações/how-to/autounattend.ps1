@@ -211,7 +211,7 @@ function fixWingetLocation {
       $winget = "$SystemContext\winget.exe" 
     }
     else { 
-      $winget = "winget"
+      $winget = "$env:LOCALAPPDATA\Microsoft\WindowsApps\winget.exe"
     }
 
     #if ($null -ne $winget) { "winget content: $winget" }
@@ -242,36 +242,54 @@ function isowin_winget_update {
   catch {
     # Catch any error
     show_log_title "winget: Falha ao atualizar winget, tentando com PWSH 7"
-
-    switch ($PSVersionTable.PSVersion.Major) {
-
-      ## 7 and (hopefully) later versions
-      { $_ -ge 7 } {
-        Write-Host "---> já estávamos no PSWH 7"
-      } # PowerShell 7
-
-      ## 5, and only 5. We aren't interested in previous versions.
-      5 {
-        isowin_install_pwsh7
-
-        try {
-          write-host "& pwsh -NoProfile -Command 'winget update --all' | write-host"
-          & pwsh -NoProfile -Command "winget update --all" | write-host
-
-        }
-        catch {
-          show_log_title "????? FALHA ao atualizar winget '$name_id'"
-        }
-      } # PowerShell 5
-
-      default {
-        ## If it's not 7 or later, and it's not 5, then we aren't doing it.
-        write-host "??? Unsupported PowerShell version [1]."
-
-      } # default
-
-    } # switch    
+    runInPWSH7 "pwsh -NoProfile -Command 'winget update --all"
   }
+}
+
+
+###
+function runInPWSH7() {
+  param(
+    [string]$cmd_,
+    [string]$path_log_full
+  )
+
+  switch ($PSVersionTable.PSVersion.Major) {
+    ## 7 and (hopefully) later versions
+    { $_ -ge 7 } {
+      Write-Host "---> já estávamos no PSWH 7"
+      return 0
+    } # PowerShell 7
+
+    ## 5, and only 5. We aren't interested in previous versions.
+    5 {
+      isowin_install_pwsh7
+
+      try {          
+        if (-Not ([string]::IsNullOrEmpty($nn))) {      
+          write-host "& pwsh -NoProfile -Command '$cmd_'  | write-host"
+          & pwsh -NoProfile -Command "$cmd_"  | write-host
+        }
+        else {
+          write-host "& pwsh -NoProfile -Command '$cmd_'  | Out-File -FilePath '$path_log_full'"
+          & pwsh -NoProfile -Command "$cmd_"  | Out-File -FilePath "$path_log_full"
+        }
+
+        write-host "------> $name_id supostamente executado corretamente."
+
+      }
+      catch {
+        write-host "????? FALHA final ao instalar '$name_id'"
+      }
+
+    } # PowerShell 5
+
+    default {
+      ## If it's not 7 or later, and it's not 5, then we aren't doing it.
+      Write-Host "??? Unsupported PowerShell version [2]."
+
+    } # default
+  } # switch  
 }
 
 ####
@@ -293,44 +311,29 @@ function isowin_winget_install {
   "Log: $path_log_full"
 
   try {
-    write-host "& '$winget' install --scope machine --id '$name_id' --verbose --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements | Out-File -FilePath '$path_log_full'"
-    & "$winget" install --scope machine --id "$name_id" --verbose --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements | Out-File -FilePath "$path_log_full"    
+    $timeout = [datetime]::Now.AddMinutes( 5 );    
 
-    write-host "------> $name_id instalado."
+    while ($true) {
+      if ( $winget | Test-Path) {
+        write-host "& '$winget' install --id '$name_id' --scope machine --verbose --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements | Out-File -FilePath '$path_log_full'"
+        & "$winget" install --id "$name_id" --verbose --scope machine --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements | Out-File -FilePath "$path_log_full"    
+        write-host "------> $name_id instalado."
+        return
+      }
+
+      if ( [datetime]::Now -gt $timeout ) {
+        'Winget: File {0} does not exist.' -f $winget | Write-Warning;
+        return;
+      }            
+
+      Start-Sleep -Seconds 1;
+    }
   }
   catch {
     # Catch any error
     write-host "Winget: Falha ao instalar '$name_id', tentando com PWSH 7"
 
-    switch ($PSVersionTable.PSVersion.Major) {
-      ## 7 and (hopefully) later versions
-      { $_ -ge 7 } {
-        Write-Host "---> já estávamos no PSWH 7"
-        return 0
-      } # PowerShell 7
-
-      ## 5, and only 5. We aren't interested in previous versions.
-      5 {
-        isowin_install_pwsh7
-
-        try {          
-          write-host "& pwsh -NoProfile -Command '$winget install --id '$name_id' --verbose --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements'  | Out-File -FilePath '$path_log_full'"
-          & pwsh -NoProfile -Command "$winget install --id "$name_id" --verbose --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements"  | Out-File -FilePath "$path_log_full"
-          write-host "------> $name_id supostamente instalado."
-
-        }
-        catch {
-          write-host "????? FALHA final ao instalar '$name_id'"
-        }
-
-      } # PowerShell 5
-
-      default {
-        ## If it's not 7 or later, and it's not 5, then we aren't doing it.
-        Write-Host "??? Unsupported PowerShell version [2]."
-
-      } # default
-    } # switch    
+    runInPWSH7 "$winget install --scope machine --id '$name_id' --verbose --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements" "$path_log_full"  
   }
 }
 
