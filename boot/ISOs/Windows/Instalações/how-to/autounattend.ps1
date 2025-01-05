@@ -11,6 +11,12 @@ $url_wallpappers_lst = "https://raw.githubusercontent.com/jcempentools/pentools/
 $url_apps_lst = "https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/windows/apps.lst"
 $appsinstall_folder = "" # manter vazio
 
+Write-Host ""
+Write-Host ""
+Write-Host "instação crua: '$Env:install_cru'"
+Write-Host ""
+Write-Host ""
+
 if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
   $image_folder = "C:\Users\${env:USERNAME}\Pictures"
 }
@@ -51,7 +57,7 @@ Write-Host "-------------------------------------------------" -BackgroundColor 
 
 write-host "..."
 
-Start-Sleep -Seconds 1
+Start-Sleep -Seconds 3
 
 if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
   if (-Not ($is_test)) {
