@@ -478,9 +478,10 @@ if ([string]::IsNullOrEmpty($Env:install_cru)) {
     $i = 0
     foreach ($line in Get-Content "$image_folder\download.lst") {
       #$shaname = sha256 $line    
-      download_save "$line" "$image_folder\$i.jpg"
-      $shaname = (Get-FileHash "$image_folder\$i.jpg" -Algorithm SHA256).Hash    
-      Move-Item -Path "$image_folder\$i.jpg" "$image_folder\$shaname.jpg" -Force
+      download_save "$line" "$image_folder\$i.png"
+      $shaname = (Get-FileHash "$image_folder\$i.png" -Algorithm SHA256).Hash    
+
+      Move-Item -Force -Path "$image_folder\$i.png" "$image_folder\$shaname.png" 
       $i++
     }  
   }
@@ -588,26 +589,26 @@ if ([string]::IsNullOrEmpty($Env:install_cru)) {
 
 show_log_title "### Desabilitando Hibernação."
 
-try {
-  powercfg.exe /hibernate off
-}
-catch {
-  write-host "---> Falha ao desabilitar hibernação."
-}
+        try {
+          powercfg.exe /hibernate off
+        }
+        catch {
+          write-host "---> Falha ao desabilitar hibernação."
+        }
 
-write-host "CONCLUIDO"
+        write-host "CONCLUIDO"
 
-Write-Host "-------------------------------------------------" -BackgroundColor blue
-Write-Host "                   REINICIANDO                   " -BackgroundColor blue
-Write-Host "-------------------------------------------------" -BackgroundColor blue
+        Write-Host "-------------------------------------------------" -BackgroundColor blue
+        Write-Host "                   REINICIANDO                   " -BackgroundColor blue
+        Write-Host "-------------------------------------------------" -BackgroundColor blue
 
-try {
-  Stop-Transcript
-}
-catch {}
+        try {
+          Stop-Transcript
+        }
+        catch {}
 
-if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
-  if (-Not ($is_test)) {
-    Restart-Computer
-  }
-}
+        if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
+          if (-Not ($is_test)) {
+            Restart-Computer
+          }
+        }
