@@ -7,7 +7,7 @@ $pwsh_msi_path = "c:\pwsh_install.msi"
 $pendrive_autonome_path = "boot\Autonome-install\windows"
 $image_folder = "C:\Users\Default\Pictures"
 $pendrive_script_name = "run.ps1"
-$url_wallpappers_lst = "https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/windows/wallpapper.lst"
+$url_wallpappers_lst = "https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/wallpappers/wallpapper.lst"
 $url_apps_lst = "https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/windows/apps.lst"
 $appsinstall_folder = "" # manter vazio
 
@@ -66,7 +66,7 @@ if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
   }
 }
 
-Start-Sleep -Seconds 7
+Start-Sleep -Seconds 3
 
 ####
 ####
@@ -315,7 +315,7 @@ function isowin_winget_install {
 ####
 ####
 function appinstall_find_path() {    
-  if (([string]::IsNullOrEmpty($appsinstall_folder)) -Or (-Not (Test_path $appsinstall_folder))) {    
+  if (([string]::IsNullOrEmpty($appsinstall_folder)) -Or (-Not (Test-path $appsinstall_folder))) {    
     try {
       $Drives = Get-PSDrive -PSProvider 'FileSystem'
 
@@ -345,7 +345,7 @@ function findExeMsiOnFolders() {
 
   $path = appinstall_find_path
 
-  if ((-Not ([string]::IsNullOrEmpty($path))) -And (Test_path $path)) {    
+  if ((-Not ([string]::IsNullOrEmpty($path))) -And (Test-path $path)) {    
     $name_id = $name_id.trim()
     $exts = @('exe', 'msi')
     $names = @($name_id, $name_id.split(".")[-1])
@@ -452,9 +452,13 @@ write-host "download_save '$url_wallpappers_lst' '$image_folder\download.lst'"
 download_save "$url_wallpappers_lst" "$image_folder\download.lst"    
 
 if (Test-Path "$image_folder\download.lst") {
+  $i = 0
   foreach ($line in Get-Content "$image_folder\download.lst") {
-    $shaname = sha256 $line
-    download_save "$line" "$image_folder\$shaname.jpg"    
+    #$shaname = sha256 $line    
+    download_save "$line" "$image_folder\$i.jpg"
+    $shaname = (Get-FileHash "$image_folder\$i.jpg" -Algorithm SHA256).Hash    
+    Move-Item -Path "$image_folder\$i.jpg" "$image_folder\$shaname.jpg"
+    $i++
   }  
 }
 
@@ -473,7 +477,8 @@ try {
 catch {
   write-host "????? FALHA ao definir tela de bloqueio"
 }
-exit
+
+###
 isowin_winget_update
 
 show_log_title "### Instalando APPs basiquissimos..."
@@ -496,7 +501,7 @@ elseif (Test-Path "$appsinstall_folder\apps\apps.lst") {
   $apps_lst = "$appsinstall_folder\apps\apps.lst"
 }
 
-if ([string]::IsNullOrEmpty($apps_lst)) {
+if (-Not ([string]::IsNullOrEmpty($apps_lst))) {
   Write-Host "---> usando 'apps.lst do pendrive'..."
 
   foreach ($line in Get-Content "$appsinstall_folder\apps.lst") {
@@ -505,7 +510,7 @@ if ([string]::IsNullOrEmpty($apps_lst)) {
 }
 else {
   Write-Host "---> Obtendo lista online..."  
-  $apps_f = "c:\apps-download.lst"
+  $apps_f = "$path_log\apps-download.lst"
   download_save "$url_apps_lst" "$apps_f"
 
   if (Test-Path "$apps_f") {
@@ -513,7 +518,7 @@ else {
 
     foreach ($line in Get-Content "$apps_f") {
       isowin_install_app $line
-    }
+    }    
   }
   else {
     Write-Host "---> Lista de apps online inexistente, usando o padrao..."  
