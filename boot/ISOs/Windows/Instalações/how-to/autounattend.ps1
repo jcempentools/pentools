@@ -9,6 +9,8 @@ $image_folder = "C:\Users\Default\Pictures"
 $pendrive_script_name = "run.ps1"
 $url_wallpappers_lst = "https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/wallpappers/wallpapper.lst"
 $url_apps_lst = "https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/windows/apps.lst"
+$url_lockscreen = "https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/wallpappers/lockscreen.lst"
+$url_defwallpapper = "https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/wallpappers/default.lst"
 $appsinstall_folder = "" # manter vazio
 
 Write-Host " "
@@ -140,6 +142,20 @@ function download_save() {
   else {
     write-host "Arquivo já existente."
   }
+}
+
+
+function download_to_string() {
+  param(
+    [string]$url    
+  )
+
+  $tmp = -join ((65..90) + (97..122) | Get-Random -Count 12 | ForEach-Object { [char]$_ })
+  $tmpFile = "c:\$tmp.tmp"
+  Invoke-WebRequest $url -OutFile $tmpFile
+  $myString = Get-Content $tmpFile
+  Remove-Item $tmpFile
+  return $myString.trim()
 }
 
 ####
@@ -468,21 +484,33 @@ if ([string]::IsNullOrEmpty($Env:install_cru)) {
       $i++
     }  
   }
-
+  
   show_log_title "### Definindo tela de bloqueio personalizada"
-
-  $regKey = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization'
+  $regKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP'  
   # create the key if it doesn't already exist
   if (!(Test-Path -Path $regKey)) {
     $null = New-Item -Path $regKey
   }
 
   # now set the registry entry
-  try {
-    Set-ItemProperty -Path $regKey -Name 'LockScreenImage' -value "$image_folder\5F3C1A878379373A9853DC58CC78D414212DFD6063F9E8F48832ED940502902B.jpg"
+  try {    
+    $nome = download_to_string($url_lockscreen)
+    Set-ItemProperty -Path $Key -Name LockScreenImagePath -value "$image_folder\$nome.jpg"
   }
   catch {
     write-host "????? FALHA ao definir tela de bloqueio"
+  }
+
+  if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
+    show_log_title "### Definindo wallpapper"
+    # now set the registry entry
+    try {    
+      $nome = download_to_string($url_defwallpapper)
+      Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WallPaper" -Value "$image_folder\$nome.jpg"
+    }
+    catch {
+      write-host "????? FALHA ao definir tela de bloqueio"
+    }  
   }
 }
 
