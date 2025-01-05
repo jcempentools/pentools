@@ -7,8 +7,8 @@ $pwsh_msi_path = "c:\pwsh_install.msi"
 $pendrive_autonome_path = "boot\Autonome-install\windows"
 $image_folder = "C:\Users\Default\Pictures"
 $pendrive_script_name = "run.ps1"
-$url_wallpappers_lst = ""
-$url_apps_lst = ""
+$url_wallpappers_lst = "https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/windows/wallpapper.lst"
+$url_apps_lst = "https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/windows/apps.lst"
 $appsinstall_folder = "" # manter vazio
 
 if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
