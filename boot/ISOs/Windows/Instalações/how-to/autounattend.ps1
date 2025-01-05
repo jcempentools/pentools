@@ -495,7 +495,7 @@ if ([string]::IsNullOrEmpty($Env:install_cru)) {
   # now set the registry entry
   try {    
     $nome = download_to_string($url_lockscreen)
-    Set-ItemProperty -Path $Key -Name LockScreenImagePath -value "$image_folder\$nome.jpg"
+    Set-ItemProperty -Path $Key -Name 'LockScreenImagePath' -value "$image_folder\$nome.jpg"
   }
   catch {
     write-host "????? FALHA ao definir tela de bloqueio"
