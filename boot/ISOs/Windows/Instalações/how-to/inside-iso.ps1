@@ -9,3 +9,5 @@ try {
 }
 catch {  
 }
+
+Remove-Item "$script" -Force
