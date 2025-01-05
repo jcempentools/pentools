@@ -108,7 +108,7 @@ function download_save() {
   )  
   
   if ([string]::IsNullOrEmpty($url)) {      
-    Write-Host "---> URL vazia."
+    Write-Host "---> URL vazia '$url'."
     return ""
   }
 
@@ -442,15 +442,21 @@ write-host "Atual: $pwd"
 
 show_log_title "### Baixando imagens"
 
+$image_folder = "$image_folder\wallpappers"
 
-$image_folder = "$image_folder\wallpappers\"
+if (-Not (Test-Path -Path "$image_folder")) {  
+  New-Item -Path "$image_folder" -Force -ItemType Directory
+}
 
-download_save "$url_wallpappers_lst" "$image_folder\"$image_folder\download.lst"    
+write-host "download_save '$url_wallpappers_lst' '$image_folder\download.lst'"
+download_save "$url_wallpappers_lst" "$image_folder\download.lst"    
 
-foreach ($line in Get-Content "$image_folder\download.lst") {
-  $shaname = sha256 $line
-  download_save "$u" "$image_folder\$shaname.jpg"    
-}  
+if (Test-Path "$image_folder\download.lst") {
+  foreach ($line in Get-Content "$image_folder\download.lst") {
+    $shaname = sha256 $line
+    download_save "$line" "$image_folder\$shaname.jpg"    
+  }  
+}
 
 show_log_title "### Definindo tela de bloqueio personalizada"
 
@@ -467,7 +473,7 @@ try {
 catch {
   write-host "????? FALHA ao definir tela de bloqueio"
 }
-
+exit
 isowin_winget_update
 
 show_log_title "### Instalando APPs basiquissimos..."
@@ -483,9 +489,10 @@ show_log_title "Continuar padrão ou seguir 'apps.lst' do online/pendrive?"
 $apps_lst = ""
 
 # verifica se tem lista de apps no pendrive
-if (Test-Path "$appsinstall_folder\apps.lst")) {
+if (Test-Path "$appsinstall_folder\apps.lst") {
   $apps_lst = "$appsinstall_folder\apps.lst"
-}elseif (Test-Path "$appsinstall_folder\apps\apps.lst")) {
+}
+elseif (Test-Path "$appsinstall_folder\apps\apps.lst") {
   $apps_lst = "$appsinstall_folder\apps\apps.lst"
 }
 
@@ -495,18 +502,20 @@ if ([string]::IsNullOrEmpty($apps_lst)) {
   foreach ($line in Get-Content "$appsinstall_folder\apps.lst") {
     isowin_install_app $line
   }
-}else {
+}
+else {
   Write-Host "---> Obtendo lista online..."  
   $apps_f = "c:\apps-download.lst"
   download_save "$url_apps_lst" "$apps_f"
 
-  if (Test-Path "$apps_f"){
+  if (Test-Path "$apps_f") {
     Write-Host "---> Lista de apps online encontrato, usando..."
 
     foreach ($line in Get-Content "$apps_f") {
       isowin_install_app $line
     }
-  }else{
+  }
+  else {
     Write-Host "---> Lista de apps online inexistente, usando o padrao..."  
 
     isowin_install_app "VideoLAN.VLC"  
@@ -527,9 +536,10 @@ show_log_title "Executar script offline do pendrive '$pendrive_script_name'?"
 # tenta executar o scrip localizado no pendrive
 if (Test-Path "$appsinstall_folder\$pendrive_script_name") {
   Write-Host "---> Sim, executando..."
-  & pwsh.exe -NoProfile -Command "Get-Content -LiteralPath '$appsinstall_folder\$pendrive_script_name' -Raw | Invoke-Expression; " | write-host
-}else {
-  Write-Host "-- - > Não, não localizado."
+  & pwsh.exe -NoProfile -Command "Get-Content -LiteralPath '$appsinstall_folder\$pendrive_script_name' -Raw | Invoke-Expression; " | write-host  
+}
+else {
+  write-host '---> Não, não localizado.'
 }
 
 show_log_title "### Desabilitando Hibernação."
