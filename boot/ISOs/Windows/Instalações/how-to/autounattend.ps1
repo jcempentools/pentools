@@ -445,15 +445,16 @@ write-host "Iniciando..."
 
 Start-Sleep -Seconds 3
 $appsinstall_folder = appinstall_find_path
+Write-Host "Pendrive: '$appsinstall_folder'"
 
-#show_log_title "### Fix winget, forçando disponibilização de winget no contexto do sistema"
+show_log_title "### Fix winget, forçando disponibilização de winget no contexto do sistema"
 
-#try {
-#  Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe | write-host
-#}
-#catch { 
-#  write-host "????? falha ao executar Add-AppxPackage "
-#}
+try {
+  Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe | write-host
+}
+catch { 
+  write-host "????? falha ao executar Add-AppxPackage "
+}
 
 show_log_title "### Winget setup fix 1"
 
@@ -474,10 +475,43 @@ catch {
 
 write-host "Atual: $pwd"
 
-if ([string]::IsNullOrEmpty($Env:install_cru)) {
-  show_log_title "### Baixando imagens"
+#####
+#####
+##### WALLPAPPERS
+#####
+#####
 
-  $image_folder = "$image_folder\wallpappers"
+$wallpappers_path = ""
+
+if (-Not ([string]::IsNullOrEmpty($appsinstall_folder))) {
+  $wallpappers_path = (get-item $appsinstall_folder).Parent.FullName
+  $wallpappers_path = "$wallpappers_path\wallpappers\images"
+}
+
+$image_folder = "$image_folder\wallpappers"
+$img_count = 0
+
+if ((-Not ([string]::IsNullOrEmpty($wallpappers_path))) -And (Test-Path -Path "$wallpappers_path")) {
+  show_log_title "### Obtendo wallpappers do pendrive, se exitir..."
+
+  foreach ($ee in @('png', 'jpg')) {
+    Get-ChildItem -Path "$wallpappers_path" -Filter "*.$ee" -Recurse -File | ForEach-Object {
+      try {
+        $nome = $_.BaseName
+        Copy-Item $_ "$image_folder\$nome.$ee" -Force
+        $img_count++
+      }
+      catch {
+        # ignore
+      }
+    }
+  }
+
+  write-host "---> '$img_count' wallpapper(s) obdito(s) offline."
+}
+
+if (([string]::IsNullOrEmpty($Env:install_cru)) -And ($img_count -le 0)) {
+  show_log_title "### Obtendo wallpappers ONLINE..."    
 
   if (-Not (Test-Path -Path "$image_folder")) {  
     New-Item -Path "$image_folder" -Force -ItemType Directory
@@ -539,6 +573,7 @@ if ([string]::IsNullOrEmpty($Env:install_cru)) {
     }  
   }
 }
+
 
 ###
 isowin_winget_update
