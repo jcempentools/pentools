@@ -477,16 +477,24 @@ if ([string]::IsNullOrEmpty($Env:install_cru)) {
 
   if (Test-Path "$image_folder\download.lst") {
     $i = 0
+    $ext = "png"
     foreach ($line in Get-Content "$image_folder\download.lst") {
-      #$shaname = sha256 $line    
-      download_save "$line" "$image_folder\$i.png"
-      $shaname = (Get-FileHash "$image_folder\$i.png" -Algorithm SHA256).Hash    
+      #$destname = $i
+      $destname = sha256 $line    
+      download_save "$line" "$image_folder\$destname.$ext"
+      
+      #$shaname = (Get-FileHash "$image_folder\$i.$ext" -Algorithm SHA256).Hash    
 
-      if (Test-Path "$image_folder\$shaname.png") {
-        Remove-Item "$image_folder\$shaname.png"
-      }
+      #try {
+      #  if (Test-Path "$image_folder\$shaname.$ext") {
+      #    Remove-Item "$image_folder\$shaname.$ext" -Force
+      #  }
 
-      Move-Item -Path "$image_folder\$i.png" "$image_folder\$shaname.png" 
+      #  Move-Item -Path "$image_folder\$i.$ext" "$image_folder\$shaname.$ext" 
+      #}
+      #catch {      
+      #}
+
       $i++
     }  
   }
@@ -594,26 +602,26 @@ if ([string]::IsNullOrEmpty($Env:install_cru)) {
 
 show_log_title "### Desabilitando Hibernação."
 
-        try {
-          powercfg.exe /hibernate off
-        }
-        catch {
-          write-host "---> Falha ao desabilitar hibernação."
-        }
+try {
+  powercfg.exe /hibernate off
+}
+catch {
+  write-host "---> Falha ao desabilitar hibernação."
+}
 
-        write-host "CONCLUIDO"
+write-host "CONCLUIDO"
 
-        Write-Host "-------------------------------------------------" -BackgroundColor blue
-        Write-Host "                   REINICIANDO                   " -BackgroundColor blue
-        Write-Host "-------------------------------------------------" -BackgroundColor blue
+Write-Host "-------------------------------------------------" -BackgroundColor blue
+Write-Host "                   REINICIANDO                   " -BackgroundColor blue
+Write-Host "-------------------------------------------------" -BackgroundColor blue
 
-        try {
-          Stop-Transcript
-        }
-        catch {}
+try {
+  Stop-Transcript
+}
+catch {}
 
-        if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
-          if (-Not ($is_test)) {
-            Restart-Computer
-          }
-        }
+if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
+  if (-Not ($is_test)) {
+    Restart-Computer
+  }
+}
