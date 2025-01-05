@@ -1,0 +1,16 @@
+/System Volume Information/
+/System Volume Information
+*.iso
+*.sha256
+*.img
+*.wim
+*.zip
+*.7z
+*.msi
+*.exe
+*.log
+*.sha256
+*.casper-rw
+/CustomDrivers
+/Programs
+*.log

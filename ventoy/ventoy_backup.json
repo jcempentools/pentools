@@ -1,0 +1,185 @@
+{
+    "control":[
+        { "VTOY_DEFAULT_MENU_MODE": "1" },
+        { "VTOY_TREE_VIEW_MENU_STYLE": "1" },
+        { "VTOY_SECONDARY_BOOT_MENU": "0" },
+        { "VTOY_MENU_LANGUAGE": "pt_BR" },
+        { "VTOY_DEFAULT_SEARCH_ROOT": "/boot/ISOs" }
+    ],
+    "theme":{
+        "file": "/ventoy/themes/Ettery/theme.txt",
+        "gfxmode": "1280x960",
+        "fonts":[
+            "/ventoy/fonts/unicode.pf2"
+        ]
+    },
+    "menu_alias":[
+        {
+            "image": "/boot/ISOs/Windows/windows-HBCD_PE_x64.iso",
+            "alias": "Hiren's BootCD PE"
+        },
+        {
+            "image": "/boot/ISOs/ipxe.iso",
+            "alias": "Boot Network (ipxe)"
+        },
+        {
+            "dir": "/boot/ISOs/Linux",
+            "alias": "> Linux"
+        },
+        {
+            "dir": "/boot/ISOs/Utilitarios",
+            "alias": "> Utilitários"
+        },
+        {
+            "dir": "/boot/ISOs/Windows",
+            "alias": "> Windows"
+        },
+        {
+            "dir": "/boot/ISOs/Utilitarios/Disco",
+            "alias": "> HDs"
+        },
+        {
+            "dir": "/boot/ISOs/Utilitarios/Imagem",
+            "alias": "> Imagens"
+        },
+        {
+            "dir": "/boot/ISOs/Linux/LinuxMint",
+            "alias": "> LinuxMint"
+        },
+        {
+            "dir": "/boot/ISOs/Linux/MiniOS",
+            "alias": "> MiniOS"
+        },
+        {
+            "dir": "/boot/ISOs/Windows/Instalações",
+            "alias": "> Instalações"
+        }
+    ],
+    "menu_tip":{
+        "color": "#ffffff"
+    },
+    "menu_class":[
+        {
+            "key": "Acronis",
+            "class": "Acronis"
+        },
+        {
+            "key": "win",
+            "class": "windows"
+        },
+        {
+            "key": "windows",
+            "class": "windows"
+        },
+        {
+            "dir": "/boot/ISOs/Windows",
+            "class": "windows"
+        },
+        {
+            "dir": "/boot/ISOs/Utilitarios/Imagem",
+            "class": "recovery"
+        },
+        {
+            "dir": "/boot/ISOs/Utilitarios",
+            "class": "maleta"
+        },
+        {
+            "key": "tails",
+            "class": "tails"
+        },
+        {
+            "key": "kali",
+            "class": "kali"
+        },
+        {
+            "key": "kodachi",
+            "class": "kodachi"
+        },
+        {
+            "key": "gparted",
+            "class": "gparted"
+        },
+        {
+            "key": "alpine",
+            "class": "alpine"
+        },
+        {
+            "key": "minios",
+            "class": "minios"
+        },
+        {
+            "key": "memtest",
+            "class": "ram"
+        },
+        {
+            "key": "AomeiBackupper",
+            "class": "AomeiBackupper"
+        },
+        {
+            "dir": "/boot/ISOs/Utilitarios/Disco",
+            "class": "disk"
+        },
+        {
+            "dir": "/boot/ISOs/Linux/MiniOS",
+            "class": "minios"
+        },
+        {
+            "key": "rescuezilla",
+            "class": "clonezilla"
+        },
+        {
+            "dir": "/boot/ISOs/Linux/LinuxMint",
+            "class": "linux-mint"
+        },
+        {
+            "key": "linuxmint",
+            "class": "linux-mint"
+        },
+        {
+            "key": "AomeiPartition",
+            "class": "aomeipartition"
+        },
+        {
+            "dir": "/boot/ISOs/Windows/Instalações",
+            "class": "install"
+        },
+        {
+            "key": "ipxe",
+            "class": "network"
+        },
+        {
+            "key": "kaspersky",
+            "class": "kaspersky"
+        },
+        {
+            "dir": "/boot/ISOs/Linux",
+            "class": "linux"
+        },
+        {
+            "key": "steamos",
+            "class": "steamos"
+        },
+        {
+            "key": "lakka",
+            "class": "lakka"
+        },
+        {
+            "key": "chromeos",
+            "class": "chromeos"
+        }
+    ],
+    "persistence":[
+        {
+            "image": "/boot/ISOs/Linux/MiniOS/minios-standard-3.3.3.iso",
+            "backend":[
+                "/boot/b4096.casper-rw"
+            ]
+        },
+        {
+            "image": "/boot/ISOs/Linux/LinuxMint/linuxmint-21.3-xfce.iso",
+            "backend":[
+                "/boot/b8192.casper-rw"
+            ]
+        }
+    ]
+}

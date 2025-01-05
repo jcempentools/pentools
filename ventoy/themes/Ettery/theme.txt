@@ -1,0 +1,78 @@
+# GRUB2 gfxmenu Ettery theme by Dacha204.
+# Version 1.1
+# Designed primary for 1920x1080 resolution
+# but should work for common resolution aswell (between 800x600 and 1600x1200).
+# Based on Zorin theme [code] and Vimix by vinceliuice [icons]
+# http://vinceliuice.deviantart.com/art/Grub-themes-vimix-0-1-532580485
+# Background image found on imgur.com
+
+# GLOBAL PROPERTY
+
+    title-text: ""
+#   title-font: "Gnu Unifont Mono Regular 16"
+#   title-color: "#FFFFFF"
+    
+#   message-font: "Gnu Unifont Mono Regular 16"
+#   message-color: "#FFFFFF"
+#   message-bg-color: "#00AAFF"
+    
+    desktop-image: "background.png"
+#   desktop-color: "#000204"
+    
+    terminal-box: "terminal_box_*.png"
+    terminal-font: "Gnu Unifont Mono Regular 16"
+    
+# BOOT MENU
+
++ boot_menu {
+		left = 5%
+		width = 80%
+		top = 10%
+		height = 75%
+		
+		item_font = "DejaVu Sans Bold 14"
+		item_color = "#FFFFFF"
+		item_height = 38
+#		item_padding = 3
+		item_spacing = 5
+		
+		item_icon_space = 8
+		icon_width = 32
+		icon_height = 32
+		
+		selected_item_font = "DejaVu Sans Bold 14"
+		selected_item_color = "#FFFFFF"
+		selected_item_pixmap_style = "select_*.png"
+		
+#		menu_pixmap_style = "menu_bkg_*.png"
+
+		scrollbar = true
+#       	scrollbar_width = 20
+#		scrollbar_thumb = "slider_*.png"
+}
+
+# INSTRUCTION IMAGE
++ image {
+		top = 100%-75
+		left = 4%
+		width = 640
+		height = 42
+		file = "info.png"
+}
+
+# PROGRESS BAR
++ progress_bar {
+		id = "__timeout__"
+		left = 5%
+		width = 640
+		top = 84%
+		height = 42
+		
+		fg_color = "#4a4a4a"
+		bg_color = "#303030"
+		border_color = #303030"
+		show_text = false
+#		text = "@TIMEOUT_NOTIFICATION_SHORT@"
+#		font = "DejaVu Sans Regular 12"
+#		text_color = "#aaaaaa"
+}
