@@ -13,12 +13,6 @@ $url_lockscreen = "https://raw.githubusercontent.com/jcempentools/pentools/refs/
 $url_defwallpapper = "https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/wallpappers/default.lst"
 $appsinstall_folder = "" # manter vazio
 
-Write-Host " "
-Write-Host " "
-Write-Host "Instação crua: '$Env:install_cru'"
-Write-Host " "
-Write-Host " "
-
 if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
   $image_folder = "C:\Users\${env:USERNAME}\Pictures"
 }
@@ -52,6 +46,13 @@ try {
   Start-Transcript -Append "$path_log\custom-install-$name_install_log.log"
 }
 catch {}
+
+Write-Host " "
+Write-Host " "
+Write-Host "Instação crua: '$Env:install_cru'"
+Write-Host " "
+Write-Host " "
+
 
 Write-Host "-------------------------------------------------" -BackgroundColor blue
 Write-Host "              Não Feche esta janela              " -BackgroundColor blue
@@ -481,7 +482,11 @@ if ([string]::IsNullOrEmpty($Env:install_cru)) {
       download_save "$line" "$image_folder\$i.png"
       $shaname = (Get-FileHash "$image_folder\$i.png" -Algorithm SHA256).Hash    
 
-      Move-Item -Force -Path "$image_folder\$i.png" "$image_folder\$shaname.png" 
+      if (Test-Path "$image_folder\$shaname.png") {
+        Remove-Item "$image_folder\$shaname.png"
+      }
+
+      Move-Item -Path "$image_folder\$i.png" "$image_folder\$shaname.png" 
       $i++
     }  
   }
