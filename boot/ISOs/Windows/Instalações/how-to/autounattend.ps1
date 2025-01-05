@@ -63,7 +63,7 @@ write-host "..."
 Start-Sleep -Seconds 3
 
 if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
-  if (-Not ($is_test)) {
+  if ([string]::IsNullOrEmpty($Env:autonome_test)) {  
     try {
       taskkill /F /IM explorer.exe
       taskkill /F /IM msedge.exe
@@ -293,8 +293,8 @@ function isowin_winget_install {
   "Log: $path_log_full"
 
   try {
-    write-host "& '$winget' install --id '$name_id' --verbose --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements | Out-File -FilePath '$path_log_full'"
-    & "$winget" install --id "$name_id" --verbose --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements | Out-File -FilePath "$path_log_full"    
+    write-host "& '$winget' install --scope machine --id '$name_id' --verbose --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements | Out-File -FilePath '$path_log_full'"
+    & "$winget" install --scope machine --id "$name_id" --verbose --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements | Out-File -FilePath "$path_log_full"    
 
     write-host "------> $name_id instalado."
   }
@@ -339,10 +339,9 @@ function isowin_winget_install {
 ####
 function appinstall_find_path() {    
   if (([string]::IsNullOrEmpty($appsinstall_folder)) -Or (-Not (Test-path $appsinstall_folder))) {    
-    try {
-      $Drives = Get-PSDrive -PSProvider 'FileSystem'
-
-      foreach ($Drive in $drives) {
+    try {      
+      foreach ($Drive in (Get-PSDrive -PSProvider 'FileSystem')) {
+        #foreach ($Drive in [System.IO.DriveInfo]::GetDrives())) {
         if (Test-Path -Path "${Drive}:\$pendrive_autonome_path") {
           $appsinstall_folder = "${Drive}:\$pendrive_autonome_path"
           break
@@ -621,7 +620,7 @@ try {
 catch {}
 
 if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
-  if (-Not ($is_test)) {
+  if ([string]::IsNullOrEmpty($Env:autonome_test)) {  
     Restart-Computer
   }
 }
