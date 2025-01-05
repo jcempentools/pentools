@@ -7,10 +7,10 @@ $pwsh_msi_path = "c:\pwsh_install.msi"
 $pendrive_autonome_path = "boot\Autonome-install\windows"
 $image_folder = "C:\Users\Default\Pictures"
 $pendrive_script_name = "run.ps1"
-$url_wallpappers_lst = "https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/wallpappers/wallpapper.lst"
-$url_apps_lst = "https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/windows/apps.lst"
-$url_lockscreen = "https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/wallpappers/lockscreen.lst"
-$url_defwallpapper = "https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/wallpappers/default.lst"
+$url_wallpappers_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/wallpappers/wallpapper.lst"
+$url_apps_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/windows/apps.lst"
+$url_lockscreen = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/wallpappers/lockscreen.lst"
+$url_defwallpapper = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/wallpappers/default.lst"
 $appsinstall_folder = "" # manter vazio
 
 if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
@@ -121,6 +121,12 @@ function download_save() {
     return ""
   }
 
+  $url = $url.trim()
+
+  if ($url -notmatch '^http.+') {
+    $url = "https://$url"
+  }
+
   if (-Not (Test-Path "$dest")) {
     write-host "--->Baixando URL..."
     write-host "Invoke-WebRequest '$url' -OutFile '$dest'"
@@ -171,7 +177,7 @@ function isowin_install_pwsh7 {
   }
 
   try {
-    download_save "https://github.com/PowerShell/PowerShell/releases/download/v7.4.6/PowerShell-7.4.6-win-x64.msi" "$pwsh_msi_path"    
+    download_save "github.com/PowerShell/PowerShell/releases/download/v7.4.6/PowerShell-7.4.6-win-x64.msi" "$pwsh_msi_path"    
 
     write-host "& msiexec.exe /package '$pwsh_msi_path' /quiet ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1 ADD_PATH=1 | write-host"
     & msiexec.exe /package "$pwsh_msi_path" /quiet ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1 ADD_PATH=1 | write-host  
