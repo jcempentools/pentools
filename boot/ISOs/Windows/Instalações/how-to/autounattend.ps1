@@ -104,7 +104,7 @@ function sha256 {
 
   $hashString = [System.BitConverter]::ToString($hash)
   $hashString.Replace('-', '')  
-  write-host $hashString
+  return $hashString
 }
 
 ####
