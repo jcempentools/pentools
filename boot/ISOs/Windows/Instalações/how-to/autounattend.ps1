@@ -440,42 +440,44 @@ catch {
 
 write-host "Atual: $pwd"
 
-show_log_title "### Baixando imagens"
+if ([string]::IsNullOrEmpty($Env:install_cru)) {
+  show_log_title "### Baixando imagens"
 
-$image_folder = "$image_folder\wallpappers"
+  $image_folder = "$image_folder\wallpappers"
 
-if (-Not (Test-Path -Path "$image_folder")) {  
-  New-Item -Path "$image_folder" -Force -ItemType Directory
-}
+  if (-Not (Test-Path -Path "$image_folder")) {  
+    New-Item -Path "$image_folder" -Force -ItemType Directory
+  }
 
-write-host "download_save '$url_wallpappers_lst' '$image_folder\download.lst'"
-download_save "$url_wallpappers_lst" "$image_folder\download.lst"    
+  write-host "download_save '$url_wallpappers_lst' '$image_folder\download.lst'"
+  download_save "$url_wallpappers_lst" "$image_folder\download.lst"    
 
-if (Test-Path "$image_folder\download.lst") {
-  $i = 0
-  foreach ($line in Get-Content "$image_folder\download.lst") {
-    #$shaname = sha256 $line    
-    download_save "$line" "$image_folder\$i.jpg"
-    $shaname = (Get-FileHash "$image_folder\$i.jpg" -Algorithm SHA256).Hash    
-    Move-Item -Path "$image_folder\$i.jpg" "$image_folder\$shaname.jpg"
-    $i++
-  }  
-}
+  if (Test-Path "$image_folder\download.lst") {
+    $i = 0
+    foreach ($line in Get-Content "$image_folder\download.lst") {
+      #$shaname = sha256 $line    
+      download_save "$line" "$image_folder\$i.jpg"
+      $shaname = (Get-FileHash "$image_folder\$i.jpg" -Algorithm SHA256).Hash    
+      Move-Item -Path "$image_folder\$i.jpg" "$image_folder\$shaname.jpg"
+      $i++
+    }  
+  }
 
-show_log_title "### Definindo tela de bloqueio personalizada"
+  show_log_title "### Definindo tela de bloqueio personalizada"
 
-$regKey = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization'
-# create the key if it doesn't already exist
-if (!(Test-Path -Path $regKey)) {
-  $null = New-Item -Path $regKey
-}
+  $regKey = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization'
+  # create the key if it doesn't already exist
+  if (!(Test-Path -Path $regKey)) {
+    $null = New-Item -Path $regKey
+  }
 
-# now set the registry entry
-try {
-  Set-ItemProperty -Path $regKey -Name 'LockScreenImage' -value "$image_folder\5F3C1A878379373A9853DC58CC78D414212DFD6063F9E8F48832ED940502902B.jpg"
-}
-catch {
-  write-host "????? FALHA ao definir tela de bloqueio"
+  # now set the registry entry
+  try {
+    Set-ItemProperty -Path $regKey -Name 'LockScreenImage' -value "$image_folder\5F3C1A878379373A9853DC58CC78D414212DFD6063F9E8F48832ED940502902B.jpg"
+  }
+  catch {
+    write-host "????? FALHA ao definir tela de bloqueio"
+  }
 }
 
 ###
@@ -489,62 +491,65 @@ isowin_install_app "CodecGuide.K-LiteCodecPack.Mega"
 isowin_install_app "7zip.7zip"
 isowin_install_app "Microsoft.VisualStudioCode"
 
-show_log_title "Continuar padrão ou seguir 'apps.lst' do online/pendrive?"
+if ([string]::IsNullOrEmpty($Env:install_cru)) {
 
-$apps_lst = ""
+  show_log_title "Continuar padrão ou seguir 'apps.lst' do online/pendrive?"
 
-# verifica se tem lista de apps no pendrive
-if (Test-Path "$appsinstall_folder\apps.lst") {
-  $apps_lst = "$appsinstall_folder\apps.lst"
-}
-elseif (Test-Path "$appsinstall_folder\apps\apps.lst") {
-  $apps_lst = "$appsinstall_folder\apps\apps.lst"
-}
+  $apps_lst = ""
 
-if (-Not ([string]::IsNullOrEmpty($apps_lst))) {
-  Write-Host "---> usando 'apps.lst do pendrive'..."
-
-  foreach ($line in Get-Content "$appsinstall_folder\apps.lst") {
-    isowin_install_app $line
+  # verifica se tem lista de apps no pendrive
+  if (Test-Path "$appsinstall_folder\apps.lst") {
+    $apps_lst = "$appsinstall_folder\apps.lst"
   }
-}
-else {
-  Write-Host "---> Obtendo lista online..."  
-  $apps_f = "$path_log\apps-download.lst"
-  download_save "$url_apps_lst" "$apps_f"
+  elseif (Test-Path "$appsinstall_folder\apps\apps.lst") {
+    $apps_lst = "$appsinstall_folder\apps\apps.lst"
+  }
 
-  if (Test-Path "$apps_f") {
-    Write-Host "---> Lista de apps online encontrato, usando..."
+  if (-Not ([string]::IsNullOrEmpty($apps_lst))) {
+    Write-Host "---> usando 'apps.lst do pendrive'..."
 
-    foreach ($line in Get-Content "$apps_f") {
+    foreach ($line in Get-Content "$appsinstall_folder\apps.lst") {
       isowin_install_app $line
-    }    
+    }
   }
   else {
-    Write-Host "---> Lista de apps online inexistente, usando o padrao..."  
+    Write-Host "---> Obtendo lista online..."  
+    $apps_f = "$path_log\apps-download.lst"
+    download_save "$url_apps_lst" "$apps_f"
 
-    isowin_install_app "VideoLAN.VLC"  
-    isowin_install_app "Google.Chrome"
-    isowin_install_app "Brave.Brave"
-    isowin_install_app "SumatraPDF.SumatraPDF"
-    isowin_install_app "PDFsam.PDFsam"
-    isowin_install_app "QL-Win.QuickLook"
-    isowin_install_app "Piriform.Defraggler"
-    isowin_install_app "CrystalDewWorld.CrystalDiskInfo"
-    isowin_install_app "qBittorrent.qBittorrent"
-    isowin_install_app "TheDocumentFoundation.LibreOffice"
+    if (Test-Path "$apps_f") {
+      Write-Host "---> Lista de apps online encontrato, usando..."
+
+      foreach ($line in Get-Content "$apps_f") {
+        isowin_install_app $line
+      }    
+    }
+    else {
+      Write-Host "---> Lista de apps online inexistente, usando o padrao..."  
+
+      isowin_install_app "VideoLAN.VLC"  
+      isowin_install_app "Google.Chrome"
+      isowin_install_app "Brave.Brave"
+      isowin_install_app "SumatraPDF.SumatraPDF"
+      isowin_install_app "PDFsam.PDFsam"
+      isowin_install_app "QL-Win.QuickLook"
+      isowin_install_app "Piriform.Defraggler"
+      isowin_install_app "CrystalDewWorld.CrystalDiskInfo"
+      isowin_install_app "qBittorrent.qBittorrent"
+      isowin_install_app "TheDocumentFoundation.LibreOffice"
+    }
   }
-}
 
-show_log_title "Executar script offline do pendrive '$pendrive_script_name'?"
+  show_log_title "Executar script offline do pendrive '$pendrive_script_name'?"
 
-# tenta executar o scrip localizado no pendrive
-if (Test-Path "$appsinstall_folder\$pendrive_script_name") {
-  Write-Host "---> Sim, executando..."
-  & pwsh.exe -NoProfile -Command "Get-Content -LiteralPath '$appsinstall_folder\$pendrive_script_name' -Raw | Invoke-Expression; " | write-host  
-}
-else {
-  write-host '---> Não, não localizado.'
+  # tenta executar o scrip localizado no pendrive
+  if (Test-Path "$appsinstall_folder\$pendrive_script_name") {
+    Write-Host "---> Sim, executando..."
+    & pwsh.exe -NoProfile -Command "Get-Content -LiteralPath '$appsinstall_folder\$pendrive_script_name' -Raw | Invoke-Expression; " | write-host  
+  }
+  else {
+    write-host '---> Não, não localizado.'
+  }
 }
 
 show_log_title "### Desabilitando Hibernação."
