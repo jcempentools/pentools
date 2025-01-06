@@ -25,7 +25,7 @@ try {
   Set-ExecutionPolicy -ExecutionPolicy Bypass -Force
 }
 catch { 
-  write-host "????? falha ao setar política de execuçao."
+  show_error " falha ao setar política de execuçao."
 }
 
 if (-Not (Test-Path -Path "$path_log\")) {
@@ -69,15 +69,11 @@ if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
       taskkill /F /IM explorer.exe
       taskkill /F /IM msedge.exe
     }
-    catch { 
-      write-host "."
-      write-host "-> falha ao encerar explorer.exe / msedge.exe"
+    catch {       
+      show_log "falha ao encerar explorer.exe / msedge.exe"
     }
   }
 }
-
-Start-Sleep -Seconds 3
-
 
 #######################################################
 #######################################################
@@ -96,10 +92,67 @@ function show_log_title {
     [string]$str_menssagem
   )    
 
-  write-host "."    
-  write-host "."
-  write-host "$str_menssagem"
+  write-host " "    
+  write-host " "    
+  write-host "################################################"      
+  write-host "#### $str_menssagem"  
+  write-host "################################################"    
+  write-host " "    
+  write-host " "  
 }
+
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function show_error {
+  param(
+    [string]$str_menssagem
+  ) 
+
+  Write-Host "???? $str_menssagem"
+}
+
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function show_log {
+  param(
+    [string]$str_menssagem
+  ) 
+
+  Write-Host "---> $str_menssagem"
+}
+
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function show_cmd {
+  param(
+    [string]$str_menssagem
+  ) 
+
+  Write-Host " "
+  Write-Host "---------------------------------------------"
+  Write-Host "$str_menssagem"
+  Write-Host "---------------------------------------------"
+}
+
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function show_warn {
+  param(
+    [string]$str_menssagem
+  ) 
+
+  Write-Host "!!!! $str_menssagem"
+} 
+
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function show_nota {
+  param(
+    [string]$str_menssagem
+  ) 
+
+  Write-Host ":::: $str_menssagem"
+} 
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -125,7 +178,7 @@ function download_save() {
   )  
   
   if ([string]::IsNullOrEmpty($url)) {      
-    Write-Host "---> URL vazia '$url'."
+    show_log "URL vazia '$url'."
     return ""
   }
 
@@ -136,26 +189,26 @@ function download_save() {
   }
 
   if (-Not (Test-Path "$dest")) {
-    write-host "--->Baixando URL..."
-    write-host "Invoke-WebRequest '$url' -OutFile '$dest'"
+    show_log "Baixando URL..."
+    show_cmd "Invoke-WebRequest '$url' -OutFile '$dest'"
 
     try {
       Invoke-WebRequest "$url" -OutFile "$dest"
-      write-host "---> Pronto."
+      show_log "Pronto."
 
       if (Test-path "$dest") {
-        write-host "---> Baixado e salvo."
+        show_log "Baixado e salvo."
       }
       else {
-        write-host ":::: Baixado, mas NÃO foi salvo no destino."
+        show_warn " Baixado, mas NÃO foi salvo no destino."
       }
     }
     catch {
-      write-host "Falha ao baixar arquivo"
+      show_error " Falha ao baixar arquivo"
     }
   }
   else {
-    write-host "Arquivo já existente."
+    show_warn " Arquivo já existente."
   }
 }
 
@@ -177,7 +230,7 @@ function download_to_string() {
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function isowin_install_pwsh7 {
-  show_log_title "### Instalando powershell 7"
+  show_log_title "Instalando powershell 7"
 
   $x = Get-Command "pwsh" -errorAction SilentlyContinue
   if (-Not ([string]::IsNullOrEmpty($x))) {
@@ -187,7 +240,7 @@ function isowin_install_pwsh7 {
   try {
     download_save "github.com/PowerShell/PowerShell/releases/download/v7.4.6/PowerShell-7.4.6-win-x64.msi" "$pwsh_msi_path"    
 
-    write-host "& msiexec.exe /package '$pwsh_msi_path' /quiet ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1 ADD_PATH=1 | write-host"
+    show_cmd "& msiexec.exe /package '$pwsh_msi_path' /quiet ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1 ADD_PATH=1 | write-host"
     & msiexec.exe /package "$pwsh_msi_path" /quiet ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1 ADD_PATH=1 | write-host  
 
     Start-Sleep -Seconds 1
@@ -198,7 +251,7 @@ function isowin_install_pwsh7 {
     }
   }
   catch {
-    write-show_log_title "????? FALHA AO INSTALAR POWESHELL 7"
+    show_error " FALHA AO INSTALAR POWESHELL 7"
   }
 }
 
@@ -231,8 +284,10 @@ function fixWingetLocation {
     # Logs $(env:LOCALAPPDATA)\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\DiagOutputDir    
   }
   catch {
-    write-host "winget"
-    write-host "::: FALHA ao setar winget"
+    write-host " "
+    write-host "[fixWingetLocation]"
+    write-host "$winget"
+    show_error "FALHA ao setar winget"
   }
 
   return $winget
@@ -241,19 +296,19 @@ function fixWingetLocation {
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function isowin_winget_update {
-  show_log_title ">>> Atualizando winget..."
+  show_log_title "Atualizando winget..."
 
   $winget = fixWingetLocation
   
   try {
-    write-host "& '$winget' update --all | write-host"
+    show_cmd "& '$winget' update --all | write-host"
     & "$winget" update --all | write-host
 
-    write-host "------> winget atualizado!"
+    show_log "winget atualizado!"
   }
   catch {
     # Catch any error
-    show_log_title "winget: Falha ao atualizar winget, tentando com PWSH 7"
+    show_error "winget: Falha ao atualizar winget, tentando com PWSH 7"
     runInPWSH7 "pwsh -NoProfile -Command 'winget update --all"
   }
 }
@@ -270,7 +325,7 @@ function runInPWSH7() {
   switch ($PSVersionTable.PSVersion.Major) {
     ## 7 and (hopefully) later versions
     { $_ -ge 7 } {
-      Write-Host "---> já estávamos no PSWH 7"
+      show_log "já estávamos no PSWH 7"
       return 0
     } # PowerShell 7
 
@@ -280,26 +335,26 @@ function runInPWSH7() {
 
       try {          
         if (-Not ([string]::IsNullOrEmpty($nn))) {      
-          write-host "& pwsh -NoProfile -Command '$cmd_'  | write-host"
+          show_cmd "& pwsh -NoProfile -Command '$cmd_'  | write-host"
           & pwsh -NoProfile -Command "$cmd_"  | write-host
         }
         else {
-          write-host "& pwsh -NoProfile -Command '$cmd_'  | Out-File -FilePath '$path_log_full'"
+          show_cmd "& pwsh -NoProfile -Command '$cmd_'  | Out-File -FilePath '$path_log_full'"
           & pwsh -NoProfile -Command "$cmd_"  | Out-File -FilePath "$path_log_full"
         }
 
-        write-host "------> $name_id supostamente executado corretamente."
+        show_nota "$name_id supostamente executado corretamente."
 
       }
       catch {
-        write-host "????? FALHA final ao instalar '$name_id'"
+        show_error " FALHA final ao instalar '$name_id'"
       }
 
     } # PowerShell 5
 
     default {
       ## If it's not 7 or later, and it's not 5, then we aren't doing it.
-      Write-Host "??? Unsupported PowerShell version [2]."
+      show_error " Unsupported PowerShell version [2]."
 
     } # default
   } # switch  
@@ -312,8 +367,8 @@ function isowin_winget_install {
     [string]$name_id
   )
 
-  show_log_title ">>> Winget: Instalando $name_id"
-  write-host "- Configurando Winget"
+  show_nota "Winget: Instalando $name_id"
+  show_log "Configurando Winget..."
 
   $winget = fixWingetLocation
   
@@ -327,9 +382,9 @@ function isowin_winget_install {
 
     while ($true) {
       if ( $winget | Test-Path) {
-        write-host "& '$winget' install --id '$name_id' --scope machine --verbose --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements | Out-File -FilePath '$path_log_full'"
+        show_cmd "& '$winget' install --id '$name_id' --scope machine --verbose --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements | Out-File -FilePath '$path_log_full'"
         & "$winget" install --id "$name_id" --verbose --scope machine --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements | Out-File -FilePath "$path_log_full"    
-        write-host "------> $name_id instalado."
+        show_log "$name_id instalado."
         return
       }
 
@@ -343,8 +398,7 @@ function isowin_winget_install {
   }
   catch {
     # Catch any error
-    write-host "Winget: Falha ao instalar '$name_id', tentando com PWSH 7"
-
+    show_error "Winget: Falha ao instalar '$name_id', tentando com PWSH 7"
     runInPWSH7 "$winget install --scope machine --id '$name_id' --verbose --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements" "$path_log_full"  
   }
 }
@@ -363,8 +417,9 @@ function appinstall_find_path() {
       }    
     }  
     catch {    
-      return ""
-      write-host '---> Falha ao localizar pasta de instalação offline'
+      write-host ""
+      show_nota 'Falha ao localizar pasta de instalação offline'
+      return ""      
     }
   }
 
@@ -414,29 +469,29 @@ function isowin_install_app {
       
   if (-Not ([string]::IsNullOrEmpty($nn))) {      
     $extencao = $nn.split(".")[-1]
-    Write-Host "- Arquivo offline '.$extencao' encontrado"
-    Write-Host "= '$nn'"
-    Write-Host "- Executando..."
+    show_log "Arquivo offline '.$extencao' encontrado"
+    show_log "File: '$nn'"
+    show_log "Executando..."
 
     try {
       if ("msi" -eq "$extencao") {        
-        write-host "& msiexec.exe /i '$nn' /qn -Wait /L*V '$path_log\apps\$name_id.log'"
+        show_cmd "& msiexec.exe /i '$nn' /qn -Wait /L*V '$path_log\apps\$name_id.log'"
         & msiexec.exe /i "$nn" /qn -Wait /L*V "$path_log\apps\$name_id.log"
       }
       elseif ("exe" -eq "$extencao") {
-        write-host "$ExecutionContext.InvokeCommand.ExpandString('$nn | Out-File -FilePath '$path_log_full')"
+        show_cmd "$ExecutionContext.InvokeCommand.ExpandString('$nn | Out-File -FilePath '$path_log_full')"
         $ExecutionContext.InvokeCommand.ExpandString("'$nn' | Out-File -FilePath '$path_log_full'")
       }        
     }
     catch {
-      write-host "??? Falha ao executar aquivo de instalação offline, tentando via winget... "
+      show_error " Falha ao executar aquivo de instalação offline, tentando via winget... "
       isowin_winget_install $name_id
     }
 
     return ""
   }  
   
-  write-host "- Arquivo de instalação offline inexistente, tentando via winget..."
+  show_nota "Arquivo de instalação offline inexistente, tentando via winget..."
 
   isowin_winget_install $name_id
 }
@@ -463,30 +518,28 @@ Write-Host "Pendrive?: '$appsinstall_folder'"
 #######################################################
 #######################################################
 
-show_log_title "### Fix winget, forçando disponibilização de winget no contexto do sistema"
+show_log_title "Fix winget, forçando disponibilização de winget no contexto do sistema"
 
 try {
   Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe | write-host
 }
 catch { 
-  write-host "????? falha ao executar Add-AppxPackage "
+  show_error " falha ao executar Add-AppxPackage "
 }
 
-show_log_title "### Winget setup fix 1"
+show_log_title "Winget setup fix 1"
 
 try {
   $ResolveWingetPath = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe"
   if ($ResolveWingetPath) {
     $WingetPath = $ResolveWingetPath[-1].Path
-  }
-
-  $config
+  }  
 
   Write-Host "-> $wingetpath"
   Set-Location "$wingetpath"
 }
 catch {
-  write-show_log_title "????? FALHA ao executar FIX 1"
+  show_error " FALHA ao executar FIX 1"
 }
 
 write-host "Atual: $pwd"
@@ -514,7 +567,7 @@ $image_folder = "$image_folder\wallpappers"
 $img_count = 0
 
 if ((-Not ([string]::IsNullOrEmpty($wallpappers_path))) -And (Test-Path -Path "$wallpappers_path")) {
-  show_log_title "### Obtendo wallpappers do pendrive, se exitir..."
+  show_nota " Obtendo wallpappers do pendrive, se exitir..."
 
   foreach ($ee in @('png', 'jpg')) {
     Get-ChildItem -Path "$wallpappers_path" -Filter "*.$ee" -Recurse -File | ForEach-Object {
@@ -529,17 +582,16 @@ if ((-Not ([string]::IsNullOrEmpty($wallpappers_path))) -And (Test-Path -Path "$
     }
   }
 
-  write-host "---> '$img_count' wallpapper(s) obdito(s) offline."
+  show_log "'$img_count' wallpapper(s) obdito(s) offline."
 }
 
 if (([string]::IsNullOrEmpty($Env:install_cru)) -And ($img_count -le 0)) {
-  show_log_title "### Obtendo wallpappers ONLINE..."    
+  show_nota " Obtendo wallpappers ONLINE..."    
 
   if (-Not (Test-Path -Path "$image_folder")) {  
     New-Item -Path "$image_folder" -Force -ItemType Directory
   }
-
-  write-host "download_save '$url_wallpappers_lst' '$image_folder\download.lst'"
+  
   download_save "$url_wallpappers_lst" "$image_folder\download.lst"    
 
   if (Test-Path "$image_folder\download.lst") {
@@ -567,7 +619,7 @@ if (([string]::IsNullOrEmpty($Env:install_cru)) -And ($img_count -le 0)) {
     }  
   }  
 
-  show_log_title "### Definindo tela de bloqueio personalizada"
+  show_log_title "Definindo tela de bloqueio personalizada"
   $regKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP'  
   # create the key if it doesn't already exist
   if (!(Test-Path -Path $regKey)) {
@@ -580,18 +632,18 @@ if (([string]::IsNullOrEmpty($Env:install_cru)) -And ($img_count -le 0)) {
     Set-ItemProperty -Path $Key -Name 'LockScreenImagePath' -value "$image_folder\$nome.jpg"
   }
   catch {
-    write-host "????? FALHA ao definir tela de bloqueio"
+    show_error " FALHA ao definir tela de bloqueio"
   }
 
   if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
-    show_log_title "### Definindo wallpapper"
+    show_log_title "Definindo wallpapper"
     # now set the registry entry
     try {    
       $nome = download_to_string($url_defwallpapper)
       Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WallPaper" -Value "$image_folder\$nome.jpg"
     }
     catch {
-      write-host "????? FALHA ao definir tela de bloqueio"
+      show_error " FALHA ao definir tela de bloqueio"
     }  
   }
 }
@@ -604,7 +656,7 @@ if (([string]::IsNullOrEmpty($Env:install_cru)) -And ($img_count -le 0)) {
 #######################################################
 #######################################################
 
-show_log_title "### Instalando APPs basiquissimos..."
+show_log_title "Instalando APPs basiquissimos"
 
 isowin_install_app "Oracle.JavaRuntimeEnvironment"
 isowin_install_app "Microsoft.DirectX"
@@ -612,9 +664,11 @@ isowin_install_app "CodecGuide.K-LiteCodecPack.Mega"
 isowin_install_app "7zip.7zip"
 isowin_install_app "Microsoft.VisualStudioCode"
 
+show_log_title "Instalando demais APPs"
+
 if ([string]::IsNullOrEmpty($Env:install_cru)) {
 
-  show_log_title "Continuar padrão ou seguir 'apps.lst' do online/pendrive?"
+  show_nota " Continuar padrão ou seguir 'apps.lst' do online/pendrive?"
 
   $apps_lst = ""
 
@@ -627,26 +681,26 @@ if ([string]::IsNullOrEmpty($Env:install_cru)) {
   }
 
   if (-Not ([string]::IsNullOrEmpty($apps_lst))) {
-    Write-Host "---> usando 'apps.lst do pendrive'..."
+    show_log "usando 'apps.lst do pendrive'..."
 
     foreach ($line in Get-Content "$appsinstall_folder\apps.lst") {
       isowin_install_app $line
     }
   }
   else {
-    Write-Host "---> Obtendo lista online..."  
+    show_log "Obtendo lista online..."  
     $apps_f = "$path_log\apps-download.lst"
     download_save "$url_apps_lst" "$apps_f"
 
     if (Test-Path "$apps_f") {
-      Write-Host "---> Lista de apps online encontrato, usando..."
+      show_log "Lista de apps online encontrato, usando..."
 
       foreach ($line in Get-Content "$apps_f") {
         isowin_install_app $line
       }    
     }
     else {
-      Write-Host "---> Lista de apps online inexistente, usando o padrao..."  
+      show_log "Lista de apps online inexistente, usando o padrao..."  
 
       isowin_install_app "Microsoft.PowerToys"
       isowin_install_app "VideoLAN.VLC"  
@@ -662,29 +716,31 @@ if ([string]::IsNullOrEmpty($Env:install_cru)) {
     }
   }
 
-  show_log_title "Executar script offline do pendrive '$pendrive_script_name'?"
+  show_nota " Executar script offline do pendrive '$pendrive_script_name'?"
 
   # tenta executar o scrip localizado no pendrive
   if (Test-Path "$appsinstall_folder\$pendrive_script_name") {
-    Write-Host "---> Sim, executando..."
+    show_log "Sim, executando..."
+    show_cmd "& pwsh.exe -NoProfile -Command 'Get-Content -LiteralPath '$appsinstall_folder\$pendrive_script_name' -Raw | Invoke-Expression; ' | write-host"
     & pwsh.exe -NoProfile -Command "Get-Content -LiteralPath '$appsinstall_folder\$pendrive_script_name' -Raw | Invoke-Expression; " | write-host  
   }
   else {
-    write-host '---> Não, não localizado.'
+    show_log 'Não, não localizado.'
   }
 }
 
-show_log_title "### Desabilitando Hibernação."
+show_log_title "Desabilitando Hibernação."
 
 try {
   powercfg.exe /hibernate off
 }
 catch {
-  write-host "---> Falha ao desabilitar hibernação."
+  show_log "Falha ao desabilitar hibernação."
 }
 
+write-host " "
 write-host "CONCLUIDO"
-
+write-host " "
 Write-Host "-------------------------------------------------" -BackgroundColor blue
 Write-Host "                   REINICIANDO                   " -BackgroundColor blue
 Write-Host "-------------------------------------------------" -BackgroundColor blue
