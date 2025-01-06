@@ -46,15 +46,17 @@ try {
   }
 
   $i = 0
-  for (; Test-Path "$path_log\auto-install-$name_install_log.$i.log"; $i++) {}
-  $name_install_log = "$name_install_log.$i"
+  $path_log = "$path_log\auto-install-$name_install_log"
+  while (Test-Path "$path_log.$i.log") {
+    $i = $i + 1
+  }  
 
-  Start-Transcript -Append "$path_log\custom-install-$name_install_log.log"
+  Start-Transcript -Append "$path_log.$i.log"
 }
 catch {}
 
 Write-Host "-------------------------------------------------" -BackgroundColor blue
-Write-Host "             Não Feche esta janela              "-BackgroundColor blue
+Write-Host "             Não Feche esta janela               " -BackgroundColor blue
 Write-Host "-------------------------------------------------" -BackgroundColor blue
 
 Write-Host ""
@@ -377,7 +379,7 @@ function isowin_winget_install {
   $winget = fixWingetLocation
   
   $i = 0
-  for (; Test-Path "$path_log\apps\$name_id.winget.$i.log"; $i++) {}
+  for (; Test-Path "$path_log\apps\$name_id.winget.$i.log"; $i = $i + 1) {}
   $path_log_full = "$path_log\apps\$name_id.winget.$i.log"
   show_log "Log: '$path_log_full'"
 
@@ -578,7 +580,7 @@ if ((-Not ([string]::IsNullOrEmpty($wallpappers_path))) -And (Test-Path -Path "$
       try {
         $nome = $_.BaseName
         Copy-Item $_ "$image_folder\$nome.$ee" -Force
-        $img_count++
+        $img_count = $img_count + 1
       }
       catch {
         # ignore
@@ -619,7 +621,7 @@ if (([string]::IsNullOrEmpty($Env:install_cru)) -And ($img_count -le 0)) {
       #catch {      
       #}
 
-      $i++
+      $i = $i + 1
     }  
   }  
 
