@@ -51,16 +51,13 @@ try {
 }
 catch {}
 
-Write-Host " "
-Write-Host " "
-Write-Host "Instação crua: '$Env:install_cru'"
-Write-Host " "
-Write-Host " "
-
-
 Write-Host "-------------------------------------------------" -BackgroundColor blue
 Write-Host "              Não Feche esta janela              " -BackgroundColor blue
 Write-Host "-------------------------------------------------" -BackgroundColor blue
+
+Write-Host " "
+Write-Host "Instação crua: '$Env:install_cru'"
+Write-Host " "
 
 write-host "..."
 
@@ -81,9 +78,19 @@ if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
 
 Start-Sleep -Seconds 3
 
-####
-####
-####
+
+#######################################################
+#######################################################
+#####
+##### FUNCOES
+#####
+#######################################################
+#######################################################
+
+
+
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function show_log_title {
   param(
     [string]$str_menssagem
@@ -94,9 +101,8 @@ function show_log_title {
   write-host "$str_menssagem"
 }
 
-####
-####
-####
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function sha256 {
   Param (
     [Parameter(Mandatory = $true)]
@@ -110,9 +116,8 @@ function sha256 {
   return $hashString.trim().Replace('-', '')  
 }
 
-####
-####
-####
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function download_save() {
   param(
     [string]$url,
@@ -154,7 +159,8 @@ function download_save() {
   }
 }
 
-
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function download_to_string() {
   param(
     [string]$url    
@@ -168,9 +174,8 @@ function download_to_string() {
   return $myString.trim()
 }
 
-####
-####
-####
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function isowin_install_pwsh7 {
   show_log_title "### Instalando powershell 7"
 
@@ -197,9 +202,8 @@ function isowin_install_pwsh7 {
   }
 }
 
-####
-####
-####
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function fixWingetLocation {
   $winget = $null
 
@@ -234,9 +238,8 @@ function fixWingetLocation {
   return $winget
 }
 
-####
-####
-####
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function isowin_winget_update {
   show_log_title ">>> Atualizando winget..."
 
@@ -256,7 +259,8 @@ function isowin_winget_update {
 }
 
 
-###
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function runInPWSH7() {
   param(
     [string]$cmd_,
@@ -301,9 +305,8 @@ function runInPWSH7() {
   } # switch  
 }
 
-####
-####
-####
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function isowin_winget_install {
   param(
     [string]$name_id
@@ -346,9 +349,8 @@ function isowin_winget_install {
   }
 }
 
-####
-####
-####
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function appinstall_find_path() {    
   if (([string]::IsNullOrEmpty($appsinstall_folder)) -Or (-Not (Test-path $appsinstall_folder))) {    
     try {      
@@ -369,9 +371,8 @@ function appinstall_find_path() {
   return $appsinstall_folder
 }
 
-####
-####
-####
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function findExeMsiOnFolders() {
   param(    
     [string]$name_id
@@ -400,9 +401,8 @@ function findExeMsiOnFolders() {
 }
 
 
-####
-####
-####
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function isowin_install_app {
   param(
     [string]$name_id
@@ -441,11 +441,27 @@ function isowin_install_app {
   isowin_winget_install $name_id
 }
 
+#######################################################
+#######################################################
+#####
+##### INICIO
+#####
+#######################################################
+#######################################################
+
 write-host "Iniciando..."
 
 Start-Sleep -Seconds 3
 $appsinstall_folder = appinstall_find_path
-Write-Host "Pendrive: '$appsinstall_folder'"
+Write-Host "Pendrive?: '$appsinstall_folder'"
+
+#######################################################
+#######################################################
+#####
+##### WINGET
+#####
+#######################################################
+#######################################################
 
 show_log_title "### Fix winget, forçando disponibilização de winget no contexto do sistema"
 
@@ -475,11 +491,17 @@ catch {
 
 write-host "Atual: $pwd"
 
-#####
+isowin_winget_update
+
+#######################################################
+#######################################################
 #####
 ##### WALLPAPPERS
 #####
-#####
+#######################################################
+#######################################################
+
+show_log_title "### Wallpappers"
 
 $wallpappers_path = ""
 
@@ -574,9 +596,13 @@ if (([string]::IsNullOrEmpty($Env:install_cru)) -And ($img_count -le 0)) {
   }
 }
 
-
-###
-isowin_winget_update
+#######################################################
+#######################################################
+#####
+##### INSTALAÇÕES
+#####
+#######################################################
+#######################################################
 
 show_log_title "### Instalando APPs basiquissimos..."
 
