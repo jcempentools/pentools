@@ -7,21 +7,25 @@ $pwsh_msi_path = "c:\pwsh_install.msi"
 $pendrive_autonome_path = "boot\Autonome-install\windows"
 $image_folder = "C:\Users\Default\Pictures"
 $pendrive_script_name = "run.ps1"
+$url_pwsh = "github.com/PowerShell/PowerShell/releases/download/v7.4.6/PowerShell-7.4.6-win-x64.msi"
 $url_wallpappers_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/wallpappers/wallpapper.lst"
 $url_apps_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/windows/apps.lst"
 $url_lockscreen = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/wallpappers/lockscreen.lst"
 $url_defwallpapper = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/wallpappers/default.lst"
 $appsinstall_folder = "" # manter vazio
+$winget_timeout = "" # manter vazio
 
 Write-Host " "
 
-$is_in_system_context = ($env:USERNAME -eq "$env:COMPUTERNAME")
+$in_system_context = ($env:USERNAME -eq "$env:COMPUTERNAME")
+
+Write-Host ":'$in_system_context'"
 
 if (-Not ([string]::IsNullOrEmpty($is_test))) {  
   $Env:autonome_test = "1"
 }
 
-if (-Not $is_in_system_context) {
+if ("$in_system_context" -eq "$False") {
   $image_folder = "C:\Users\${env:USERNAME}\Pictures"
 }
 
@@ -67,9 +71,9 @@ Write-Host ""
 
 write-host "..."
 
-Start-Sleep -Seconds 3
+Start-Sleep -Seconds 1
 
-if (-Not $is_in_system_context) {
+if ("$in_system_context" -eq "$False") {
   if ([string]::IsNullOrEmpty($Env:autonome_test)) {  
     try {
       taskkill /F /IM explorer.exe
@@ -237,34 +241,6 @@ function download_to_string() {
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-function isowin_install_pwsh7 {
-  show_log_title "Instalando powershell 7"
-
-  $x = Get-Command "pwsh" -errorAction SilentlyContinue
-  if (-Not ([string]::IsNullOrEmpty($x))) {
-    return ""
-  }
-
-  try {
-    download_save "github.com/PowerShell/PowerShell/releases/download/v7.4.6/PowerShell-7.4.6-win-x64.msi" "$pwsh_msi_path"    
-
-    show_cmd "& msiexec.exe /package '$pwsh_msi_path' /quiet ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1 ADD_PATH=1 | write-host"
-    & msiexec.exe /package "$pwsh_msi_path" /quiet ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1 ADD_PATH=1 | write-host  
-
-    Start-Sleep -Seconds 1
-
-    $x1 = Get-Command "pwsh" -errorAction SilentlyContinue
-    if (-Not ([string]::IsNullOrEmpty($x1))) {
-      Remove-Item "$pwsh_msi_path" -Force
-    }
-  }
-  catch {
-    show_error "FALHA AO INSTALAR POWESHELL 7"
-  }
-}
-
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function fixWingetLocation {
   $winget = $null
 
@@ -306,19 +282,7 @@ function fixWingetLocation {
 function isowin_winget_update {
   show_log_title "Atualizando winget..."
 
-  $winget = fixWingetLocation
-  
-  try {
-    show_cmd "& '$winget' update --all | write-host"
-    & "$winget" update --all | write-host
-
-    show_log "winget atualizado!"
-  }
-  catch {
-    # Catch any error
-    show_error "winget: Falha ao atualizar winget, tentando com PWSH 7"
-    runInPWSH7 "pwsh -NoProfile -Command 'winget update --all"
-  }
+  winget_run_command "update --all"
 }
 
 
@@ -326,36 +290,35 @@ function isowin_winget_update {
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function runInPWSH7() {
   param(
-    [string]$cmd_,
-    [string]$path_log_full
+    [string]$cmd_    
   )
 
   switch ($PSVersionTable.PSVersion.Major) {
     ## 7 and (hopefully) later versions
     { $_ -ge 7 } {
       show_log "já estávamos no PSWH 7"
-      return 0
+      return ""
     } # PowerShell 7
 
     ## 5, and only 5. We aren't interested in previous versions.
-    5 {
-      isowin_install_pwsh7
+    5 {      
+      $tmp = -join ((65..90) + (97..122) | Get-Random -Count 12 | ForEach-Object { [char]$_ })
+      $tmp = "c:\run_$tmp.ps1"
+      write-host "$cmd_" | Out-File -FilePath "$tmp"
 
-      try {          
-        if (-Not ([string]::IsNullOrEmpty($nn))) {      
-          show_cmd "& pwsh -NoProfile -Command '$cmd_'  | write-host"
-          & pwsh -NoProfile -Command "$cmd_"  | write-host
-        }
-        else {
-          show_cmd "& pwsh -NoProfile -Command '$cmd_'  | Out-File -FilePath '$path_log_full'"
-          & pwsh -NoProfile -Command "$cmd_"  | Out-File -FilePath "$path_log_full"
-        }
+      $command_ = "pwsh.exe -NoProfile -Command 'Get-Content -LiteralPath $tmp -Raw | Invoke-Expression;'"
 
-        show_nota "$name_id supostamente executado corretamente."
-
+      try {                  
+        show_cmd "$command_"
+        $ExecutionContext.InvokeCommand.ExpandString($command_) | write-host                
+  
+        show_nota "winget supostamente executado corretamente."
       }
       catch {
         show_error "FALHA final ao instalar '$name_id'"
+      }      
+      finally {
+        Remove-Item $tmp -Force
       }
 
     } # PowerShell 5
@@ -370,45 +333,69 @@ function runInPWSH7() {
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function run_command {
+  param(
+    [string]$command_
+  )
+
+  $id_ = -join ((65..90) + (97..122) | Get-Random -Count 7 | ForEach-Object { [char]$_ })
+
+  try {    
+    show_cmd "[$id_] $command_"
+    $ExecutionContext.InvokeCommand.ExpandString("$command_") | write-host        
+    show_log "Executado."    
+  }
+  catch {    
+    show_error "[$id_] Falha ao executar comando. Tentando com PWSH 7..."
+    runInPWSH7 "$command_"  
+  }    
+}  
+
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function winget_run_command {
+  param(
+    [string]$command_
+  )
+  
+  show_log "Configurando Winget..."
+  $winget = fixWingetLocation
+    
+  if ([string]::IsNullOrEmpty($winget_timeout)) {
+    $winget_timeout = [datetime]::Now.AddMinutes(5)
+  }    
+
+  while ($true) {
+    if ( $winget | Test-Path) {
+      run_command "$winget $command_"        
+      return "1"
+    }
+
+    if ( [datetime]::Now -gt $winget_timeout ) {
+      'Winget: File {0} indisponível ainda.' -f $winget | Write-Warning;
+      return "";
+    }            
+
+    Start-Sleep -Seconds 1;
+  }
+}
+
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function isowin_winget_install {
   param(
     [string]$name_id
   )
 
-  show_log "Winget: Instalando $name_id"
-  show_log "Configurando Winget..."
-
-  $winget = fixWingetLocation
+  show_log "Winget: Instalando $name_id"  
   
   $i = 0
   for (; Test-Path "$path_log\apps\$name_id.winget.$i.log"; $i = $i + 1) {}
   $path_log_full = "$path_log\apps\$name_id.winget.$i.log"
-  show_log "Log: '$path_log_full'"
+  show_log "Log: '$path_log_full'"  
 
-  try {
-    $timeout = [datetime]::Now.AddMinutes( 5 );    
-
-    while ($true) {
-      if ( $winget | Test-Path) {
-        show_cmd "& '$winget' install --id '$name_id' --scope machine --verbose --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements | Out-File -FilePath '$path_log_full'"
-        & "$winget" install --id "$name_id" --verbose --scope machine --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements | Out-File -FilePath "$path_log_full"    
-        show_log "$name_id instalado."
-        return
-      }
-
-      if ( [datetime]::Now -gt $timeout ) {
-        'Winget: File {0} does not exist.' -f $winget | Write-Warning;
-        return;
-      }            
-
-      Start-Sleep -Seconds 1;
-    }
-  }
-  catch {
-    # Catch any error
-    show_error "Winget: Falha ao instalar '$name_id', tentando com PWSH 7"
-    runInPWSH7 "$winget install --scope machine --id '$name_id' --verbose --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements" "$path_log_full"  
-  }
+  $defaut_parameters = '--verbose --scope machine --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements'
+  winget_run_command "install --id '$name_id' $defaut_parameters | Out-File -FilePath '$path_log_full'"
 }
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -481,20 +468,13 @@ function isowin_install_app {
     show_log "File: '$nn'"
     show_log "Executando..."
 
-    try {
-      if ("msi" -eq "$extencao") {        
-        show_cmd "& msiexec.exe /i '$nn' /qn -Wait /L*V '$path_log\apps\$name_id.log'"
-        & msiexec.exe /i "$nn" /qn -Wait /L*V "$path_log\apps\$name_id.log"
-      }
-      elseif ("exe" -eq "$extencao") {
-        show_cmd "$ExecutionContext.InvokeCommand.ExpandString('$nn | Out-File -FilePath '$path_log_full')"
-        $ExecutionContext.InvokeCommand.ExpandString("'$nn' | Out-File -FilePath '$path_log_full'")
-      }        
+    
+    if ("msi" -eq "$extencao") {
+      run_command "& msiexec.exe /i '$nn' /qn -Wait /L*V '$path_log\apps\$name_id.log'"
     }
-    catch {
-      show_error "Falha ao executar aquivo de instalação offline, tentando via winget... "
-      isowin_winget_install $name_id
-    }
+    elseif ("exe" -eq "$extencao") {
+      run_command "'$nn' | Out-File -FilePath '$path_log_full'"        
+    }            
 
     return ""
   }  
@@ -514,7 +494,7 @@ function isowin_install_app {
 
 write-host "Iniciando..."
 
-Start-Sleep -Seconds 3
+Start-Sleep -Seconds 1
 $appsinstall_folder = appinstall_find_path
 Write-Host "Pendrive?: '$appsinstall_folder'"
 
@@ -534,7 +514,37 @@ catch {
 #####
 #######################################################
 #######################################################
-if (-Not $is_in_system_context) {
+
+$x = Get-Command "pwsh" -errorAction SilentlyContinue
+if ([string]::IsNullOrEmpty($x)) {
+  show_log_title "Instalando powershell 7"
+
+  try {
+    download_save "$url_pwsh" "$pwsh_msi_path"    
+
+    show_cmd "& msiexec.exe /package '$pwsh_msi_path' /quiet ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1 ADD_PATH=1 | write-host"
+    & msiexec.exe /package "$pwsh_msi_path" /quiet ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1 ADD_PATH=1 | write-host  
+
+    Start-Sleep -Seconds 1
+
+    $x1 = Get-Command "pwsh" -errorAction SilentlyContinue
+    if (-Not ([string]::IsNullOrEmpty($x1))) {
+      Remove-Item "$pwsh_msi_path" -Force
+    }
+  }
+  catch {
+    show_error "FALHA AO INSTALAR POWESHELL 7"
+  }
+}
+
+#######################################################
+#######################################################
+#####
+##### WALLPAPPERS
+#####
+#######################################################
+#######################################################
+if ("$in_system_context" -eq "$False") {
   show_log_title "### Wallpappers"
 
   $wallpappers_path = ""
@@ -616,7 +626,7 @@ if (-Not $is_in_system_context) {
       show_error "FALHA ao definir tela de bloqueio."
     }
 
-    if (-Not $is_in_system_context) {
+    if ("$in_system_context" -eq "$False") {
       show_log_title "Definindo wallpapper"
       # now set the registry entry
       try {    
@@ -638,7 +648,7 @@ if (-Not $is_in_system_context) {
 #######################################################
 #######################################################
 
-if (-Not $is_in_system_context) {
+if ("$in_system_context" -eq "$False") {
   show_log_title "Fix winget, forçando disponibilização de winget no contexto do sistema"
 
   try {
@@ -676,7 +686,7 @@ if (-Not $is_in_system_context) {
 #######################################################
 #######################################################
 
-if (-Not $is_in_system_context) {
+if ("$in_system_context" -eq "$False") {
   show_log_title "Instalando APPs basiquissimos"
 
   isowin_install_app "Oracle.JavaRuntimeEnvironment"
@@ -742,8 +752,7 @@ if (-Not $is_in_system_context) {
     # tenta executar o scrip localizado no pendrive
     if (Test-Path "$appsinstall_folder\$pendrive_script_name") {
       show_log "Sim, executando..."
-      show_cmd "& pwsh.exe -NoProfile -Command 'Get-Content -LiteralPath '$appsinstall_folder\$pendrive_script_name' -Raw | Invoke-Expression; ' | write-host"
-      & pwsh.exe -NoProfile -Command "Get-Content -LiteralPath '$appsinstall_folder\$pendrive_script_name' -Raw | Invoke-Expression; " | write-host  
+      run_command "& pwsh.exe -NoProfile -Command 'Get-Content -LiteralPath '$appsinstall_folder\$pendrive_script_name' -Raw | Invoke-Expression; ' | write-host"      
     }
     else {
       show_log 'Não, não localizado.'
@@ -763,8 +772,9 @@ try {
 }
 catch {}
 
-if (-Not $is_in_system_context) {
+if ("$in_system_context" -eq "$False") {
   if ([string]::IsNullOrEmpty($Env:autonome_test)) {  
+    Start-Sleep -Seconds 1
     Restart-Computer
   }
 }
