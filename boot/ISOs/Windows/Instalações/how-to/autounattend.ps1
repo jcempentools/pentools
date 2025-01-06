@@ -15,11 +15,13 @@ $appsinstall_folder = "" # manter vazio
 
 Write-Host " "
 
+$is_in_system_context = ($env:USERNAME -eq "$env:COMPUTERNAME")
+
 if (-Not ([string]::IsNullOrEmpty($is_test))) {  
   $Env:autonome_test = "1"
 }
 
-if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
+if (-Not $is_in_system_context) {
   $image_folder = "C:\Users\${env:USERNAME}\Pictures"
 }
 
@@ -67,7 +69,7 @@ write-host "..."
 
 Start-Sleep -Seconds 3
 
-if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
+if (-Not $is_in_system_context) {
   if ([string]::IsNullOrEmpty($Env:autonome_test)) {  
     try {
       taskkill /F /IM explorer.exe
@@ -516,41 +518,14 @@ Start-Sleep -Seconds 3
 $appsinstall_folder = appinstall_find_path
 Write-Host "Pendrive?: '$appsinstall_folder'"
 
-#######################################################
-#######################################################
-#####
-##### WINGET
-#####
-#######################################################
-#######################################################
-
-show_log_title "Fix winget, forçando disponibilização de winget no contexto do sistema"
+show_log_title "Desabilitando Hibernação."
 
 try {
-  Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe | write-host
-}
-catch { 
-  show_error "falha ao executar Add-AppxPackage "
-}
-
-show_log_title "Winget setup fix 1"
-
-try {
-  $ResolveWingetPath = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe"
-  if ($ResolveWingetPath) {
-    $WingetPath = $ResolveWingetPath[-1].Path
-  }  
-
-  Write-Host "-> winget: '$wingetpath'"
-  Set-Location "$wingetpath"
+  powercfg.exe /hibernate off
 }
 catch {
-  show_error "FALHA ao executar FIX 1"
+  show_log "Falha ao desabilitar hibernação."
 }
-
-write-host "Atual: $pwd"
-
-isowin_winget_update
 
 #######################################################
 #######################################################
@@ -559,99 +534,138 @@ isowin_winget_update
 #####
 #######################################################
 #######################################################
+if (-Not $is_in_system_context) {
+  show_log_title "### Wallpappers"
 
-show_log_title "### Wallpappers"
+  $wallpappers_path = ""
 
-$wallpappers_path = ""
+  if (-Not ([string]::IsNullOrEmpty($appsinstall_folder))) {
+    $wallpappers_path = (get-item $appsinstall_folder).Parent.FullName
+    $wallpappers_path = "$wallpappers_path\wallpappers\images"
+  }
 
-if (-Not ([string]::IsNullOrEmpty($appsinstall_folder))) {
-  $wallpappers_path = (get-item $appsinstall_folder).Parent.FullName
-  $wallpappers_path = "$wallpappers_path\wallpappers\images"
-}
+  $image_folder = "$image_folder\wallpappers"
+  $img_count = 0
 
-$image_folder = "$image_folder\wallpappers"
-$img_count = 0
+  if ((-Not ([string]::IsNullOrEmpty($wallpappers_path))) -And (Test-Path -Path "$wallpappers_path")) {
+    show_log "Obtendo wallpappers do pendrive, se exitir..."
 
-if ((-Not ([string]::IsNullOrEmpty($wallpappers_path))) -And (Test-Path -Path "$wallpappers_path")) {
-  show_log "Obtendo wallpappers do pendrive, se exitir..."
-
-  foreach ($ee in @('png', 'jpg')) {
-    Get-ChildItem -Path "$wallpappers_path" -Filter "*.$ee" -Recurse -File | ForEach-Object {
-      try {
-        $nome = $_.BaseName
-        Copy-Item $_ "$image_folder\$nome.$ee" -Force
-        $img_count = $img_count + 1
-      }
-      catch {
-        # ignore
+    foreach ($ee in @('png', 'jpg')) {
+      Get-ChildItem -Path "$wallpappers_path" -Filter "*.$ee" -Recurse -File | ForEach-Object {
+        try {
+          $nome = $_.BaseName
+          Copy-Item $_ "$image_folder\$nome.$ee" -Force
+          $img_count = $img_count + 1
+        }
+        catch {
+          # ignore
+        }
       }
     }
+
+    show_log "'$img_count' wallpapper(s) obdito(s) offline."
   }
 
-  show_log "'$img_count' wallpapper(s) obdito(s) offline."
-}
+  if (([string]::IsNullOrEmpty($Env:install_cru)) -And ($img_count -le 0)) {
+    show_log "Obtendo wallpappers ONLINE..."    
 
-if (([string]::IsNullOrEmpty($Env:install_cru)) -And ($img_count -le 0)) {
-  show_log "Obtendo wallpappers ONLINE..."    
-
-  if (-Not (Test-Path -Path "$image_folder")) {  
-    New-Item -Path "$image_folder" -Force -ItemType Directory
-  }
+    if (-Not (Test-Path -Path "$image_folder")) {  
+      New-Item -Path "$image_folder" -Force -ItemType Directory
+    }
   
-  download_save "$url_wallpappers_lst" "$image_folder\download.lst"    
+    download_save "$url_wallpappers_lst" "$image_folder\download.lst"    
 
-  if (Test-Path "$image_folder\download.lst") {
-    $i = 0
-    $ext = "png"
-    foreach ($line in Get-Content "$image_folder\download.lst") {
-      #$destname = $i
-      $destname = sha256($line)
-      #$destname = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($line))
-      download_save "$line" "$image_folder\$destname.$ext"
+    if (Test-Path "$image_folder\download.lst") {
+      $i = 0
+      $ext = "png"
+      foreach ($line in Get-Content "$image_folder\download.lst") {
+        #$destname = $i
+        $destname = sha256($line)
+        #$destname = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($line))
+        download_save "$line" "$image_folder\$destname.$ext"
       
-      #$shaname = (Get-FileHash "$image_folder\$i.$ext" -Algorithm SHA256).Hash    
+        #$shaname = (Get-FileHash "$image_folder\$i.$ext" -Algorithm SHA256).Hash    
 
-      #try {
-      #  if (Test-Path "$image_folder\$shaname.$ext") {
-      #    Remove-Item "$image_folder\$shaname.$ext" -Force
-      #  }
+        #try {
+        #  if (Test-Path "$image_folder\$shaname.$ext") {
+        #    Remove-Item "$image_folder\$shaname.$ext" -Force
+        #  }
 
-      #  Move-Item -Path "$image_folder\$i.$ext" "$image_folder\$shaname.$ext" 
-      #}
-      #catch {      
-      #}
+        #  Move-Item -Path "$image_folder\$i.$ext" "$image_folder\$shaname.$ext" 
+        #}
+        #catch {      
+        #}
 
-      $i = $i + 1
+        $i = $i + 1
+      }  
     }  
-  }  
 
-  show_log_title "Definindo tela de bloqueio personalizada"
-  $regKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP'  
-  # create the key if it doesn't already exist
-  if (!(Test-Path -Path $regKey)) {
-    $null = New-Item -Path $regKey
-  }
+    show_log_title "Definindo tela de bloqueio personalizada"
+    $regKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP'  
+    # create the key if it doesn't already exist
+    if (!(Test-Path -Path $regKey)) {
+      $null = New-Item -Path $regKey
+    }
 
-  # now set the registry entry
-  try {    
-    $nome = download_to_string($url_lockscreen)
-    Set-ItemProperty -Path $Key -Name 'LockScreenImagePath' -value "$image_folder\$nome.jpg"
-  }
-  catch {
-    show_error "FALHA ao definir tela de bloqueio."
-  }
-
-  if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
-    show_log_title "Definindo wallpapper"
     # now set the registry entry
     try {    
-      $nome = download_to_string($url_defwallpapper)
-      Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WallPaper" -Value "$image_folder\$nome.jpg"
+      $nome = download_to_string($url_lockscreen)
+      Set-ItemProperty -Path $Key -Name 'LockScreenImagePath' -value "$image_folder\$nome.jpg"
     }
     catch {
-      show_error "FALHA ao definir wallpapper."
-    }  
+      show_error "FALHA ao definir tela de bloqueio."
+    }
+
+    if (-Not $is_in_system_context) {
+      show_log_title "Definindo wallpapper"
+      # now set the registry entry
+      try {    
+        $nome = download_to_string($url_defwallpapper)
+        Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WallPaper" -Value "$image_folder\$nome.jpg"
+      }
+      catch {
+        show_error "FALHA ao definir wallpapper."
+      }  
+    }
   }
+}
+
+#######################################################
+#######################################################
+#####
+##### WINGET
+#####
+#######################################################
+#######################################################
+
+if (-Not $is_in_system_context) {
+  show_log_title "Fix winget, forçando disponibilização de winget no contexto do sistema"
+
+  try {
+    Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe | write-host
+  }
+  catch { 
+    show_error "Falha ao executar Add-AppxPackage "
+  }
+
+  show_log_title "Winget setup fix 1"
+
+  try {
+    $ResolveWingetPath = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe"
+    if ($ResolveWingetPath) {
+      $WingetPath = $ResolveWingetPath[-1].Path
+    }  
+
+    Write-Host "-> winget: '$wingetpath'"
+    Set-Location "$wingetpath"
+  }
+  catch {
+    show_error "FALHA ao executar FIX 1"
+  }
+
+  write-host "Atual: $pwd"
+
+  isowin_winget_update
 }
 
 #######################################################
@@ -662,86 +676,79 @@ if (([string]::IsNullOrEmpty($Env:install_cru)) -And ($img_count -le 0)) {
 #######################################################
 #######################################################
 
-show_log_title "Instalando APPs basiquissimos"
+if (-Not $is_in_system_context) {
+  show_log_title "Instalando APPs basiquissimos"
 
-isowin_install_app "Oracle.JavaRuntimeEnvironment"
-isowin_install_app "Microsoft.DirectX"
-isowin_install_app "CodecGuide.K-LiteCodecPack.Mega"
-isowin_install_app "7zip.7zip"
-isowin_install_app "Microsoft.VisualStudioCode"
+  isowin_install_app "Oracle.JavaRuntimeEnvironment"
+  isowin_install_app "Microsoft.DirectX"
+  isowin_install_app "CodecGuide.K-LiteCodecPack.Mega"
+  isowin_install_app "7zip.7zip"
+  isowin_install_app "Microsoft.VisualStudioCode"
 
-show_log_title "Instalando demais APPs"
+  show_log_title "Instalando demais APPs"
 
-if ([string]::IsNullOrEmpty($Env:install_cru)) {
+  if ([string]::IsNullOrEmpty($Env:install_cru)) {
 
-  show_log "Continuar padrão ou seguir 'apps.lst' do online/pendrive?"
+    show_log "Continuar padrão ou seguir 'apps.lst' do online/pendrive?"
 
-  $apps_lst = ""
+    $apps_lst = ""
 
-  # verifica se tem lista de apps no pendrive
-  if (Test-Path "$appsinstall_folder\apps.lst") {
-    $apps_lst = "$appsinstall_folder\apps.lst"
-  }
-  elseif (Test-Path "$appsinstall_folder\apps\apps.lst") {
-    $apps_lst = "$appsinstall_folder\apps\apps.lst"
-  }
-
-  if (-Not ([string]::IsNullOrEmpty($apps_lst))) {
-    show_log "usando 'apps.lst do pendrive'..."
-
-    foreach ($line in Get-Content "$appsinstall_folder\apps.lst") {
-      isowin_install_app $line
+    # verifica se tem lista de apps no pendrive
+    if (Test-Path "$appsinstall_folder\apps.lst") {
+      $apps_lst = "$appsinstall_folder\apps.lst"
     }
-  }
-  else {
-    show_log "Obtendo lista online..."  
-    $apps_f = "$path_log\apps-download.lst"
-    download_save "$url_apps_lst" "$apps_f"
+    elseif (Test-Path "$appsinstall_folder\apps\apps.lst") {
+      $apps_lst = "$appsinstall_folder\apps\apps.lst"
+    }
 
-    if (Test-Path "$apps_f") {
-      show_log "Lista de apps online encontrato, usando..."
+    if (-Not ([string]::IsNullOrEmpty($apps_lst))) {
+      show_log "usando 'apps.lst do pendrive'..."
 
-      foreach ($line in Get-Content "$apps_f") {
+      foreach ($line in Get-Content "$appsinstall_folder\apps.lst") {
         isowin_install_app $line
-      }    
+      }
     }
     else {
-      show_log "Lista de apps online inexistente, usando o padrao..."  
+      show_log "Obtendo lista online..."  
+      $apps_f = "$path_log\apps-download.lst"
+      download_save "$url_apps_lst" "$apps_f"
 
-      isowin_install_app "Microsoft.PowerToys"
-      isowin_install_app "VideoLAN.VLC"  
-      isowin_install_app "Google.Chrome"
-      isowin_install_app "Brave.Brave"
-      isowin_install_app "SumatraPDF.SumatraPDF"
-      isowin_install_app "PDFsam.PDFsam"
-      isowin_install_app "QL-Win.QuickLook"
-      isowin_install_app "Piriform.Defraggler"
-      isowin_install_app "CrystalDewWorld.CrystalDiskInfo"
-      isowin_install_app "qBittorrent.qBittorrent"
-      isowin_install_app "TheDocumentFoundation.LibreOffice"
+      if (Test-Path "$apps_f") {
+        show_log "Lista de apps online encontrato, usando..."
+
+        foreach ($line in Get-Content "$apps_f") {
+          isowin_install_app $line
+        }    
+      }
+      else {
+        show_log "Lista de apps online inexistente, usando o padrao..."  
+
+        isowin_install_app "Microsoft.PowerToys"
+        isowin_install_app "VideoLAN.VLC"  
+        isowin_install_app "Google.Chrome"
+        isowin_install_app "Brave.Brave"
+        isowin_install_app "SumatraPDF.SumatraPDF"
+        isowin_install_app "PDFsam.PDFsam"
+        isowin_install_app "QL-Win.QuickLook"
+        isowin_install_app "Piriform.Defraggler"
+        isowin_install_app "CrystalDewWorld.CrystalDiskInfo"
+        isowin_install_app "qBittorrent.qBittorrent"
+        isowin_install_app "TheDocumentFoundation.LibreOffice"
+      }
+    }
+
+    show_log "Executar script offline do pendrive '$pendrive_script_name'?"
+
+    # tenta executar o scrip localizado no pendrive
+    if (Test-Path "$appsinstall_folder\$pendrive_script_name") {
+      show_log "Sim, executando..."
+      show_cmd "& pwsh.exe -NoProfile -Command 'Get-Content -LiteralPath '$appsinstall_folder\$pendrive_script_name' -Raw | Invoke-Expression; ' | write-host"
+      & pwsh.exe -NoProfile -Command "Get-Content -LiteralPath '$appsinstall_folder\$pendrive_script_name' -Raw | Invoke-Expression; " | write-host  
+    }
+    else {
+      show_log 'Não, não localizado.'
     }
   }
-
-  show_log "Executar script offline do pendrive '$pendrive_script_name'?"
-
-  # tenta executar o scrip localizado no pendrive
-  if (Test-Path "$appsinstall_folder\$pendrive_script_name") {
-    show_log "Sim, executando..."
-    show_cmd "& pwsh.exe -NoProfile -Command 'Get-Content -LiteralPath '$appsinstall_folder\$pendrive_script_name' -Raw | Invoke-Expression; ' | write-host"
-    & pwsh.exe -NoProfile -Command "Get-Content -LiteralPath '$appsinstall_folder\$pendrive_script_name' -Raw | Invoke-Expression; " | write-host  
-  }
-  else {
-    show_log 'Não, não localizado.'
-  }
-}
-
-show_log_title "Desabilitando Hibernação."
-
-try {
-  powercfg.exe /hibernate off
-}
-catch {
-  show_log "Falha ao desabilitar hibernação."
 }
 
 write-host ""
@@ -756,8 +763,8 @@ try {
 }
 catch {}
 
-#if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
-#  if ([string]::IsNullOrEmpty($Env:autonome_test)) {  
-#    Restart-Computer
-#  }
-#}
+if (-Not $is_in_system_context) {
+  if ([string]::IsNullOrEmpty($Env:autonome_test)) {  
+    Restart-Computer
+  }
+}
