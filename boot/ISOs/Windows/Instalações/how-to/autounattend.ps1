@@ -52,12 +52,12 @@ try {
 catch {}
 
 Write-Host "-------------------------------------------------" -BackgroundColor blue
-Write-Host "              Não Feche esta janela              " -BackgroundColor blue
+Write-Host "             Não Feche esta janela              "-BackgroundColor blue
 Write-Host "-------------------------------------------------" -BackgroundColor blue
 
-Write-Host " "
+Write-Host ""
 Write-Host "Instação crua: '$Env:install_cru'"
-Write-Host " "
+Write-Host ""
 
 write-host "..."
 
@@ -92,13 +92,13 @@ function show_log_title {
     [string]$str_menssagem
   )    
 
-  write-host " "    
-  write-host " "    
-  write-host "################################################"      
-  write-host "#### $str_menssagem"  
-  write-host "################################################"    
-  write-host " "    
-  write-host " "  
+  write-host ""    
+  write-host ""    
+  write-host "################################################" -BackgroundColor DarkCyan
+  write-host "#### $str_menssagem" -BackgroundColor DarkCyan
+  write-host "################################################" -BackgroundColor DarkCyan
+  write-host ""    
+  write-host ""  
 }
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -108,7 +108,8 @@ function show_error {
     [string]$str_menssagem
   ) 
 
-  Write-Host "???? $str_menssagem"
+  Write-Host "[ERROR]:" -BackgroundColor Red
+  Write-Host "???? $str_menssagem" -BackgroundColor Red
 }
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -118,7 +119,7 @@ function show_log {
     [string]$str_menssagem
   ) 
 
-  Write-Host "---> $str_menssagem"
+  Write-Host "---> $str_menssagem" -BackgroundColor DarkGray
 }
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -128,9 +129,9 @@ function show_cmd {
     [string]$str_menssagem
   ) 
 
-  Write-Host " "
+  Write-Host ""
   Write-Host "---------------------------------------------"
-  Write-Host "$str_menssagem"
+  Write-Host "$str_menssagem" -BackgroundColor Cyan -ForegroundColor Black
   Write-Host "---------------------------------------------"
 }
 
@@ -141,7 +142,8 @@ function show_warn {
     [string]$str_menssagem
   ) 
 
-  Write-Host "!!!! $str_menssagem"
+  Write-Host "[WARN]: " -BackgroundColor Yellow -ForegroundColor Black
+  Write-Host "!!!! $str_menssagem" -BackgroundColor Yellow -ForegroundColor Black
 } 
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -151,7 +153,7 @@ function show_nota {
     [string]$str_menssagem
   ) 
 
-  Write-Host ":::: $str_menssagem"
+  Write-Host ":::: $str_menssagem" -BackgroundColor Gray -ForegroundColor Black
 } 
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -200,15 +202,15 @@ function download_save() {
         show_log "Baixado e salvo."
       }
       else {
-        show_warn " Baixado, mas NÃO foi salvo no destino."
+        show_warn "Baixado, mas NÃO foi salvo no destino."
       }
     }
     catch {
-      show_error " Falha ao baixar arquivo"
+      show_error "Falha ao baixar arquivo"
     }
   }
   else {
-    show_warn " Arquivo já existente."
+    show_log "Arquivo já existente '$dest'"
   }
 }
 
@@ -251,7 +253,7 @@ function isowin_install_pwsh7 {
     }
   }
   catch {
-    show_error " FALHA AO INSTALAR POWESHELL 7"
+    show_error "FALHA AO INSTALAR POWESHELL 7"
   }
 }
 
@@ -284,7 +286,7 @@ function fixWingetLocation {
     # Logs $(env:LOCALAPPDATA)\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\DiagOutputDir    
   }
   catch {
-    write-host " "
+    write-host ""
     write-host "[fixWingetLocation]"
     write-host "$winget"
     show_error "FALHA ao setar winget"
@@ -347,14 +349,14 @@ function runInPWSH7() {
 
       }
       catch {
-        show_error " FALHA final ao instalar '$name_id'"
+        show_error "FALHA final ao instalar '$name_id'"
       }
 
     } # PowerShell 5
 
     default {
       ## If it's not 7 or later, and it's not 5, then we aren't doing it.
-      show_error " Unsupported PowerShell version [2]."
+      show_error "Unsupported PowerShell version [2]."
 
     } # default
   } # switch  
@@ -367,7 +369,7 @@ function isowin_winget_install {
     [string]$name_id
   )
 
-  show_nota "Winget: Instalando $name_id"
+  show_log "Winget: Instalando $name_id"
   show_log "Configurando Winget..."
 
   $winget = fixWingetLocation
@@ -375,7 +377,7 @@ function isowin_winget_install {
   $i = 0
   for (; Test-Path "$path_log\apps\$name_id.winget.$i.log"; $i++) {}
   $path_log_full = "$path_log\apps\$name_id.winget.$i.log"
-  "Log: $path_log_full"
+  show_log "Log: '$path_log_full'"
 
   try {
     $timeout = [datetime]::Now.AddMinutes( 5 );    
@@ -484,7 +486,7 @@ function isowin_install_app {
       }        
     }
     catch {
-      show_error " Falha ao executar aquivo de instalação offline, tentando via winget... "
+      show_error "Falha ao executar aquivo de instalação offline, tentando via winget... "
       isowin_winget_install $name_id
     }
 
@@ -524,7 +526,7 @@ try {
   Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe | write-host
 }
 catch { 
-  show_error " falha ao executar Add-AppxPackage "
+  show_error "falha ao executar Add-AppxPackage "
 }
 
 show_log_title "Winget setup fix 1"
@@ -535,11 +537,11 @@ try {
     $WingetPath = $ResolveWingetPath[-1].Path
   }  
 
-  Write-Host "-> $wingetpath"
+  Write-Host "-> winget: '$wingetpath'"
   Set-Location "$wingetpath"
 }
 catch {
-  show_error " FALHA ao executar FIX 1"
+  show_error "FALHA ao executar FIX 1"
 }
 
 write-host "Atual: $pwd"
@@ -567,7 +569,7 @@ $image_folder = "$image_folder\wallpappers"
 $img_count = 0
 
 if ((-Not ([string]::IsNullOrEmpty($wallpappers_path))) -And (Test-Path -Path "$wallpappers_path")) {
-  show_nota " Obtendo wallpappers do pendrive, se exitir..."
+  show_log "Obtendo wallpappers do pendrive, se exitir..."
 
   foreach ($ee in @('png', 'jpg')) {
     Get-ChildItem -Path "$wallpappers_path" -Filter "*.$ee" -Recurse -File | ForEach-Object {
@@ -586,7 +588,7 @@ if ((-Not ([string]::IsNullOrEmpty($wallpappers_path))) -And (Test-Path -Path "$
 }
 
 if (([string]::IsNullOrEmpty($Env:install_cru)) -And ($img_count -le 0)) {
-  show_nota " Obtendo wallpappers ONLINE..."    
+  show_log "Obtendo wallpappers ONLINE..."    
 
   if (-Not (Test-Path -Path "$image_folder")) {  
     New-Item -Path "$image_folder" -Force -ItemType Directory
@@ -632,7 +634,7 @@ if (([string]::IsNullOrEmpty($Env:install_cru)) -And ($img_count -le 0)) {
     Set-ItemProperty -Path $Key -Name 'LockScreenImagePath' -value "$image_folder\$nome.jpg"
   }
   catch {
-    show_error " FALHA ao definir tela de bloqueio"
+    show_error "FALHA ao definir tela de bloqueio."
   }
 
   if (-Not ($env:USERNAME -eq "$env:COMPUTERNAME")) {
@@ -643,7 +645,7 @@ if (([string]::IsNullOrEmpty($Env:install_cru)) -And ($img_count -le 0)) {
       Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WallPaper" -Value "$image_folder\$nome.jpg"
     }
     catch {
-      show_error " FALHA ao definir tela de bloqueio"
+      show_error "FALHA ao definir wallpapper."
     }  
   }
 }
@@ -668,7 +670,7 @@ show_log_title "Instalando demais APPs"
 
 if ([string]::IsNullOrEmpty($Env:install_cru)) {
 
-  show_nota " Continuar padrão ou seguir 'apps.lst' do online/pendrive?"
+  show_log "Continuar padrão ou seguir 'apps.lst' do online/pendrive?"
 
   $apps_lst = ""
 
@@ -716,7 +718,7 @@ if ([string]::IsNullOrEmpty($Env:install_cru)) {
     }
   }
 
-  show_nota " Executar script offline do pendrive '$pendrive_script_name'?"
+  show_log "Executar script offline do pendrive '$pendrive_script_name'?"
 
   # tenta executar o scrip localizado no pendrive
   if (Test-Path "$appsinstall_folder\$pendrive_script_name") {
@@ -738,11 +740,11 @@ catch {
   show_log "Falha ao desabilitar hibernação."
 }
 
-write-host " "
+write-host ""
 write-host "CONCLUIDO"
-write-host " "
+write-host ""
 Write-Host "-------------------------------------------------" -BackgroundColor blue
-Write-Host "                   REINICIANDO                   " -BackgroundColor blue
+Write-Host "                  REINICIANDO                   "-BackgroundColor blue
 Write-Host "-------------------------------------------------" -BackgroundColor blue
 
 try {
