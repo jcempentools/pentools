@@ -1,5 +1,5 @@
 Param(
-  [string]$is_test    
+  [string]$is_test
 )
 
 $path_log = "c:\appinstall.log"
@@ -19,9 +19,7 @@ Write-Host " "
 
 $in_system_context = ($env:USERNAME -eq "$env:COMPUTERNAME")
 
-Write-Host ":'$in_system_context'"
-
-if (-Not ([string]::IsNullOrEmpty($is_test))) {  
+if (-Not ([string]::IsNullOrEmpty($is_test))) {
   $Env:autonome_test = "1"
 }
 
@@ -32,32 +30,32 @@ if ("$in_system_context" -eq "$False") {
 try {
   Set-ExecutionPolicy -ExecutionPolicy Bypass -Force
 }
-catch { 
+catch {
   write-host "[ERROR]: falha ao setar política de execuçao."
 }
 
 if (-Not (Test-Path -Path "$path_log\")) {
-  New-Item -Path "$path_log" -Force -ItemType Directory  
+  New-Item -Path "$path_log" -Force -ItemType Directory
 }
 
-if (-Not (Test-Path -Path "$path_log\apps")) {  
+if (-Not (Test-Path -Path "$path_log\apps")) {
   New-Item -Path "$path_log\apps\" -Force -ItemType Directory
 }
 
 try {
   $name_install_log = $env:USERNAME
-  
-  if ([string]::IsNullOrEmpty($name_install_log)) {  
+
+  if ([string]::IsNullOrEmpty($name_install_log)) {
     $name_install_log = ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name).Replace("\", "-")
   }
 
   $i = 0
-  $path_log = "$path_log\auto-install-$name_install_log"
-  while (Test-Path "$path_log.$i.log") {
+  $path_log_file = "$path_log\auto-install-$name_install_log"
+  while (Test-Path "$path_log_file.$i.log") {
     $i = $i + 1
-  }  
+  }
 
-  Start-Transcript -Append "$path_log.$i.log"
+  Start-Transcript -Append "$path_log_file.$i.log"
 }
 catch {}
 
@@ -74,12 +72,12 @@ write-host "..."
 Start-Sleep -Seconds 1
 
 if ("$in_system_context" -eq "$False") {
-  if ([string]::IsNullOrEmpty($Env:autonome_test)) {  
+  if ([string]::IsNullOrEmpty($Env:autonome_test)) {
     try {
       taskkill /F /IM explorer.exe
       taskkill /F /IM msedge.exe
     }
-    catch {       
+    catch {
       show_log "falha ao encerar explorer.exe / msedge.exe"
     }
   }
@@ -100,15 +98,15 @@ if ("$in_system_context" -eq "$False") {
 function show_log_title {
   param(
     [string]$str_menssagem
-  )    
+  )
 
-  write-host ""    
-  write-host ""    
+  write-host ""
+  write-host ""
   write-host "################################################" -BackgroundColor DarkCyan
   write-host "#### $str_menssagem" -BackgroundColor DarkCyan
   write-host "################################################" -BackgroundColor DarkCyan
-  write-host ""    
-  write-host ""  
+  write-host ""
+  write-host ""
 }
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -116,7 +114,7 @@ function show_log_title {
 function show_error {
   param(
     [string]$str_menssagem
-  ) 
+  )
 
   Write-Host "[ERROR]:" -BackgroundColor Red
   Write-Host "[ERROR]: $str_menssagem" -BackgroundColor Red
@@ -127,7 +125,7 @@ function show_error {
 function show_log {
   param(
     [string]$str_menssagem
-  ) 
+  )
 
   Write-Host "---> $str_menssagem" -BackgroundColor DarkGray
 }
@@ -137,7 +135,7 @@ function show_log {
 function show_cmd {
   param(
     [string]$str_menssagem
-  ) 
+  )
 
   Write-Host ""
   Write-Host "---------------------------------------------"
@@ -150,21 +148,21 @@ function show_cmd {
 function show_warn {
   param(
     [string]$str_menssagem
-  ) 
+  )
 
   Write-Host "[WARN] " -BackgroundColor Yellow -ForegroundColor Black
   Write-Host "[WARN]: $str_menssagem" -BackgroundColor Yellow -ForegroundColor Black
-} 
+}
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function show_nota {
   param(
     [string]$str_menssagem
-  ) 
+  )
 
   Write-Host "[NOTA]: $str_menssagem" -BackgroundColor Gray -ForegroundColor Black
-} 
+}
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -178,7 +176,7 @@ function sha256 {
   $hash = $hasher.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($ClearString))
 
   $hashString = [System.BitConverter]::ToString($hash)
-  return $hashString.trim().Replace('-', '')  
+  return $hashString.trim().Replace('-', '')
 }
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -187,9 +185,9 @@ function download_save() {
   param(
     [string]$url,
     [string]$dest
-  )  
-  
-  if ([string]::IsNullOrEmpty($url)) {      
+  )
+
+  if ([string]::IsNullOrEmpty($url)) {
     show_log "URL vazia '$url'."
     return ""
   }
@@ -228,7 +226,7 @@ function download_save() {
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function download_to_string() {
   param(
-    [string]$url    
+    [string]$url
   )
 
   $tmp = -join ((65..90) + (97..122) | Get-Random -Count 12 | ForEach-Object { [char]$_ })
@@ -244,28 +242,28 @@ function download_to_string() {
 function fixWingetLocation {
   $winget = $null
 
-  try {    
+  try {
     $DesktopAppInstaller = "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe"
     $SystemContext = Resolve-Path "$DesktopAppInstaller"
     if ($SystemContext) {
-      $SystemContext = $SystemContext[-1].Path 
+      $SystemContext = $SystemContext[-1].Path
     }
     $UserContext = Get-Command winget.exe -ErrorAction SilentlyContinue
     if ($UserContext) {
-      $winget = $UserContext.Source 
+      $winget = $UserContext.Source
     }
     elseif (Test-Path "$SystemContext\AppInstallerCLI.exe") {
       $winget = "$SystemContext\AppInstallerCLI.exe"
     }
     elseif (Test-Path "$SystemContext\winget.exe") {
-      $winget = "$SystemContext\winget.exe" 
+      $winget = "$SystemContext\winget.exe"
     }
-    else { 
+    else {
       $winget = "$env:LOCALAPPDATA\Microsoft\WindowsApps\winget.exe"
     }
 
     #if ($null -ne $winget) { "winget content: $winget" }
-    # Logs $(env:LOCALAPPDATA)\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\DiagOutputDir    
+    # Logs $(env:LOCALAPPDATA)\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\DiagOutputDir
   }
   catch {
     write-host ""
@@ -290,7 +288,7 @@ function isowin_winget_update {
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function runInPWSH7() {
   param(
-    [string]$cmd_    
+    [string]$cmd_
   )
 
   switch ($PSVersionTable.PSVersion.Major) {
@@ -301,22 +299,22 @@ function runInPWSH7() {
     } # PowerShell 7
 
     ## 5, and only 5. We aren't interested in previous versions.
-    5 {      
+    5 {
       $tmp = -join ((65..90) + (97..122) | Get-Random -Count 12 | ForEach-Object { [char]$_ })
       $tmp = "c:\run_$tmp.ps1"
       write-host "$cmd_" | Out-File -FilePath "$tmp"
 
       $command_ = "pwsh.exe -NoProfile -Command 'Get-Content -LiteralPath $tmp -Raw | Invoke-Expression;'"
 
-      try {                  
+      try {
         show_cmd "$command_"
-        $ExecutionContext.InvokeCommand.ExpandString($command_) | write-host                
-  
+        $ExecutionContext.InvokeCommand.ExpandString($command_)
+
         show_nota "winget supostamente executado corretamente."
       }
       catch {
         show_error "FALHA final ao instalar '$name_id'"
-      }      
+      }
       finally {
         Remove-Item $tmp -Force
       }
@@ -328,7 +326,7 @@ function runInPWSH7() {
       show_error "Unsupported PowerShell version [2]."
 
     } # default
-  } # switch  
+  } # switch
 }
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -340,16 +338,16 @@ function run_command {
 
   $id_ = -join ((65..90) + (97..122) | Get-Random -Count 7 | ForEach-Object { [char]$_ })
 
-  try {    
+  try {
     show_cmd "[$id_] $command_"
-    $ExecutionContext.InvokeCommand.ExpandString("$command_") | write-host        
-    show_log "Executado."    
+    $ExecutionContext.InvokeCommand.ExpandString("$command_")
+    show_log "[$id_] Executado."
   }
-  catch {    
+  catch {
     show_error "[$id_] Falha ao executar comando. Tentando com PWSH 7..."
-    runInPWSH7 "$command_"  
-  }    
-}  
+    runInPWSH7 "$command_"
+  }
+}
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -357,24 +355,24 @@ function winget_run_command {
   param(
     [string]$command_
   )
-  
+
   show_log "Configurando Winget..."
   $winget = fixWingetLocation
-    
+
   if ([string]::IsNullOrEmpty($winget_timeout)) {
     $winget_timeout = [datetime]::Now.AddMinutes(5)
-  }    
+  }
 
   while ($true) {
     if ( $winget | Test-Path) {
-      run_command "$winget $command_"        
-      return "1"
+      run_command "'$winget' $command_"
+      return ;
     }
 
     if ( [datetime]::Now -gt $winget_timeout ) {
       'Winget: File {0} indisponível ainda.' -f $winget | Write-Warning;
-      return "";
-    }            
+      return ;
+    }
 
     Start-Sleep -Seconds 1;
   }
@@ -387,12 +385,12 @@ function isowin_winget_install {
     [string]$name_id
   )
 
-  show_log "Winget: Instalando $name_id"  
-  
+  show_log "Winget: Instalando $name_id"
+
   $i = 0
   for (; Test-Path "$path_log\apps\$name_id.winget.$i.log"; $i = $i + 1) {}
   $path_log_full = "$path_log\apps\$name_id.winget.$i.log"
-  show_log "Log: '$path_log_full'"  
+  show_log "Log: '$path_log_full'"
 
   $defaut_parameters = '--verbose --scope machine --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements'
   winget_run_command "install --id '$name_id' $defaut_parameters | Out-File -FilePath '$path_log_full'"
@@ -400,21 +398,21 @@ function isowin_winget_install {
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-function appinstall_find_path() {    
-  if (([string]::IsNullOrEmpty($appsinstall_folder)) -Or (-Not (Test-path $appsinstall_folder))) {    
-    try {      
+function appinstall_find_path() {
+  if (([string]::IsNullOrEmpty($appsinstall_folder)) -Or (-Not (Test-path $appsinstall_folder))) {
+    try {
       foreach ($Drive in (Get-PSDrive -PSProvider 'FileSystem')) {
         #foreach ($Drive in [System.IO.DriveInfo]::GetDrives())) {
         if (Test-Path -Path "${Drive}:\$pendrive_autonome_path") {
           $appsinstall_folder = "${Drive}:\$pendrive_autonome_path"
           break
         }
-      }    
-    }  
-    catch {    
+      }
+    }
+    catch {
       write-host ""
       show_nota 'Falha ao localizar pasta de instalação offline'
-      return ""      
+      return ""
     }
   }
 
@@ -424,13 +422,13 @@ function appinstall_find_path() {
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function findExeMsiOnFolders() {
-  param(    
+  param(
     [string]$name_id
-  )    
+  )
 
   $path = appinstall_find_path
 
-  if ((-Not ([string]::IsNullOrEmpty($path))) -And (Test-path $path)) {    
+  if ((-Not ([string]::IsNullOrEmpty($path))) -And (Test-path $path)) {
     $name_id = $name_id.trim()
     $exts = @('exe', 'msi')
     $names = @($name_id, $name_id.split(".")[-1])
@@ -441,7 +439,7 @@ function findExeMsiOnFolders() {
         foreach ( $e in $exts) {
           if (Test-Path -Path "${path}\${f}${n}.$e") {
             return "${path}\${f}${n}.$e"
-          }        
+          }
         }
       }
     }
@@ -459,26 +457,26 @@ function isowin_install_app {
   )
 
   show_log_title "Instalando $name_id"
-  
+
   $nn = findExeMsiOnFolders($name_id)
-      
-  if (-Not ([string]::IsNullOrEmpty($nn))) {      
+
+  if (-Not ([string]::IsNullOrEmpty($nn))) {
     $extencao = $nn.split(".")[-1]
     show_log "Arquivo offline '.$extencao' encontrado"
     show_log "File: '$nn'"
     show_log "Executando..."
 
-    
+
     if ("msi" -eq "$extencao") {
       run_command "& msiexec.exe /i '$nn' /qn -Wait /L*V '$path_log\apps\$name_id.log'"
     }
     elseif ("exe" -eq "$extencao") {
-      run_command "'$nn' | Out-File -FilePath '$path_log_full'"        
-    }            
+      run_command "'$nn' | Out-File -FilePath '$path_log_full'"
+    }
 
     return ""
-  }  
-  
+  }
+
   show_nota "Arquivo de instalação offline inexistente, tentando via winget..."
 
   isowin_winget_install $name_id
@@ -520,10 +518,10 @@ if ([string]::IsNullOrEmpty($x)) {
   show_log_title "Instalando powershell 7"
 
   try {
-    download_save "$url_pwsh" "$pwsh_msi_path"    
+    download_save "$url_pwsh" "$pwsh_msi_path"
 
     show_cmd "& msiexec.exe /package '$pwsh_msi_path' /quiet ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1 ADD_PATH=1 | write-host"
-    & msiexec.exe /package "$pwsh_msi_path" /quiet ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1 ADD_PATH=1 | write-host  
+    & msiexec.exe /package "$pwsh_msi_path" /quiet ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1 ADD_PATH=1 | write-host
 
     Start-Sleep -Seconds 1
 
@@ -577,13 +575,13 @@ if ("$in_system_context" -eq "$False") {
   }
 
   if (([string]::IsNullOrEmpty($Env:install_cru)) -And ($img_count -le 0)) {
-    show_log "Obtendo wallpappers ONLINE..."    
+    show_log "Obtendo wallpappers ONLINE..."
 
-    if (-Not (Test-Path -Path "$image_folder")) {  
+    if (-Not (Test-Path -Path "$image_folder")) {
       New-Item -Path "$image_folder" -Force -ItemType Directory
     }
-  
-    download_save "$url_wallpappers_lst" "$image_folder\download.lst"    
+
+    download_save "$url_wallpappers_lst" "$image_folder\download.lst"
 
     if (Test-Path "$image_folder\download.lst") {
       $i = 0
@@ -593,32 +591,32 @@ if ("$in_system_context" -eq "$False") {
         $destname = sha256($line)
         #$destname = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($line))
         download_save "$line" "$image_folder\$destname.$ext"
-      
-        #$shaname = (Get-FileHash "$image_folder\$i.$ext" -Algorithm SHA256).Hash    
+
+        #$shaname = (Get-FileHash "$image_folder\$i.$ext" -Algorithm SHA256).Hash
 
         #try {
         #  if (Test-Path "$image_folder\$shaname.$ext") {
         #    Remove-Item "$image_folder\$shaname.$ext" -Force
         #  }
 
-        #  Move-Item -Path "$image_folder\$i.$ext" "$image_folder\$shaname.$ext" 
+        #  Move-Item -Path "$image_folder\$i.$ext" "$image_folder\$shaname.$ext"
         #}
-        #catch {      
+        #catch {
         #}
 
         $i = $i + 1
-      }  
-    }  
+      }
+    }
 
     show_log_title "Definindo tela de bloqueio personalizada"
-    $regKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP'  
+    $regKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP'
     # create the key if it doesn't already exist
     if (!(Test-Path -Path $regKey)) {
       $null = New-Item -Path $regKey
     }
 
     # now set the registry entry
-    try {    
+    try {
       $nome = download_to_string($url_lockscreen)
       Set-ItemProperty -Path $Key -Name 'LockScreenImagePath' -value "$image_folder\$nome.jpg"
     }
@@ -629,13 +627,13 @@ if ("$in_system_context" -eq "$False") {
     if ("$in_system_context" -eq "$False") {
       show_log_title "Definindo wallpapper"
       # now set the registry entry
-      try {    
+      try {
         $nome = download_to_string($url_defwallpapper)
         Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WallPaper" -Value "$image_folder\$nome.jpg"
       }
       catch {
         show_error "FALHA ao definir wallpapper."
-      }  
+      }
     }
   }
 }
@@ -654,7 +652,7 @@ if ("$in_system_context" -eq "$False") {
   try {
     Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe | write-host
   }
-  catch { 
+  catch {
     show_error "Falha ao executar Add-AppxPackage "
   }
 
@@ -664,7 +662,7 @@ if ("$in_system_context" -eq "$False") {
     $ResolveWingetPath = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe"
     if ($ResolveWingetPath) {
       $WingetPath = $ResolveWingetPath[-1].Path
-    }  
+    }
 
     Write-Host "-> winget: '$wingetpath'"
     Set-Location "$wingetpath"
@@ -719,7 +717,7 @@ if ("$in_system_context" -eq "$False") {
       }
     }
     else {
-      show_log "Obtendo lista online..."  
+      show_log "Obtendo lista online..."
       $apps_f = "$path_log\apps-download.lst"
       download_save "$url_apps_lst" "$apps_f"
 
@@ -728,13 +726,13 @@ if ("$in_system_context" -eq "$False") {
 
         foreach ($line in Get-Content "$apps_f") {
           isowin_install_app $line
-        }    
+        }
       }
       else {
-        show_log "Lista de apps online inexistente, usando o padrao..."  
+        show_log "Lista de apps online inexistente, usando o padrao..."
 
         isowin_install_app "Microsoft.PowerToys"
-        isowin_install_app "VideoLAN.VLC"  
+        isowin_install_app "VideoLAN.VLC"
         isowin_install_app "Google.Chrome"
         isowin_install_app "Brave.Brave"
         isowin_install_app "SumatraPDF.SumatraPDF"
@@ -752,7 +750,7 @@ if ("$in_system_context" -eq "$False") {
     # tenta executar o scrip localizado no pendrive
     if (Test-Path "$appsinstall_folder\$pendrive_script_name") {
       show_log "Sim, executando..."
-      run_command "& pwsh.exe -NoProfile -Command 'Get-Content -LiteralPath '$appsinstall_folder\$pendrive_script_name' -Raw | Invoke-Expression; ' | write-host"      
+      run_command "& pwsh.exe -NoProfile -Command 'Get-Content -LiteralPath '$appsinstall_folder\$pendrive_script_name' -Raw | Invoke-Expression; ' | write-host"
     }
     else {
       show_log 'Não, não localizado.'
@@ -773,7 +771,7 @@ try {
 catch {}
 
 if ("$in_system_context" -eq "$False") {
-  if ([string]::IsNullOrEmpty($Env:autonome_test)) {  
+  if ([string]::IsNullOrEmpty($Env:autonome_test)) {
     Start-Sleep -Seconds 1
     Restart-Computer
   }
