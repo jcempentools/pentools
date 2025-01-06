@@ -13,6 +13,8 @@ $url_lockscreen = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/ma
 $url_defwallpapper = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/wallpappers/default.lst"
 $appsinstall_folder = "" # manter vazio
 
+Write-Host " "
+
 if (-Not ([string]::IsNullOrEmpty($is_test))) {  
   $Env:autonome_test = "1"
 }
@@ -25,7 +27,7 @@ try {
   Set-ExecutionPolicy -ExecutionPolicy Bypass -Force
 }
 catch { 
-  write-host "???? falha ao setar política de execuçao."
+  write-host "[ERROR]: falha ao setar política de execuçao."
 }
 
 if (-Not (Test-Path -Path "$path_log\")) {
@@ -109,7 +111,7 @@ function show_error {
   ) 
 
   Write-Host "[ERROR]:" -BackgroundColor Red
-  Write-Host "???? $str_menssagem" -BackgroundColor Red
+  Write-Host "[ERROR]: $str_menssagem" -BackgroundColor Red
 }
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -142,8 +144,8 @@ function show_warn {
     [string]$str_menssagem
   ) 
 
-  Write-Host "[WARN]: " -BackgroundColor Yellow -ForegroundColor Black
-  Write-Host "!!!! $str_menssagem" -BackgroundColor Yellow -ForegroundColor Black
+  Write-Host "[WARN] " -BackgroundColor Yellow -ForegroundColor Black
+  Write-Host "[WARN]: $str_menssagem" -BackgroundColor Yellow -ForegroundColor Black
 } 
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -153,7 +155,7 @@ function show_nota {
     [string]$str_menssagem
   ) 
 
-  Write-Host ":::: $str_menssagem" -BackgroundColor Gray -ForegroundColor Black
+  Write-Host "[NOTA]: $str_menssagem" -BackgroundColor Gray -ForegroundColor Black
 } 
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
