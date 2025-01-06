@@ -280,7 +280,11 @@ function fixWingetLocation {
 function isowin_winget_update {
   show_log_title "Atualizando winget..."
 
-  winget_run_command "update --all"
+  $i = 0
+  for (; Test-Path "$path_log\apps\winget.update.$i.log"; $i = $i + 1) {}
+  $path_log_full = "$path_log\apps\winget.update.$i.log"
+
+  winget_run_command "upgrade --all | Out-File -FilePath '$path_log_full'"
 }
 
 
@@ -308,7 +312,7 @@ function runInPWSH7() {
 
       try {
         show_cmd "$command_"
-        $ExecutionContext.InvokeCommand.ExpandString($command_)
+        $command_ | Invoke-Expression
 
         show_nota "winget supostamente executado corretamente."
       }
@@ -339,8 +343,8 @@ function run_command {
   $id_ = -join ((65..90) + (97..122) | Get-Random -Count 7 | ForEach-Object { [char]$_ })
 
   try {
-    show_cmd "[$id_] $command_"
-    $ExecutionContext.InvokeCommand.ExpandString("$command_")
+    show_cmd "[$id_] $command_"    
+    "& $command_" | Invoke-Expression
     show_log "[$id_] Executado."
   }
   catch {
@@ -365,7 +369,7 @@ function winget_run_command {
 
   while ($true) {
     if ( $winget | Test-Path) {
-      run_command "'$winget' $command_"
+      run_command "$winget $command_"
       return ;
     }
 
@@ -382,7 +386,8 @@ function winget_run_command {
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function isowin_winget_install {
   param(
-    [string]$name_id
+    [string]$name_id,
+    [string]$override
   )
 
   show_log "Winget: Instalando $name_id"
@@ -392,7 +397,11 @@ function isowin_winget_install {
   $path_log_full = "$path_log\apps\$name_id.winget.$i.log"
   show_log "Log: '$path_log_full'"
 
-  $defaut_parameters = '--verbose --scope machine --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements'
+  if (-Not ([string]::IsNullOrEmpty($override))) {
+    $override = "--override `"$override`""
+  }  
+
+  $defaut_parameters = "--verbose --scope machine --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements $override"
   winget_run_command "install --id '$name_id' $defaut_parameters | Out-File -FilePath '$path_log_full'"
 }
 
@@ -453,7 +462,8 @@ function findExeMsiOnFolders() {
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function isowin_install_app {
   param(
-    [string]$name_id
+    [string]$name_id,
+    [string]$override
   )
 
   show_log_title "Instalando $name_id"
@@ -468,7 +478,10 @@ function isowin_install_app {
 
 
     if ("msi" -eq "$extencao") {
-      run_command "& msiexec.exe /i '$nn' /qn -Wait /L*V '$path_log\apps\$name_id.log'"
+      if ([string]::IsNullOrEmpty($override)) {
+        $override = ""
+      }
+      run_command "& msiexec.exe /i '$nn' /qn -Wait /L*V '$path_log\apps\$name_id.log' $override"
     }
     elseif ("exe" -eq "$extencao") {
       run_command "'$nn' | Out-File -FilePath '$path_log_full'"
@@ -479,7 +492,7 @@ function isowin_install_app {
 
   show_nota "Arquivo de instalação offline inexistente, tentando via winget..."
 
-  isowin_winget_install $name_id
+  isowin_winget_install $name_id $override
 }
 
 #######################################################
@@ -688,10 +701,11 @@ if ("$in_system_context" -eq "$False") {
   show_log_title "Instalando APPs basiquissimos"
 
   isowin_install_app "Oracle.JavaRuntimeEnvironment"
-  isowin_install_app "Microsoft.DirectX"
-  isowin_install_app "CodecGuide.K-LiteCodecPack.Mega"
+  isowin_install_app "Microsoft.DirectX"  
   isowin_install_app "7zip.7zip"
-  isowin_install_app "Microsoft.VisualStudioCode"
+  isowin_install_app "Microsoft.VisualStudioCode" '/SILENT /mergetasks="!runcode,addcontextmenufiles,addcontextmenufolders,addtopath,associatewithfiles,quicklaunchicon"'
+  isowin_install_app "Microsoft.PowerToys"
+  isowin_install_app "QL-Win.QuickLook"    
 
   show_log_title "Instalando demais APPs"
 
@@ -713,7 +727,7 @@ if ("$in_system_context" -eq "$False") {
       show_log "usando 'apps.lst do pendrive'..."
 
       foreach ($line in Get-Content "$appsinstall_folder\apps.lst") {
-        isowin_install_app $line
+        isowin_install_app $line.Trim()
       }
     }
     else {
@@ -725,19 +739,18 @@ if ("$in_system_context" -eq "$False") {
         show_log "Lista de apps online encontrato, usando..."
 
         foreach ($line in Get-Content "$apps_f") {
-          isowin_install_app $line
+          isowin_install_app $line.trim()
         }
       }
       else {
         show_log "Lista de apps online inexistente, usando o padrao..."
 
-        isowin_install_app "Microsoft.PowerToys"
+        isowin_install_app "CodecGuide.K-LiteCodecPack.Mega"  
         isowin_install_app "VideoLAN.VLC"
         isowin_install_app "Google.Chrome"
         isowin_install_app "Brave.Brave"
         isowin_install_app "SumatraPDF.SumatraPDF"
-        isowin_install_app "PDFsam.PDFsam"
-        isowin_install_app "QL-Win.QuickLook"
+        isowin_install_app "PDFsam.PDFsam"        
         isowin_install_app "Piriform.Defraggler"
         isowin_install_app "CrystalDewWorld.CrystalDiskInfo"
         isowin_install_app "qBittorrent.qBittorrent"
@@ -747,10 +760,10 @@ if ("$in_system_context" -eq "$False") {
 
     show_log "Executar script offline do pendrive '$pendrive_script_name'?"
 
-    # tenta executar o scrip localizado no pendrive
+    # tenta executar o script localizado no pendrive
     if (Test-Path "$appsinstall_folder\$pendrive_script_name") {
       show_log "Sim, executando..."
-      run_command "& pwsh.exe -NoProfile -Command 'Get-Content -LiteralPath '$appsinstall_folder\$pendrive_script_name' -Raw | Invoke-Expression; ' | write-host"
+      run_command "& powershell.exe -NoProfile -Command 'Get-Content -LiteralPath '$appsinstall_folder\$pendrive_script_name' -Raw | Invoke-Expression; ' | write-host"
     }
     else {
       show_log 'Não, não localizado.'
@@ -761,9 +774,8 @@ if ("$in_system_context" -eq "$False") {
 write-host ""
 write-host "CONCLUIDO"
 write-host ""
-Write-Host "-------------------------------------------------" -BackgroundColor blue
-Write-Host "                  REINICIANDO                   "-BackgroundColor blue
-Write-Host "-------------------------------------------------" -BackgroundColor blue
+
+show_log_title "Reiniciando..."
 
 try {
   Stop-Transcript
