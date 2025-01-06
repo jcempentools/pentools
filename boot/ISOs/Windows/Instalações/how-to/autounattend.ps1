@@ -25,7 +25,7 @@ try {
   Set-ExecutionPolicy -ExecutionPolicy Bypass -Force
 }
 catch { 
-  show_error " falha ao setar política de execuçao."
+  write-host "???? falha ao setar política de execuçao."
 }
 
 if (-Not (Test-Path -Path "$path_log\")) {
