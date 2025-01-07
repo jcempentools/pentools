@@ -8,10 +8,10 @@ $pendrive_autonome_path = "boot\Autonome-install\windows"
 $image_folder = "C:\Users\Default\Pictures"
 $pendrive_script_name = "run.ps1"
 $url_pwsh = "github.com/PowerShell/PowerShell/releases/download/v7.4.6/PowerShell-7.4.6-win-x64.msi"
-$url_wallpappers_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/wallpappers/wallpapper.lst"
+$url_WallPapers_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/WallPapers/WallPaper.lst"
 $url_apps_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/windows/apps.lst"
-$url_lockscreen = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/wallpappers/lockscreen.lst"
-$url_defwallpapper = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/wallpappers/default.lst"
+$url_lockscreen = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/WallPapers/lockscreen.lst"
+$url_defWallPaper = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/WallPapers/default.lst"
 $appsinstall_folder = "" # manter vazio
 $winget_timeout = "" # manter vazio
 
@@ -166,6 +166,22 @@ function show_nota {
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function setrgkey() {
+  Param(
+    [string]$regKey,
+    [string]$keyName,
+    [string]$value
+  )      
+  # create the key if it doesn't already exist
+  if (!(Test-Path -Path $regKey)) {
+    New-Item -Path $regKey
+  }
+          
+  Set-ItemProperty -Path $regKey -Name $keyName -value $value
+}
+
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function sha256 {
   Param (
     [Parameter(Mandatory = $true)]
@@ -230,7 +246,7 @@ function download_to_string() {
   )
 
   $tmp = -join ((65..90) + (97..122) | Get-Random -Count 12 | ForEach-Object { [char]$_ })
-  $tmpFile = "c:\$tmp.tmp"
+  $tmpFile = "$env:TEMP\$tmp.tmp"
   Invoke-WebRequest $url -OutFile $tmpFile
   $myString = Get-Content $tmpFile
   Remove-Item $tmpFile
@@ -521,7 +537,7 @@ catch {
 #######################################################
 #######################################################
 #####
-##### WALLPAPPERS
+##### WallPaperS
 #####
 #######################################################
 #######################################################
@@ -551,28 +567,28 @@ if ([string]::IsNullOrEmpty($x)) {
 #######################################################
 #######################################################
 #####
-##### WALLPAPPERS
+##### WallPaperS
 #####
 #######################################################
 #######################################################
 if ("$in_system_context" -eq "$False") {
-  show_log_title "### Wallpappers"
+  show_log_title "### WallPapers"
 
-  $wallpappers_path = ""
+  $WallPapers_path = ""
 
   if (-Not ([string]::IsNullOrEmpty($appsinstall_folder))) {
-    $wallpappers_path = (get-item $appsinstall_folder).Parent.FullName
-    $wallpappers_path = "$wallpappers_path\wallpappers\images"
+    $WallPapers_path = (get-item $appsinstall_folder).Parent.FullName
+    $WallPapers_path = "$WallPapers_path\WallPapers\images"
   }
 
-  $image_folder = "$image_folder\wallpappers"
+  $image_folder = "$image_folder\WallPapers"
   $img_count = 0
 
-  if ((-Not ([string]::IsNullOrEmpty($wallpappers_path))) -And (Test-Path -Path "$wallpappers_path")) {
-    show_log "Obtendo wallpappers do pendrive, se exitir..."
+  if ((-Not ([string]::IsNullOrEmpty($WallPapers_path))) -And (Test-Path -Path "$WallPapers_path")) {
+    show_log "Obtendo WallPapers do pendrive, se exitir..."
 
     foreach ($ee in @('png', 'jpg')) {
-      Get-ChildItem -Path "$wallpappers_path" -Filter "*.$ee" -Recurse -File | ForEach-Object {
+      Get-ChildItem -Path "$WallPapers_path" -Filter "*.$ee" -Recurse -File | ForEach-Object {
         try {
           $nome = $_.BaseName
           Copy-Item $_ "$image_folder\$nome.$ee" -Force
@@ -584,22 +600,28 @@ if ("$in_system_context" -eq "$False") {
       }
     }
 
-    show_log "'$img_count' wallpapper(s) obdito(s) offline."
+    show_log "'$img_count' WallPaper(s) obdito(s) offline."
   }
 
   if (([string]::IsNullOrEmpty($Env:install_cru)) -And ($img_count -le 0)) {
-    show_log "Obtendo wallpappers ONLINE..."
+    show_log "Obtendo WallPapers ONLINE..."
 
     if (-Not (Test-Path -Path "$image_folder")) {
       New-Item -Path "$image_folder" -Force -ItemType Directory
     }
 
-    download_save "$url_wallpappers_lst" "$image_folder\download.lst"
+    download_save "$url_WallPapers_lst" "$image_folder\download.lst"
 
     if (Test-Path "$image_folder\download.lst") {
       $i = 0
       $ext = "png"
       foreach ($line in Get-Content "$image_folder\download.lst") {
+        $line = $line.trim()
+
+        if ([string]::IsNullOrEmpty($line) -Or ($line -match '^\s*$')) {
+          continue
+        }        
+
         #$destname = $i
         $destname = sha256($line)
         #$destname = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($line))
@@ -622,31 +644,47 @@ if ("$in_system_context" -eq "$False") {
     }
 
     show_log_title "Definindo tela de bloqueio personalizada"
-    $regKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP'
-    # create the key if it doesn't already exist
-    if (!(Test-Path -Path $regKey)) {
-      $null = New-Item -Path $regKey
-    }
+
+
+
 
     # now set the registry entry
-    try {
-      $nome = download_to_string($url_lockscreen)
-      Set-ItemProperty -Path $Key -Name 'LockScreenImagePath' -value "$image_folder\$nome.png"
-    }
-    catch {
-      show_error "FALHA ao definir tela de bloqueio."
-    }
+    
+    $nome = download_to_string($url_lockscreen)     
+    show_log "A setar '$nome'."
 
-    if ("$in_system_context" -eq "$False") {
-      show_log_title "Definindo wallpapper"
-      # now set the registry entry
-      try {
-        $nome = download_to_string($url_defwallpapper)
-        Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WallPaper" -Value "$image_folder\$nome.png"
+    if (-Not (Test-Path "$image_folder\$nome.png")) {
+      show_warn "O WallPaper '$nome' não existe."      
+    }
+    elseif (-Not ([string]::IsNullOrEmpty($nome) -Or ($nome -match '^\s*$'))) {                
+      try {        
+        setrgkey 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP' 'LockScreenImagePath' "$image_folder\$nome.png"
+        show_log "Definido."
       }
       catch {
-        show_error "FALHA ao definir wallpapper."
+        show_error "FALHA ao definir tela de bloqueio."
       }
+    }              
+    
+    if ("$in_system_context" -eq "$False") {
+      show_log_title "Definindo WallPaper"
+      # now set the registry entry
+      
+      $nome = download_to_string($url_defWallPaper)
+      show_log "A setar '$nome'."      
+
+      if (-Not (Test-Path "$image_folder\$nome.png")) {
+        show_warn "O WallPaper '$nome' não existe."      
+      }
+      elseif (-Not ([string]::IsNullOrEmpty($nome) -Or ($nome -match '^\s*$'))) {
+        try {
+          setrgkey 'HKCU:\Control Panel\Desktop' 'WallPaper' "$image_folder\$nome.png"          
+          show_log "Definido."
+        }
+        catch {
+          show_error "FALHA ao definir WallPaper."
+        }
+      }                 
     }
   }
 }
@@ -727,6 +765,12 @@ if ("$in_system_context" -eq "$False") {
       show_log "usando 'apps.lst do pendrive'..."
 
       foreach ($line in Get-Content "$appsinstall_folder\apps.lst") {
+        $line = $line.trim()
+        
+        if ([string]::IsNullOrEmpty($line) -Or ($line -match '^\s*$')) {
+          continue
+        }        
+
         isowin_install_app $line.Trim()
       }
     }
@@ -739,6 +783,12 @@ if ("$in_system_context" -eq "$False") {
         show_log "Lista de apps online encontrato, usando..."
 
         foreach ($line in Get-Content "$apps_f") {
+          $line = $line.trim()
+        
+          if ([string]::IsNullOrEmpty($line) -Or ($line -match '^\s*$')) {
+            continue
+          }        
+  
           isowin_install_app $line.trim()
         }
       }
