@@ -604,8 +604,7 @@ if ("$in_system_context" -eq "$False") {
   isowin_install_app "Microsoft.DirectX"
   isowin_install_app "7zip.7zip"
   isowin_install_app "Microsoft.VisualStudioCode" '/SILENT /mergetasks="!runcode,addcontextmenufiles,addcontextmenufolders,addtopath,associatewithfiles,quicklaunchicon"'
-  isowin_install_app "Microsoft.PowerToys"
-  isowin_install_app "QL-Win.QuickLook"
+  
   show_log_title "Instalando demais APPs"
   if ([string]::IsNullOrEmpty($Env:install_cru)) {
     show_log "Continuar padrão ou seguir 'apps.lst' do online/pendrive?"
@@ -643,6 +642,8 @@ if ("$in_system_context" -eq "$False") {
       }
       else {
         show_log "Lista de apps online inexistente, usando o padrao..."
+        isowin_install_app "Microsoft.PowerToys"
+        isowin_install_app "QL-Win.QuickLook"
         isowin_install_app "CodecGuide.K-LiteCodecPack.Mega"
         isowin_install_app "VideoLAN.VLC"
         isowin_install_app "Google.Chrome"
