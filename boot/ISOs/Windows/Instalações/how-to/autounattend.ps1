@@ -631,7 +631,7 @@ if ("$in_system_context" -eq "$False") {
     # now set the registry entry
     try {
       $nome = download_to_string($url_lockscreen)
-      Set-ItemProperty -Path $Key -Name 'LockScreenImagePath' -value "$image_folder\$nome.jpg"
+      Set-ItemProperty -Path $Key -Name 'LockScreenImagePath' -value "$image_folder\$nome.png"
     }
     catch {
       show_error "FALHA ao definir tela de bloqueio."
@@ -642,7 +642,7 @@ if ("$in_system_context" -eq "$False") {
       # now set the registry entry
       try {
         $nome = download_to_string($url_defwallpapper)
-        Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WallPaper" -Value "$image_folder\$nome.jpg"
+        Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WallPaper" -Value "$image_folder\$nome.png"
       }
       catch {
         show_error "FALHA ao definir wallpapper."
