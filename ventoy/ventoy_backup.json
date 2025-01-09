@@ -15,7 +15,7 @@
     },
     "menu_alias":[
         {
-            "image": "/boot/ISOs/Windows/windows-HBCD_PE_x64.iso",
+            "image": "/boot/ISOs/Canivete/windows-HBCD_PE_x64.iso",
             "alias": "Hiren's BootCD PE"
         },
         {
@@ -23,7 +23,11 @@
             "alias": "Boot Network (ipxe)"
         },
         {
-            "dir": "/boot/ISOs/Linux",
+            "dir": "/boot/ISOs/Canivete",
+            "alias": "> Canivete Suiço"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/Linux",
             "alias": "> Linux"
         },
         {
@@ -31,7 +35,7 @@
             "alias": "> Utilitários"
         },
         {
-            "dir": "/boot/ISOs/Windows",
+            "dir": "/boot/ISOs/Installs/Windows",
             "alias": "> Windows"
         },
         {
@@ -43,15 +47,19 @@
             "alias": "> Imagens"
         },
         {
-            "dir": "/boot/ISOs/Linux/LinuxMint",
+            "dir": "/boot/ISOs/Installs/Linux/LinuxMint",
             "alias": "> LinuxMint"
         },
         {
-            "dir": "/boot/ISOs/Linux/MiniOS",
+            "dir": "/boot/ISOs/Installs/Linux/MiniOS",
             "alias": "> MiniOS"
         },
         {
-            "dir": "/boot/ISOs/Windows/Instalações",
+            "dir": "/boot/ISOs/Installs/Linux/VelhoPC",
+            "alias": "> Salvar aquele PC Velho"
+        },        
+        {
+            "dir": "/boot/ISOs/Installs",
             "alias": "> Instalações"
         }
     ],
@@ -59,6 +67,10 @@
         "color": "#ffffff"
     },
     "menu_class":[
+        {
+            "key": "/boot/ISOs/Canivete",
+            "class": "canivete"
+        },
         {
             "key": "Acronis",
             "class": "Acronis"
@@ -72,7 +84,7 @@
             "class": "windows"
         },
         {
-            "dir": "/boot/ISOs/Windows",
+            "dir": "/boot/ISOs/Installs/Windows",
             "class": "windows"
         },
         {
@@ -120,7 +132,7 @@
             "class": "disk"
         },
         {
-            "dir": "/boot/ISOs/Linux/MiniOS",
+            "dir": "/boot/ISOs/Installs/Linux/MiniOS",
             "class": "minios"
         },
         {
@@ -128,7 +140,7 @@
             "class": "clonezilla"
         },
         {
-            "dir": "/boot/ISOs/Linux/LinuxMint",
+            "dir": "/boot/ISOs/Installs/Linux/LinuxMint",
             "class": "linux-mint"
         },
         {
@@ -140,7 +152,11 @@
             "class": "aomeipartition"
         },
         {
-            "dir": "/boot/ISOs/Windows/Instalações",
+            "dir": "/boot/ISOs/Installs/Linux/VelhoPC",
+            "class": "oldpc"
+        },        
+        {
+            "dir": "/boot/ISOs/Installs",
             "class": "install"
         },
         {
@@ -152,7 +168,7 @@
             "class": "kaspersky"
         },
         {
-            "dir": "/boot/ISOs/Linux",
+            "dir": "/boot/ISOs/Installs/Linux",
             "class": "linux"
         },
         {
@@ -166,20 +182,10 @@
         {
             "key": "chromeos",
             "class": "chromeos"
-        }
-    ],
-    "persistence":[
-        {
-            "image": "/boot/ISOs/Linux/MiniOS/minios-standard-3.3.3.iso",
-            "backend":[
-                "/boot/b4096.casper-rw"
-            ]
         },
         {
-            "image": "/boot/ISOs/Linux/LinuxMint/linuxmint-21.3-xfce.iso",
-            "backend":[
-                "/boot/b8192.casper-rw"
-            ]
+            "key": "drParted",
+            "class": "drparted"
         }
     ]
 }

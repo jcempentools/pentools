@@ -652,7 +652,7 @@ $Env:install_cru = "1"
 $script = "c:\autonomo-install.ps1"
 
 Remove-Item "$script" -Force
-Invoke-WebRequest "https://bit.ly/pentoolscript" -OutFile "$script"
+Invoke-WebRequest "https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/windows/autounattend.ps1" -OutFile "$script"
 
 try {
   powershell.exe -NoProfile -Command "Get-Content -LiteralPath '$script' -Raw | Invoke-Expression; "
@@ -668,7 +668,7 @@ $Env:install_cru = "1"
 $script = "c:\autonomo-install.ps1"
 
 Remove-Item "$script" -Force
-Invoke-WebRequest "https://bit.ly/pentoolscript" -OutFile "$script"
+Invoke-WebRequest "https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/windows/autounattend.ps1" -OutFile "$script"
 
 try {
   powershell.exe -NoProfile -Command "Get-Content -LiteralPath '$script' -Raw | Invoke-Expression; "

@@ -11,6 +11,7 @@ $url_WallPapers_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/head
 $url_apps_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/windows/apps.lst"
 $url_lockscreen = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/WallPapers/lockscreen.lst"
 $url_defWallPaper = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/WallPapers/default.lst"
+
 $appsinstall_folder = "" # manter vazio
 $winget_timeout = "" # manter vazio
 Write-Host " "
