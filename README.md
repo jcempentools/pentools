@@ -9,4 +9,8 @@ Adicionar o arquivo ```autounattend.xml``` ao diretório raiz do conteúdo .iso,
 - Gerar o arquivo: https://schneegans.de/windows/unattend-generator/
 - Tutorial: https://www.youtube.com/watch?v=DMA4J9I4nS8
 
-https://github.com/jcempentools/pentools.git
+Use ```.\sync.ps1 E:``` por exemplo, para que a unidade 'e:' fique com o mesmo conteudo do atual diretório.
+
+# Origem
+
+- https://github.com/jcempentools/pentools.git
