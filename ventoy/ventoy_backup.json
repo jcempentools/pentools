@@ -57,7 +57,7 @@
         {
             "dir": "/boot/ISOs/Installs/Linux/VelhoPC",
             "alias": "> Salvar aquele PC Velho"
-        },        
+        },
         {
             "dir": "/boot/ISOs/Installs",
             "alias": "> Instalações"
@@ -67,10 +67,6 @@
         "color": "#ffffff"
     },
     "menu_class":[
-        {
-            "key": "/boot/ISOs/Canivete",
-            "class": "canivete"
-        },
         {
             "key": "Acronis",
             "class": "Acronis"
@@ -154,7 +150,7 @@
         {
             "dir": "/boot/ISOs/Installs/Linux/VelhoPC",
             "class": "oldpc"
-        },        
+        },
         {
             "dir": "/boot/ISOs/Installs",
             "class": "install"
@@ -186,6 +182,21 @@
         {
             "key": "drParted",
             "class": "drparted"
+        },
+        {
+            "dir": "/boot/ISOs/Canivete",
+            "class": "canivete"
+        }
+    ],
+    "auto_install":[
+        {
+            "parent": "/boot/ISOs/Installs/Windows",
+            "template":[
+                "/boot/ISOs/Installs/Windows/.autonomo/autounattend.xml",
+                "/boot/ISOs/Installs/Windows/.autonomo/autounattend-cru.xml"
+            ],
+            "timeout": 15,
+            "autosel": 1
         }
     ]
 }

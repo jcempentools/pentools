@@ -192,8 +192,8 @@
         {
             "parent": "/boot/ISOs/Installs/Windows",
             "template":[
-                "/boot/ISOs/Installs/Windows/.autonomo/autounattend.xml",
-                "/boot/ISOs/Installs/Windows/.autonomo/autounattend-cru.xml"
+                "/boot/Autonome-install/windows/autounattend.xml",
+                "/boot/Autonome-install/windows/autounattend-cru.xml"
             ],
             "timeout": 15,
             "autosel": 1
