@@ -60,7 +60,7 @@
         },
         {
             "dir": "/boot/ISOs/Installs",
-            "alias": "> Instalações"
+            "alias": "> Instalações e LiveCDs"
         }
     ],
     "menu_tip":{

@@ -23,7 +23,7 @@ $source = (get-location).path
 $target = "$drive_desti"
 
 try {
-  Robocopy "$source\" "$target\" /MIR /FFT /S /Z /XA:H /W:7 /XD ".git\" "boot\ventoy\" /XF "*.log"
+  Robocopy "$source" "$target" /MIR /FFT /S /Z /W:7 /XD ".git\" "boot\ventoy\" /XF "*.log" /purge
 }
 catch {
   Write-Error -Message "something bad happened!" -ErrorAction Stop
