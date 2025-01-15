@@ -15,7 +15,7 @@ $url_defWallPaper = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/
 $appsinstall_folder = "" # manter vazio
 $winget_timeout = "" # manter vazio
 Write-Host " "
-$in_system_context = ($env:USERNAME -eq "$env:COMPUTERNAME")
+$in_system_context = (("$env:USERNAME" -eq "$env:COMPUTERNAME") -Or ("$env:USERNAME" -eq "SYSTEM") -Or (("$env:COMPUTERNAME" -tmatch '(?-i)^SYSTEM.*')))
 if (-Not ([string]::IsNullOrEmpty($is_test))) {
   $Env:autonome_test = "1"
 }
@@ -51,7 +51,10 @@ Write-Host "-------------------------------------------------" -BackgroundColor 
 Write-Host "             Não Feche esta janela               " -BackgroundColor blue
 Write-Host "-------------------------------------------------" -BackgroundColor blue
 Write-Host ""
-Write-Host "Instação crua: '$Env:install_cru'"
+Write-Host "Instação crua.........: '$Env:install_cru'"
+write-host "Em modo teste.........: '$Env:autonome_test'"
+write-host "Em contexto de sistema: '$in_system_context'"
+write-host "Usuário atual.........: '$name_install_log'"
 Write-Host ""
 write-host "..."
 Start-Sleep -Seconds 1
@@ -466,7 +469,7 @@ if ([string]::IsNullOrEmpty($x)) {
 #####
 #######################################################
 #######################################################
-if ("$in_system_context" -eq "$False") {
+
   show_log_title "### WallPapers"
   $WallPapers_path = ""
   if (-Not ([string]::IsNullOrEmpty($appsinstall_folder))) {
@@ -560,7 +563,6 @@ if ("$in_system_context" -eq "$False") {
       }
     }
   }
-}
 
 #######################################################
 #######################################################
