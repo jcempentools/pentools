@@ -411,7 +411,16 @@ function isowin_install_app {
     [string]$name_id,
     [string]$override
   )
-  show_log_title "Instalando $name_id"
+
+  show_log_title "Instalando '$name_id'"
+  $name_id = $name_id.trim()
+  $is_url = ""
+  
+  if ("$name_id" -match "^[\w]+|s*(http|ftp)s?[^|]+"){
+    $is_url = $name_id.split("|")[-1]
+    $name_id = $name_id.split("|")[0]
+  }
+  
   $nn = findExeMsiOnFolders($name_id)
   if (-Not ([string]::IsNullOrEmpty($nn))) {
     $extencao = $nn.split(".")[-1]
@@ -430,7 +439,12 @@ function isowin_install_app {
     return ""
   }
   show_nota "Arquivo de instalação offline inexistente, tentando via winget..."
-  isowin_winget_install $name_id $override
+  
+  if (-Not ([string]::IsNullOrEmpty($is_url))){    
+    download_msi_install "$is_url"
+  }else{  
+    isowin_winget_install $name_id $override
+  }
 }
 #######################################################
 #######################################################
@@ -457,13 +471,41 @@ catch {
 #####
 #######################################################
 #######################################################
+
+function download_msi_install(){
+  Param(
+    [string]$url,
+    [string]$op,
+    [string]$to,    
+  )  
+
+  $url = $url.trim()
+
+  if ($url -nomatch "ĥttp.*"){
+    return ""
+  }
+
+  if ([string]::IsNullOrEmpty($to)) {
+    $tmp = -join ((65..90) + (97..122) | Get-Random -Count 12 | ForEach-Object { [char]$_ })
+    $to = "$env:TEMP\$tmp.tmp"
+  }
+  
+  try {
+    download_save "$url" "$to"
+    show_cmd "& msiexec.exe /package '$to' /quiet $op | write-host"
+    run_command "msiexec.exe /package '$to' /quiet $op | write-host"    
+    write-host "Supostamente instalado."
+  }
+  catch {
+    show_error "Falha ao instalar da URL: '$url'"
+  }  
+}
+
 $x = Get-Command "pwsh" -errorAction SilentlyContinue
 if ([string]::IsNullOrEmpty($x)) {
   show_log_title "Instalando powershell 7"
   try {
-    download_save "$url_pwsh" "$pwsh_msi_path"
-    show_cmd "& msiexec.exe /package '$pwsh_msi_path' /quiet ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1 ADD_PATH=1 | write-host"
-    & msiexec.exe /package "$pwsh_msi_path" /quiet ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1 ADD_PATH=1 | write-host
+    download_msi_install $url_pwsh "ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1 ADD_PATH=1"    
     Start-Sleep -Seconds 1
     $x1 = Get-Command "pwsh" -errorAction SilentlyContinue
     if (-Not ([string]::IsNullOrEmpty($x1))) {
