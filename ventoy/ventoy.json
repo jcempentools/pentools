@@ -192,7 +192,9 @@
         {
             "parent": "/boot/ISOs/Installs/Windows",
             "template":[
+                "/boot/Autonome-install/windows/dev.xml",
                 "/boot/Autonome-install/windows/full.xml",
+                "/boot/Autonome-install/windows/basico.xml",
                 "/boot/Autonome-install/windows/cru.xml"
             ],
             "timeout": 15,

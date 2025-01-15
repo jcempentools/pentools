@@ -647,7 +647,7 @@ catch {
 }
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-04.ps1" transformation="Text">
-$Env:install_cru = "1"
+$Env:install_cru = "cru"
 
 $script = "c:\autonomo-install.ps1"
 
@@ -663,7 +663,7 @@ catch {
 $script = "c:\autonomo-install.ps1"
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-05.ps1" transformation="Text">
-$Env:install_cru = "1"
+$Env:install_cru = "cru"
 
 $script = "c:\autonomo-install.ps1"
 

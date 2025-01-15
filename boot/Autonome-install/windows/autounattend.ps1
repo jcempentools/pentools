@@ -8,13 +8,25 @@ $image_folder = "C:\Users\Default\Pictures"
 $pendrive_script_name = "run.ps1"
 $url_pwsh = "github.com/PowerShell/PowerShell/releases/download/v7.4.6/PowerShell-7.4.6-win-x64.msi"
 $url_WallPapers_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/WallPapers/WallPaper.lst"
-$url_apps_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/windows/apps.lst"
+$url_apps_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/windows"
 $url_lockscreen = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/WallPapers/lockscreen.lst"
 $url_defWallPaper = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/WallPapers/default.lst"
 
 $appsinstall_folder = "" # manter vazio
 $winget_timeout = "" # manter vazio
 Write-Host " "
+
+# modo full
+if ("$Env:install_cru" -eq "dev"){
+  $url_apps_lst = "$url_apps_lst/apps.dev.lst"  
+}
+elseif ("$Env:install_cru" -eq "full"){
+  $url_apps_lst = "$url_apps_lst/apps.full.lst"  
+
+}elseif ("$Env:install_cru" -eq "basic"){
+  $url_apps_lst = "$url_apps_lst/apps.lst"
+# modo dev
+}
 $in_system_context = (("$env:USERNAME" -eq "$env:COMPUTERNAME") -Or ("$env:USERNAME" -eq "SYSTEM") -Or (("$env:COMPUTERNAME" -tmatch '(?-i)^SYSTEM.*')))
 if (-Not ([string]::IsNullOrEmpty($is_test))) {
   $Env:autonome_test = "1"
@@ -494,7 +506,7 @@ if ([string]::IsNullOrEmpty($x)) {
     }
     show_log "'$img_count' WallPaper(s) obdito(s) offline."
   }
-  if (([string]::IsNullOrEmpty($Env:install_cru)) -And ($img_count -le 0)) {
+  if (("$Env:install_cru" -ne "cru") -And ($img_count -le 0)) {
     show_log "Obtendo WallPapers ONLINE..."
     if (-Not (Test-Path -Path "$image_folder")) {
       New-Item -Path "$image_folder" -Force -ItemType Directory
@@ -609,9 +621,14 @@ if ("$in_system_context" -eq "$False") {
   isowin_install_app "Microsoft.DirectX"
   isowin_install_app "7zip.7zip"
   isowin_install_app "Microsoft.VisualStudioCode" '/SILENT /mergetasks="!runcode,addcontextmenufiles,addcontextmenufolders,addtopath,associatewithfiles,quicklaunchicon"'
+
+  if ("$Env:install_cru" -eq "dev") {
+    wsl --install
+    wsl --set-default-version 2
+  }
   
   show_log_title "Instalando demais APPs"
-  if ([string]::IsNullOrEmpty($Env:install_cru)) {
+  if ("$Env:install_cru" -ne "cru") {
     show_log "Continuar padrão ou seguir 'apps.lst' do online/pendrive?"
     $apps_lst = ""
     # verifica se tem lista de apps no pendrive
