@@ -11,23 +11,21 @@ $url_WallPapers_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/head
 $url_apps_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/windows"
 $url_lockscreen = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/WallPapers/lockscreen.lst"
 $url_defWallPaper = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/WallPapers/default.lst"
-
 $appsinstall_folder = "" # manter vazio
 $winget_timeout = "" # manter vazio
 Write-Host " "
-
 # modo full
-if ("$Env:install_cru" -eq "dev"){
-  $url_apps_lst = "$url_apps_lst/apps.dev.lst"  
+if ("$Env:install_cru" -eq "dev") {
+  $url_apps_lst = "$url_apps_lst/apps.dev.lst"
 }
-elseif ("$Env:install_cru" -eq "full"){
-  $url_apps_lst = "$url_apps_lst/apps.full.lst"  
-
-}elseif ("$Env:install_cru" -eq "basic"){
+elseif ("$Env:install_cru" -eq "full") {
+  $url_apps_lst = "$url_apps_lst/apps.full.lst"
+}
+elseif ("$Env:install_cru" -eq "basic") {
   $url_apps_lst = "$url_apps_lst/apps.lst"
-# modo dev
+  # modo dev
 }
-$in_system_context = (("$env:USERNAME" -eq "$env:COMPUTERNAME") -Or ("$env:USERNAME" -eq "SYSTEM") -Or (("$env:COMPUTERNAME" -tmatch '(?-i)^SYSTEM.*')))
+$in_system_context = (("$env:USERNAME" -eq "$env:COMPUTERNAME") -Or ("$env:USERNAME" -eq "SYSTEM") -Or (("$env:COMPUTERNAME" -match '(?-i)^SYSTEM.*')))
 if (-Not ([string]::IsNullOrEmpty($is_test))) {
   $Env:autonome_test = "1"
 }
@@ -411,16 +409,13 @@ function isowin_install_app {
     [string]$name_id,
     [string]$override
   )
-
   show_log_title "Instalando '$name_id'"
   $name_id = $name_id.trim()
   $is_url = ""
-  
-  if ("$name_id" -match "^[\w]+|s*(http|ftp)s?[^|]+"){
+  if ("$name_id" -match "^[\w]+|s*(http|ftp)s?[^|]+") {
     $is_url = $name_id.split("|")[-1]
     $name_id = $name_id.split("|")[0]
   }
-  
   $nn = findExeMsiOnFolders($name_id)
   if (-Not ([string]::IsNullOrEmpty($nn))) {
     $extencao = $nn.split(".")[-1]
@@ -439,11 +434,39 @@ function isowin_install_app {
     return ""
   }
   show_nota "Arquivo de instalação offline inexistente, tentando via winget..."
-  
-  if (-Not ([string]::IsNullOrEmpty($is_url))){    
-    download_msi_install "$is_url"
-  }else{  
+  $installed = "1"
+  if (-Not ([string]::IsNullOrEmpty($is_url))) {
+    $installed = download_msi_install "$is_url"
+  }
+  if (([string]::IsNullOrEmpty($is_url)) -Or ([string]::IsNullOrEmpty($installed))) {
     isowin_winget_install $name_id $override
+  }
+}
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function download_msi_install {
+  Param(
+    [string]$url,
+    [string]$op,
+    [string]$to
+  )
+  $url = $url.trim()
+  if (-Not ("$url" -match "^http.*")) {
+    return ""
+  }
+  if ([string]::IsNullOrEmpty($to)) {
+    $tmp = -join ((65..90) + (97..122) | Get-Random -Count 12 | ForEach-Object { [char]$_ })
+    $to = "$env:TEMP\$tmp.tmp"
+  }
+  try {
+    download_save "$url" "$to"
+    show_cmd "& msiexec.exe /package '$to' /quiet $op | write-host"
+    run_command "msiexec.exe /package '$to' /quiet $op | write-host"
+    write-host "Supostamente instalado."
+    return ""
+  }
+  catch {
+    show_error "Falha ao instalar da URL: '$url'"
   }
 }
 #######################################################
@@ -471,41 +494,11 @@ catch {
 #####
 #######################################################
 #######################################################
-
-function download_msi_install(){
-  Param(
-    [string]$url,
-    [string]$op,
-    [string]$to,    
-  )  
-
-  $url = $url.trim()
-
-  if ($url -nomatch "ĥttp.*"){
-    return ""
-  }
-
-  if ([string]::IsNullOrEmpty($to)) {
-    $tmp = -join ((65..90) + (97..122) | Get-Random -Count 12 | ForEach-Object { [char]$_ })
-    $to = "$env:TEMP\$tmp.tmp"
-  }
-  
-  try {
-    download_save "$url" "$to"
-    show_cmd "& msiexec.exe /package '$to' /quiet $op | write-host"
-    run_command "msiexec.exe /package '$to' /quiet $op | write-host"    
-    write-host "Supostamente instalado."
-  }
-  catch {
-    show_error "Falha ao instalar da URL: '$url'"
-  }  
-}
-
 $x = Get-Command "pwsh" -errorAction SilentlyContinue
 if ([string]::IsNullOrEmpty($x)) {
   show_log_title "Instalando powershell 7"
   try {
-    download_msi_install $url_pwsh "ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1 ADD_PATH=1"    
+    download_msi_install $url_pwsh "ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1 ADD_PATH=1"
     Start-Sleep -Seconds 1
     $x1 = Get-Command "pwsh" -errorAction SilentlyContinue
     if (-Not ([string]::IsNullOrEmpty($x1))) {
@@ -523,103 +516,100 @@ if ([string]::IsNullOrEmpty($x)) {
 #####
 #######################################################
 #######################################################
-
-  show_log_title "### WallPapers"
-  $WallPapers_path = ""
-  if (-Not ([string]::IsNullOrEmpty($appsinstall_folder))) {
-    $WallPapers_path = (get-item $appsinstall_folder).Parent.FullName
-    $WallPapers_path = "$WallPapers_path\WallPapers\images"
-  }
-  $image_folder = "$image_folder\WallPapers"
-  $img_count = 0
-  if ((-Not ([string]::IsNullOrEmpty($WallPapers_path))) -And (Test-Path -Path "$WallPapers_path")) {
-    show_log "Obtendo WallPapers do pendrive, se exitir..."
-    foreach ($ee in @('png', 'jpg')) {
-      Get-ChildItem -Path "$WallPapers_path" -Filter "*.$ee" -Recurse -File | ForEach-Object {
-        try {
-          $nome = $_.BaseName
-          Copy-Item $_ "$image_folder\$nome.$ee" -Force
-          $img_count = $img_count + 1
-        }
-        catch {
-          # ignore
-        }
+show_log_title "### WallPapers"
+$WallPapers_path = ""
+if (-Not ([string]::IsNullOrEmpty($appsinstall_folder))) {
+  $WallPapers_path = (get-item $appsinstall_folder).Parent.FullName
+  $WallPapers_path = "$WallPapers_path\WallPapers\images"
+}
+$image_folder = "$image_folder\WallPapers"
+$img_count = 0
+if ((-Not ([string]::IsNullOrEmpty($WallPapers_path))) -And (Test-Path -Path "$WallPapers_path")) {
+  show_log "Obtendo WallPapers do pendrive, se exitir..."
+  foreach ($ee in @('png', 'jpg')) {
+    Get-ChildItem -Path "$WallPapers_path" -Filter "*.$ee" -Recurse -File | ForEach-Object {
+      try {
+        $nome = $_.BaseName
+        Copy-Item $_ "$image_folder\$nome.$ee" -Force
+        $img_count = $img_count + 1
+      }
+      catch {
+        # ignore
       }
     }
-    show_log "'$img_count' WallPaper(s) obdito(s) offline."
   }
-  if (("$Env:install_cru" -ne "cru") -And ($img_count -le 0)) {
-    show_log "Obtendo WallPapers ONLINE..."
-    if (-Not (Test-Path -Path "$image_folder")) {
-      New-Item -Path "$image_folder" -Force -ItemType Directory
-    }
-    download_save "$url_WallPapers_lst" "$image_folder\download.lst"
-    if (Test-Path "$image_folder\download.lst") {
-      $i = 0
-      $ext = "png"
-      foreach ($line in Get-Content "$image_folder\download.lst") {
-        $line = $line.trim()
-        if ([string]::IsNullOrEmpty($line) -Or ($line -match '^\s*$')) {
-          continue
-        }
-        #$destname = $i
-        $destname = sha256($line)
-        #$destname = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($line))
-        download_save "$line" "$image_folder\$destname.$ext"
-        #$shaname = (Get-FileHash "$image_folder\$i.$ext" -Algorithm SHA256).Hash
-        #try {
-        #  if (Test-Path "$image_folder\$shaname.$ext") {
-        #    Remove-Item "$image_folder\$shaname.$ext" -Force
-        #  }
-        #  Move-Item -Path "$image_folder\$i.$ext" "$image_folder\$shaname.$ext"
-        #}
-        #catch {
-        #}
-        $i = $i + 1
+  show_log "'$img_count' WallPaper(s) obdito(s) offline."
+}
+if (("$Env:install_cru" -ne "cru") -And ($img_count -le 0)) {
+  show_log "Obtendo WallPapers ONLINE..."
+  if (-Not (Test-Path -Path "$image_folder")) {
+    New-Item -Path "$image_folder" -Force -ItemType Directory
+  }
+  download_save "$url_WallPapers_lst" "$image_folder\download.lst"
+  if (Test-Path "$image_folder\download.lst") {
+    $i = 0
+    $ext = "png"
+    foreach ($line in Get-Content "$image_folder\download.lst") {
+      $line = $line.trim()
+      if ([string]::IsNullOrEmpty($line) -Or ($line -match '^\s*$')) {
+        continue
       }
+      #$destname = $i
+      $destname = sha256($line)
+      #$destname = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($line))
+      download_save "$line" "$image_folder\$destname.$ext"
+      #$shaname = (Get-FileHash "$image_folder\$i.$ext" -Algorithm SHA256).Hash
+      #try {
+      #  if (Test-Path "$image_folder\$shaname.$ext") {
+      #    Remove-Item "$image_folder\$shaname.$ext" -Force
+      #  }
+      #  Move-Item -Path "$image_folder\$i.$ext" "$image_folder\$shaname.$ext"
+      #}
+      #catch {
+      #}
+      $i = $i + 1
     }
-    show_log_title "Definindo tela de bloqueio personalizada"
+  }
+  show_log_title "Definindo tela de bloqueio personalizada"
+  # now set the registry entry
+  $nome = download_to_string($url_lockscreen)
+  show_log "A setar '$nome'."
+  if (-Not (Test-Path "$image_folder\$nome.png")) {
+    show_warn "O WallPaper '$nome' não existe."
+  }
+  elseif (-Not ([string]::IsNullOrEmpty($nome) -Or ($nome -match '^\s*$'))) {
+    try {
+      setrgkey 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP' 'LockScreenImagePath' "$image_folder\$nome.png"
+      rundll32.exe user32.dll, UpdatePerUserSystemParameters
+      show_log "Definido."
+    }
+    catch {
+      show_error "FALHA ao definir tela de bloqueio."
+    }
+  }
+  ## DEFINIR WALLPAPPER APENAS SE ESTIVER EM USUÁRIO
+  if ("$in_system_context" -eq "$False") {
+    show_log_title "Definindo WallPaper"
     # now set the registry entry
-    $nome = download_to_string($url_lockscreen)
+    $nome = download_to_string($url_defWallPaper)
     show_log "A setar '$nome'."
     if (-Not (Test-Path "$image_folder\$nome.png")) {
       show_warn "O WallPaper '$nome' não existe."
     }
     elseif (-Not ([string]::IsNullOrEmpty($nome) -Or ($nome -match '^\s*$'))) {
       try {
-        setrgkey 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP' 'LockScreenImagePath' "$image_folder\$nome.png"
+        setrgkey 'HKCU:\Control Panel\Desktop' 'WallPaper' "$image_folder\$nome.png"
+        setrgkey 'HKCU:\Control Panel\Desktop' 'WallPaperStyle' 10
+        setrgkey 'HKCU:\Control Panel\Desktop' 'TileWallpaper' 0
         rundll32.exe user32.dll, UpdatePerUserSystemParameters
         show_log "Definido."
       }
       catch {
-        show_error "FALHA ao definir tela de bloqueio."
-      }
-    }
-
-    ## DEFINIR WALLPAPPER APENAS SE ESTIVER EM USUÁRIO
-    if ("$in_system_context" -eq "$False") {
-      show_log_title "Definindo WallPaper"
-      # now set the registry entry
-      $nome = download_to_string($url_defWallPaper)
-      show_log "A setar '$nome'."
-      if (-Not (Test-Path "$image_folder\$nome.png")) {
-        show_warn "O WallPaper '$nome' não existe."
-      }
-      elseif (-Not ([string]::IsNullOrEmpty($nome) -Or ($nome -match '^\s*$'))) {
-        try {
-          setrgkey 'HKCU:\Control Panel\Desktop' 'WallPaper' "$image_folder\$nome.png"
-          setrgkey 'HKCU:\Control Panel\Desktop' 'WallPaperStyle' 10
-          setrgkey 'HKCU:\Control Panel\Desktop' 'TileWallpaper' 0
-          rundll32.exe user32.dll, UpdatePerUserSystemParameters
-          show_log "Definido."
-        }
-        catch {
-          show_error "FALHA ao definir WallPaper."
-        }
+        show_error "FALHA ao definir WallPaper."
       }
     }
   }
-
+}
 #######################################################
 #######################################################
 #####
@@ -663,12 +653,10 @@ if ("$in_system_context" -eq "$False") {
   isowin_install_app "Microsoft.DirectX"
   isowin_install_app "7zip.7zip"
   isowin_install_app "Microsoft.VisualStudioCode" '/SILENT /mergetasks="!runcode,addcontextmenufiles,addcontextmenufolders,addtopath,associatewithfiles,quicklaunchicon"'
-
   if ("$Env:install_cru" -eq "dev") {
     wsl --install
     wsl --set-default-version 2
   }
-  
   show_log_title "Instalando demais APPs"
   if ("$Env:install_cru" -ne "cru") {
     show_log "Continuar padrão ou seguir 'apps.lst' do online/pendrive?"
