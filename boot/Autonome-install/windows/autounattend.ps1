@@ -541,6 +541,8 @@ if ([string]::IsNullOrEmpty($x)) {
         show_error "FALHA ao definir tela de bloqueio."
       }
     }
+
+    ## DEFINIR WALLPAPPER APENAS SE ESTIVER EM USUÁRIO
     if ("$in_system_context" -eq "$False") {
       show_log_title "Definindo WallPaper"
       # now set the registry entry
