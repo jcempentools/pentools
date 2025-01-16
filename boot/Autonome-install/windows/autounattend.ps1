@@ -261,7 +261,7 @@ function isowin_winget_update {
   $i = 0
   for (; Test-Path "$path_log\apps\winget.update.$i.log"; $i = $i + 1) {}
   $path_log_full = "$path_log\apps\winget.update.$i.log"
-  winget_run_command "upgrade --all | Out-File -FilePath '$path_log_full'"
+  winget_run_command "upgrade --all --silent --disable-interactivity --accept-package-agreements --accept-source-agreements | Out-File -FilePath '$path_log_full'"
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
