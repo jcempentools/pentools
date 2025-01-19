@@ -199,7 +199,7 @@
                 "/boot/autonome/windows/cru.xml"
             ],
             "timeout": 15,
-            "autosel": 2
+            "autosel": 3
         }
     ]
 }
