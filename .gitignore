@@ -9,7 +9,6 @@
 *.msi
 *.exe
 *.log
-*.sha256
 *.tmp
 *.casper-rw
 /CustomDrivers
