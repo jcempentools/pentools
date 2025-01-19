@@ -16,5 +16,8 @@
 /Programs
 *.log
 !/ventoy/**/*
-/boot/ventoy/
+/boot/ventoy-install/
 /Imagens/*
+/testes/*
+/Drivers/*
+!/Drivers/x99

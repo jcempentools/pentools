@@ -147,6 +147,21 @@ function show_nota {
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function rand_name {
+  param(
+    [AllowNull()][int]$num
+  )
+
+  Write-Host "You passed $($args.Count) arguments:"
+    
+  if (($args.Count -le 0) -Or ([string]::IsNullOrEmpty($num))) {
+    $num = 18
+  }
+    
+  return -join ((65..90) + (97..122) | Get-Random -Count $num | ForEach-Object { [char]$_ })  
+}
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function setrgkey() {
   Param(
     [string]$regKey,
@@ -213,7 +228,7 @@ function download_to_string() {
   param(
     [string]$url
   )
-  $tmp = -join ((65..90) + (97..122) | Get-Random -Count 12 | ForEach-Object { [char]$_ })
+  $tmp = rand_name
   $tmpFile = "$env:TEMP\$tmp.tmp"
   Invoke-WebRequest $url -OutFile $tmpFile
   $myString = Get-Content $tmpFile
@@ -277,7 +292,7 @@ function runInPWSH7() {
     } # PowerShell 7
     ## 5, and only 5. We aren't interested in previous versions.
     5 {
-      $tmp = -join ((65..90) + (97..122) | Get-Random -Count 12 | ForEach-Object { [char]$_ })
+      $tmp = rand_name
       $tmp = "c:\run_$tmp.ps1"
       write-host "$cmd_" | Out-File -FilePath "$tmp"
       $command_ = "pwsh.exe -NoProfile -Command 'Get-Content -LiteralPath $tmp -Raw | Invoke-Expression;'"
@@ -305,7 +320,7 @@ function run_command {
   param(
     [string]$command_
   )
-  $id_ = -join ((65..90) + (97..122) | Get-Random -Count 7 | ForEach-Object { [char]$_ })
+  $id_ = rand_name(7)
   try {
     show_cmd "[$id_] $command_"
     "& $command_" | Invoke-Expression
@@ -455,7 +470,7 @@ function download_msi_install {
     return ""
   }
   if ([string]::IsNullOrEmpty($to)) {
-    $tmp = -join ((65..90) + (97..122) | Get-Random -Count 12 | ForEach-Object { [char]$_ })
+    $tmp = rand_name
     $to = "$env:TEMP\$tmp.tmp"
   }
   try {
