@@ -192,10 +192,10 @@
         {
             "parent": "/boot/ISOs/Installs/Windows",
             "template":[
-                "/boot/Autonome-install/windows/dev.xml",
-                "/boot/Autonome-install/windows/full.xml",
-                "/boot/Autonome-install/windows/basico.xml",
-                "/boot/Autonome-install/windows/cru.xml"
+                "/boot/autonome/windows/dev.xml",
+                "/boot/autonome/windows/gamer.xml",
+                "/boot/autonome/windows/basic.xml",
+                "/boot/autonome/windows/cru.xml"
             ],
             "timeout": 15,
             "autosel": 2

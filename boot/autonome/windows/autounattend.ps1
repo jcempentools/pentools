@@ -3,26 +3,28 @@ Param(
 )
 $path_log = "c:\appinstall.log"
 $pwsh_msi_path = "c:\pwsh_install.msi"
-$pendrive_autonome_path = "boot\Autonome-install\windows"
+$pendrive_autonome_checker = ".pentools"
+$pendrive_autonome_root = "boot\autonome"
+$pendrive_autonome_path = "$pendrive_autonome_root\windows"
 $image_folder = "C:\Users\Default\Pictures"
 $pendrive_script_name = "run.ps1"
 $url_pwsh = "github.com/PowerShell/PowerShell/releases/download/v7.4.6/PowerShell-7.4.6-win-x64.msi"
-$url_WallPapers_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/WallPapers/WallPaper.lst"
-$url_apps_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/windows"
-$url_lockscreen = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/WallPapers/lockscreen.lst"
-$url_defWallPaper = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/Autonome-install/WallPapers/default.lst"
+$url_WallPapers_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/$pendrive_autonome_root/WallPapers/WallPaper.lst"
+$url_apps_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/$pendrive_autonome_root/windows"
+$url_lockscreen = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/$pendrive_autonome_root/WallPapers/lockscreen.lst"
+$url_defWallPaper = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/$pendrive_autonome_root/WallPapers/default.lst"
 $appsinstall_folder = "" # manter vazio
 $winget_timeout = "" # manter vazio
 Write-Host " "
 # modo full
-if ("$Env:install_cru" -eq "dev") {
+if ("$Env:install_mode" -eq "dev") {
   $url_apps_lst = "$url_apps_lst/apps.dev.lst"
 }
-elseif ("$Env:install_cru" -eq "full") {
-  $url_apps_lst = "$url_apps_lst/apps.full.lst"
+elseif ("$Env:install_mode" -eq "gamer") {
+  $url_apps_lst = "$url_apps_lst/apps.gamer.lst"
 }
-elseif ("$Env:install_cru" -eq "basic") {
-  $url_apps_lst = "$url_apps_lst/apps.lst"
+elseif ("$Env:install_mode" -eq "basic") {
+  $url_apps_lst = "$url_apps_lst/apps.basic.lst"
   # modo dev
 }
 $in_system_context = (("$env:USERNAME" -eq "$env:COMPUTERNAME") -Or ("$env:USERNAME" -eq "SYSTEM") -Or (("$env:COMPUTERNAME" -match '(?-i)^SYSTEM.*')))
@@ -61,7 +63,7 @@ Write-Host "-------------------------------------------------" -BackgroundColor 
 Write-Host "             Não Feche esta janela               " -BackgroundColor blue
 Write-Host "-------------------------------------------------" -BackgroundColor blue
 Write-Host ""
-Write-Host "Instação crua.........: '$Env:install_cru'"
+Write-Host "Instação crua.........: '$Env:install_mode'"
 write-host "Em modo teste.........: '$Env:autonome_test'"
 write-host "Em contexto de sistema: '$in_system_context'"
 write-host "Usuário atual.........: '$name_install_log'"
@@ -151,14 +153,11 @@ function rand_name {
   param(
     [AllowNull()][int]$num
   )
-
   Write-Host "You passed $($args.Count) arguments:"
-    
   if (($args.Count -le 0) -Or ([string]::IsNullOrEmpty($num))) {
     $num = 18
   }
-    
-  return -join ((65..90) + (97..122) | Get-Random -Count $num | ForEach-Object { [char]$_ })  
+  return -join ((65..90) + (97..122) | Get-Random -Count $num | ForEach-Object { [char]$_ })
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -379,7 +378,7 @@ function appinstall_find_path() {
     try {
       foreach ($Drive in (Get-PSDrive -PSProvider 'FileSystem')) {
         #foreach ($Drive in [System.IO.DriveInfo]::GetDrives())) {
-        if (Test-Path -Path "${Drive}:\$pendrive_autonome_path") {
+        if ((Test-Path Path "$pendrive_autonome_checker/$pendrive_autonome_checker") -And (Test-Path -Path "${Drive}:\$pendrive_autonome_path")) {
           $appsinstall_folder = "${Drive}:\$pendrive_autonome_path"
           break
         }
@@ -555,7 +554,7 @@ if ((-Not ([string]::IsNullOrEmpty($WallPapers_path))) -And (Test-Path -Path "$W
   }
   show_log "'$img_count' WallPaper(s) obdito(s) offline."
 }
-if (("$Env:install_cru" -ne "cru") -And ($img_count -le 0)) {
+if (("$Env:install_mode" -ne "cru") -And ($img_count -le 0)) {
   show_log "Obtendo WallPapers ONLINE..."
   if (-Not (Test-Path -Path "$image_folder")) {
     New-Item -Path "$image_folder" -Force -ItemType Directory
@@ -668,12 +667,12 @@ if ("$in_system_context" -eq "$False") {
   isowin_install_app "Microsoft.DirectX"
   isowin_install_app "7zip.7zip"
   isowin_install_app "Microsoft.VisualStudioCode" '/SILENT /mergetasks="!runcode,addcontextmenufiles,addcontextmenufolders,addtopath,associatewithfiles,quicklaunchicon"'
-  if ("$Env:install_cru" -eq "dev") {
+  if ("$Env:install_mode" -eq "dev") {
     wsl --install
     wsl --set-default-version 2
   }
   show_log_title "Instalando demais APPs"
-  if ("$Env:install_cru" -ne "cru") {
+  if ("$Env:install_mode" -ne "cru") {
     show_log "Continuar padrão ou seguir 'apps.lst' do online/pendrive?"
     $apps_lst = ""
     # verifica se tem lista de apps no pendrive
