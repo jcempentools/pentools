@@ -23,6 +23,9 @@ if ("$Env:install_mode" -eq "dev") {
 elseif ("$Env:install_mode" -eq "gamer") {
   $url_apps_lst = "$url_apps_lst/apps.gamer.lst"
 }
+elseif ("$Env:install_mode" -eq "designer") {
+  $url_apps_lst = "$url_apps_lst/apps.designer.lst"
+}
 elseif ("$Env:install_mode" -eq "basic") {
   $url_apps_lst = "$url_apps_lst/apps.basic.lst"
   # modo dev

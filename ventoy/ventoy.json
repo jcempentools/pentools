@@ -194,6 +194,7 @@
             "template":[
                 "/boot/autonome/windows/dev.xml",
                 "/boot/autonome/windows/gamer.xml",
+                "/boot/autonome/windows/designer.xml",
                 "/boot/autonome/windows/basic.xml",
                 "/boot/autonome/windows/cru.xml"
             ],
