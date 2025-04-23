@@ -66,15 +66,15 @@ def copy_file_sync(src, dst):
 
     if (h_from != h_to):
         file_size = os.path.getsize(src)
-        print(" ")
+        print("\n", end='\r')
         
         with open(src, 'rb') as f_in, open(dst, 'wb') as f_out:
             with tqdm(desc=os.path.basename(dst), total=file_size, unit='B', unit_scale=True, unit_divisor=1024) as bar:
                 for chunk in iter(lambda: f_in.read(4096), b""):
                     f_out.write(chunk)
                     bar.update(len(chunk))
-
-                bar.update(file_size)
+                               
+        print("\n", end='\r')
 
 def recursive_directory_iteration(directory, action):
     for root, subdirectories, files in os.walk(directory):                
@@ -96,7 +96,7 @@ def origin_to_destination(path):
     global origin_path    
     
     print(" "*os.get_terminal_size().columns, end="\r")
-    print(f"- Copiar? '{path.replace(destination_path, '').replace(origin_path, '')}'", end="\r")    
+    print(f"- Copiar? '{path.replace(destination_path, '').replace(origin_path, '')}'", end="\r")
 
     dest_path = path.replace(origin_path, destination_path)    
 
