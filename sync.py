@@ -57,23 +57,31 @@ def copy_file_sync(src, dst):
         src (str): The path to the source file.
         dst (str): The path to the destination file.
     """        
-    h_from = "1"
-    h_to = ""    
+    copy = False    
 
-    if os.path.exists(dst):               
-        h_from = hash_file(src)
-        h_to = hash_file(dst)
+    if not os.path.exists(dst):               
+        copy = True
+    else:
+        if os.path.getsize(src) != os.path.getsize(dst):
+            copy = True
+        else:
+            if os.path.getmtime(src) != os.path.getmtime(dst):
+                copy = True
+            else:
+                if hash_file(src) != hash_file(dst):
+                    copy = True
 
-    if (h_from != h_to):
+    if (copy):
         file_size = os.path.getsize(src)
         print("\n", end='\r')
         
         with open(src, 'rb') as f_in, open(dst, 'wb') as f_out:
-            with tqdm(desc=os.path.basename(dst), total=file_size, unit='B', unit_scale=True, unit_divisor=1024) as bar:
+            with tqdm(desc="Copiando...", total=file_size, unit='B', unit_scale=True, ncols=80) as bar:
                 for chunk in iter(lambda: f_in.read(4096), b""):
                     f_out.write(chunk)
                     bar.update(len(chunk))
-                               
+                                       
+        shutil.copystat(src, dst)
         print("\n", end='\r')
 
 def recursive_directory_iteration(directory, action):
