@@ -11,6 +11,7 @@
 *.log
 *.tmp
 *.casper-rw
+/boot/ISOs/Installs/BB
 /CustomDrivers
 /Programs
 *.log

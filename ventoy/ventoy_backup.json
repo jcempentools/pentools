@@ -27,16 +27,8 @@
             "alias": "> Canivete Suiço"
         },
         {
-            "dir": "/boot/ISOs/Installs/Linux",
-            "alias": "> Linux"
-        },
-        {
             "dir": "/boot/ISOs/Utilitarios",
             "alias": "> Utilitários"
-        },
-        {
-            "dir": "/boot/ISOs/Installs/Windows",
-            "alias": "> Windows"
         },
         {
             "dir": "/boot/ISOs/Utilitarios/Disco",
@@ -60,7 +52,19 @@
         },
         {
             "dir": "/boot/ISOs/Installs",
-            "alias": "> Instalações"
+            "alias": "> Instalações e LiveCDs"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/BB",
+            "alias": "> 3. BB"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/Linux",
+            "alias": "> 2. Linux"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/Windows",
+            "alias": "> 1. Windows"
         }
     ],
     "menu_tip":{
@@ -186,17 +190,28 @@
         {
             "dir": "/boot/ISOs/Canivete",
             "class": "canivete"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/BB",
+            "class": "bb"
+        },
+        {
+            "key": "linux",
+            "class": "linux"
         }
     ],
     "auto_install":[
         {
             "parent": "/boot/ISOs/Installs/Windows",
             "template":[
-                "/boot/ISOs/Installs/Windows/.autonomo/autounattend.xml",
-                "/boot/ISOs/Installs/Windows/.autonomo/autounattend-cru.xml"
+                "/boot/autonome/windows/dev.xml",
+                "/boot/autonome/windows/gamer.xml",
+                "/boot/autonome/windows/designer.xml",
+                "/boot/autonome/windows/basic.xml",
+                "/boot/autonome/windows/cru.xml"
             ],
             "timeout": 15,
-            "autosel": 1
+            "autosel": 3
         }
     ]
 }

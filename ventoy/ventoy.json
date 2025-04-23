@@ -27,16 +27,8 @@
             "alias": "> Canivete Suiço"
         },
         {
-            "dir": "/boot/ISOs/Installs/Linux",
-            "alias": "> Linux"
-        },
-        {
             "dir": "/boot/ISOs/Utilitarios",
             "alias": "> Utilitários"
-        },
-        {
-            "dir": "/boot/ISOs/Installs/Windows",
-            "alias": "> Windows"
         },
         {
             "dir": "/boot/ISOs/Utilitarios/Disco",
@@ -61,6 +53,18 @@
         {
             "dir": "/boot/ISOs/Installs",
             "alias": "> Instalações e LiveCDs"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/Windows",
+            "alias": "> Windows"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/Linux",
+            "alias": "> Linux"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/BB",
+            "alias": "> BB"
         }
     ],
     "menu_tip":{
@@ -186,6 +190,14 @@
         {
             "dir": "/boot/ISOs/Canivete",
             "class": "canivete"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/BB",
+            "class": "bb"
+        },
+        {
+            "key": "linux",
+            "class": "linux"
         }
     ],
     "auto_install":[
