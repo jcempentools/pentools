@@ -5,11 +5,11 @@ import re
 import xxhash
 from tqdm import tqdm
 
-__ignored = f"\\.(git(\\{os.sep}|$)|(log|tmp)$)"
+__ignored = f"(\\.(git(\\{os.sep}|$)|(log|tmp)$)|^/?(minios|Disk ?Backup|DiskImage)(/.*)?)"
 
 print(" ")
 
-if len(sys.argv) != 2:
+if len(sys.argv) < 2:
     print ("Path destino não fornecida.")
     exit(1)
 
@@ -17,7 +17,7 @@ destination_path = os.path.normpath(sys.argv[1]).rstrip(os.path.sep)
 origin_path = os.path.normpath(os.getcwd()).rstrip(os.path.sep)
 
 if not os.path.exists(destination_path):
-    print ("Path destino não exi    ste.")
+    print ("Path destino não existe.")
     exit
 
 if not os.path.isdir(destination_path):
@@ -57,7 +57,8 @@ def copy_file_sync(src, dst):
         src (str): The path to the source file.
         dst (str): The path to the destination file.
     """        
-    copy = False    
+    copy = False
+    cp_meta = False
 
     if not os.path.exists(dst):               
         copy = True
@@ -65,15 +66,24 @@ def copy_file_sync(src, dst):
         if os.path.getsize(src) != os.path.getsize(dst):
             copy = True
         else:
-            if os.path.getmtime(src) != os.path.getmtime(dst):
+            if os.path.getmtime(src) > os.path.getmtime(dst):
                 copy = True
             else:
-                if hash_file(src) != hash_file(dst):
-                    copy = True
+                if os.path.getmtime(src) < os.path.getmtime(dst):
+                    if "-f" in sys.argv:
+                        copy = True
+                else:                
+                    if hash_file(src) != hash_file(dst):                    
+                        copy = True
+                    else:
+                        cp_meta = True
 
     if (copy):
         file_size = os.path.getsize(src)
         print("\n", end='\r')
+
+        if os.path.exists(dst):
+            os.remove(dst)
         
         with open(src, 'rb') as f_in, open(dst, 'wb') as f_out:
             with tqdm(desc="Copiando...", total=file_size, unit='B', unit_scale=True, ncols=80) as bar:
@@ -81,8 +91,10 @@ def copy_file_sync(src, dst):
                     f_out.write(chunk)
                     bar.update(len(chunk))
                                        
+    if (copy or cp_meta):
         shutil.copystat(src, dst)
-        print("\n", end='\r')
+
+    print("\n", end='\r')
 
 def recursive_directory_iteration(directory, action):
     for root, subdirectories, files in os.walk(directory):                
