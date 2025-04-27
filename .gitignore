@@ -17,6 +17,8 @@
 *.log
 !/ventoy/**/*
 /boot/ventoy-install/
+Disk Backup/
+DiskImage/
 /Imagens/*
 /testes/*
 /Drivers/*
