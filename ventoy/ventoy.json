@@ -120,6 +120,10 @@
             "class": "minios"
         },
         {
+            "key": "miniOS",
+            "class": "minios"
+        },        
+        {
             "key": "memtest",
             "class": "ram"
         },
