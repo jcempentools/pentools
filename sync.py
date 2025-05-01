@@ -9,6 +9,26 @@ from rich.console import Console
 from rich.progress import Progress
 from pathlib import Path
 import time
+from datetime import datetime
+
+import random
+
+def gerar_id_unico():
+    """Gera um ID único de 3 caracteres, evitando caracteres visualmente semelhantes"""
+    
+    # Definindo os caracteres permitidos (excluindo os ambíguos)
+    caracteres = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # Sem O, I, L, 0, 1, Z
+    id_unico = ''.join(random.choice(caracteres) for _ in range(3))
+    return id_unico
+
+# Variável global para o ID da execução
+ID_EXECUCAO = gerar_id_unico()
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LOG_FILE = os.path.join(SCRIPT_DIR, "sync.log")
+MAX_LOG_SIZE = 2 * 1024 * 1024  # 5 MB
+
+_log_iniciado = False
 
 sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
 sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
@@ -19,19 +39,101 @@ console = Console()
 # Dicionário para armazenar hashes temporários em RAM
 hash_cache = {}
 
-def show_message(txt, cor="white", bold=True, inline=False):
-    """Exibe mensagem com cor e estilo, opcionalmente sobrescrevendo a linha atual."""
+def limpar_formatacao_rich(mensagem):
+    """
+    Remove formatação Rich (como [bold red]...[/bold red] ou [green]...[/])
+    mas preserva colchetes literais como [INFO], [ERROR], etc.
+    """
+    # Remove blocos completos [style]...[/style]
+    mensagem = re.sub(r'\[(\w[^\]]*)\](.*?)\[/\1\]', r'\2', mensagem)
+
+    # Remove blocos auto-encerrados tipo [style]...[/]
+    mensagem = re.sub(r'\[(\w[^\]]*)\](.*?)\[/\]', r'\2', mensagem)
+
+    return mensagem.strip()
+
+def truncar_log_se_necessario():
+    """Trunca o arquivo de log para manter o tamanho máximo definido."""
+    if not os.path.isfile(LOG_FILE):
+        return
+
+    tamanho = os.path.getsize(LOG_FILE)
+    if tamanho <= MAX_LOG_SIZE:
+        return
+
+    # Mantém apenas os últimos bytes dentro do limite
+    with open(LOG_FILE, 'rb') as f:
+        f.seek(-MAX_LOG_SIZE, os.SEEK_END)
+        conteudo = f.read()
+
+        # Garante que a primeira linha após truncamento esteja completa
+        primeiro_nl = conteudo.find(b'\n')
+        conteudo = conteudo[primeiro_nl + 1:] if primeiro_nl != -1 else conteudo
+
+    with open(LOG_FILE, 'wb') as f:
+        f.write(conteudo)
+
+def show_message(txt, tipo=None, cor="white", bold=True, inline=False):
+    """Exibe mensagem formatada no console e salva uma versão limpa no log, com ID de execução"""
+    global _log_iniciado
+    
+    tipos_demo = {
+        "i": ("I", "cyan"),      # Usando "I" para INFO
+        "e": ("E", "red"),       # Usando "E" para ERROR
+        "w": ("W", "yellow"),    # Usando "W" para WARN
+        "d": ("D", "bright_black"), # Usando "D" para DEBUG
+        "s": ("✓", "green"),     # Usando "✓" para SUCCESS
+        "k": ("✓", "green"),     # Usando "✓" para OK
+        "+": ("+", "bright_green"),  # Usando "+" para ADD
+        "-": ("-", "bright_red"),    # Usando "-" para DEL
+    }
+
+    aliases = {
+        "info": "i", "error": "e", "warn": "w", "warning": "w",
+        "debug": "d", "success": "s", "sucesso": "s",
+        "ok": "k", "added": "+", "add": "+",
+        "removed": "-", "remove": "-", "del": "-"
+    }
+
+    # Se o tipo for passado, verificamos se é válido
+    if tipo is not None:
+        tipo_str = aliases.get(str(tipo).lower(), str(tipo).lower())
+        if tipo_str not in tipos_demo:
+            raise ValueError(f"Tipo de mensagem desconhecido: {tipo}")
+        
+        marcador, cor_definida = tipos_demo[tipo_str]
+        cor = cor or cor_definida
+        # Usar a versão reduzida para a exibição e log
+        txt = f"[{marcador}] {txt}"
+
     style = f"{'bold ' if bold else ''}{cor}"
+
+    # Exibição no console
     if inline:
         terminal_width = os.get_terminal_size().columns
-        console.print(' ' * terminal_width, end='\r')  # Limpa a linha
+        console.print(' ' * terminal_width, end='\r')
         console.print(f"[{style}]{txt}[/{style}]", end='\r')
     else:
         console.print(f"[{style}]{txt}[/{style}]")
-  
 
-def show_inline(txt, cor="white", bold=True):
-    show_message(txt, cor, bold, True)
+    # Escrita no log com ID de execução
+    mensagem_limpa = limpar_formatacao_rich(txt)
+    timestamp = datetime.now().strftime("[%H:%M:%S] ")
+    truncar_log_se_necessario()
+    
+    # Gravando o log com o ID da execução
+    with open(LOG_FILE, 'a', encoding='utf-8') as f_log:
+        if not _log_iniciado:
+            f_log.write("\n")
+            f_log.write(f"[   ] {timestamp} " + "-" * 40 + "\n")
+            f_log.write(f"[   ] {timestamp} Início execução ID '{ID_EXECUCAO}', {datetime.now().strftime('%Y-%m-%d')}\n")
+            _log_iniciado = True
+
+        f_log.write(f"[{ID_EXECUCAO}] {timestamp} {mensagem_limpa}\n")
+
+# EXIBE NA MESMA LINHA
+def show_inline(txt, tipo, cor="white", bold=True):
+    show_message(txt, tipo, cor, bold, True)
 
 # Regex para ignorar arquivos e pastas específicas
 # Regex para ignorar arquivos e pastas específicas, incluindo exFAT e Lixeira
@@ -68,17 +170,13 @@ def build_ignore_regex():
 # Regex para ignorar arquivos e pastas específicas, incluindo exFAT e Lixeira, com arquivos e diretórios passados por parâmetro
 __ignored = build_ignore_regex()
 
-# Arquivo de log
-LOG_FILE = "backup_log.txt"
-MAX_LOG_SIZE = 10 * 1024 * 1024  # 10 MB
-
 # Listas de controle
 verifieds = []       # Arquivos/pastas já verificados
 failed_files = []    # Arquivos que falharam na cópia
 
 # Verifica argumento do destino
 if len(sys.argv) < 2:
-    show_message("[ERROR] Caminho de destino não fornecido.", "red")
+    show_message("Caminho de destino não fornecido.", "e")
     sys.exit(1)
 
 # Caminhos
@@ -87,10 +185,10 @@ origin_path = os.path.normpath(os.getcwd()).rstrip(os.path.sep) + os.path.sep
 
 # Valida caminho destino
 if not os.path.exists(destination_path):
-    show_message("[ERROR] Caminho de destino não existe.", "red")
+    show_message("Caminho de destino não existe.", "e")
     sys.exit(1)
 if not os.path.isdir(destination_path):
-    show_message("[ERROR] Caminho de destino não é uma pasta.", "red")
+    show_message("Caminho de destino não é uma pasta.", "e")
     sys.exit(1)
 
 # Função para calcular hash (xxHash ou SHA-256 para .iso/.img)
@@ -102,13 +200,15 @@ def hash_file(filename, label):
         return 1        
 
     # Verifica se o hash já foi calculado e está no cache
-    if filename in hash_cache:
-        return hash_cache[filename]
+    cached_hash = hash_cache.get(filename)
+    if cached_hash:
+        return cached_hash
 
     try:
         file_size = os.path.getsize(filename)
         with open(filename, 'rb') as file:
-            if filename.endswith(('.iso', '.img')):
+            ext = Path(filename).suffix.lower()
+            if ext in ('.iso', '.img'):
                 hasher = hashlib.sha256()
             else:
                 hasher = xxhash.xxh3_64()
@@ -126,9 +226,9 @@ def hash_file(filename, label):
             hash_cache[filename] = hash_value
             return hash_value
     except Exception as e:
-        show_message(f"[ERROR] Erro ao calcular hash de '{filename}': {e}", "red")
+        show_message(f"Erro ao calcular hash de '{filename}': {e}", "e")
         return None
-    
+
     return 2
 
 # Função para criar arquivo .sha256
@@ -144,12 +244,12 @@ def create_hash_file(filename, hash_type='sha256'):
         if hash_value:
             with open(f"{filename}.{hash_type}", 'w') as f_hash:
                 f_hash.write(f"{hash_value}  {os.path.basename(filename)}\n")
-            show_message(f"[I] Hash {filename}.{hash_type} criado com sucesso.", "green")
+            show_message(f"Hash {filename}.{hash_type} criado com sucesso.", "i")
         else:
-            show_message(f"[ERROR] Não foi possível calcular o hash para '{filename}'","red")
+            show_message(f"Não foi possível calcular o hash para '{filename}'","e")
 
     except Exception as e:
-        show_message(f"[ERROR] Erro ao criar hash de '{filename}': {e}", "red")
+        show_message(f"Erro ao criar hash de '{filename}': {e}", "e")
 
 # Função para log de mensagens
 def log_message(message):
@@ -181,10 +281,10 @@ def copy_file_sync(src, dst, retry=True, dry_run=False):
                 hash_src = hash_file(src, "origem")
                 hash_dst = hash_file(dst, "destino")
 
-                if (hash_src == None):
+                if hash_src is None:
                     if retry:
                         failed_files.append([src, 'cp'])
-                        show_message(f"[I] Retentar Checagem: '{os.path.basename(src)}'.", "yellow")
+                        show_message(f"Retentar Checagem: '{os.path.basename(src)}'.", "w")
                         return False
 
                 if hash_src != hash_dst:
@@ -201,17 +301,17 @@ def copy_file_sync(src, dst, retry=True, dry_run=False):
             with open(src, 'rb') as f_in, open(dst, 'wb') as f_out:
                 with Progress(transient=True) as progress:
                     task = progress.add_task(f"[cyan]Copiando {os.path.basename(src)}[/cyan]", total=file_size, unit="B", unit_scale=True)
-                    for chunk in iter(lambda: f_in.read(4096), b""):
+                    while chunk := f_in.read(4096):
                         f_out.write(chunk)
                         progress.update(task, advance=len(chunk))
 
-            show_message(f"[+] Arquivo Copiado: '{os.path.basename(src)}'.", "green")
+            show_message(f"Arquivo Copiado: '{os.path.basename(src)}'.", "+")
 
         elif cp_meta:
-            show_message(f"[🗸] Já sincronizado: '{os.path.basename(src)}'.", "light_green", False)
+            show_message(f"Já sincronizado: '{os.path.basename(src)}'.", "s")
         
         else:
-            show_message(f"[@] Retentar Cópia.: '{os.path.basename(src)}'.", "yellow")
+            show_message(f"Retentar Cópia.: '{os.path.basename(src)}'.", "w")
 
         if copy or cp_meta:
             shutil.copystat(src, dst)
@@ -219,12 +319,12 @@ def copy_file_sync(src, dst, retry=True, dry_run=False):
         return os.path.exists(dst)
 
     except Exception as e:
-        show_message(f"[ERROR] Erro ao copiar '{src}': {e}", "red")
+        show_message(f"Erro ao copiar '{src}': {e}", "e")
         if retry:
             failed_files.append([src, 'cp'])
-            show_message(f"[@] Retentar Cópia.: '{os.path.basename(src)}'.", "yellow")
+            show_message(f"Retentar Cópia.: '{os.path.basename(src)}'.", "w")
 
-    return False        
+    return False    
 
 # Função para iterar recursivamente pela origem
 def recursive_directory_iteration(directory, action, retry=True, dry_run=False):
@@ -269,7 +369,7 @@ def origin_to_destination(path, retry=True, dry_run=False):
     if dest_path not in verifieds:
         verifieds.append(dest_path)                
         
-        show_inline(f"[I] Verificando '{path.replace(origin_path, '')}'...")
+        show_inline(f"Verificando '{path.replace(origin_path, '')}'...", "i")
 
         if os.path.exists(dest_path):
             if not os.path.isdir(dest_path):
@@ -294,25 +394,25 @@ def remove_from_destination(path, retry=True, dry_run=False):
     #path.replace(destination_path, origin_path)
     #print(origin_path)
 
-    show_inline(f"Deletar? '{path}'","white")    
+    show_inline(f"Deletar? '{path}'", "white")    
 
     if not os.path.exists(src_path):
         if dry_run:
-            show_message(f"[DRY RUN] Deletaria '{path}'", "yellow")
+            show_message(f"[DRY RUN] Deletaria '{path.replace(destination_path,'')}'", "-")
             return
 
         try:
             if os.path.isdir(path):
                 shutil.rmtree(path)
-                show_message(f"[-] Pasta Removida..: '{path}'.", "bright_magenta")
+                show_message(f"Pasta Removida..: '{path.replace(destination_path,'')}'.", "-")
             else:
                 os.remove(path)
-                show_message(f"[-] Arquivo Removido: '{path}'.", "bright_magenta")
+                show_message(f"Arquivo Removido: '{path.replace(destination_path,'')}'.", "-")
         except Exception as e:
-            show_message(f"[ERROR] Erro ao remover '{path}': {e}", "red")
+            show_message(f"Erro ao remover '{path.replace(destination_path,'')}': {e}", "e")
             if retry:
                 failed_files.append([path, 'rm'])
-                show_message(f"[@] Retentar Remover: '{os.path.basename(path)}'.", "yellow")
+                show_message(f"Retentar Remover: '{os.path.basename(path)}'.", "w")
 
             return False
         
@@ -322,33 +422,49 @@ def remove_from_destination(path, retry=True, dry_run=False):
 def main():
     dry_run = '--dry-run' in sys.argv
 
+    show_message(f"\n\n::: Inicializando sincronização, ID = '{ID_EXECUCAO}'.", None, "gold3")
+    show_message("\n::: Estapa 1/3: Transferir conteúdo.", None, "gold3")
+
     # Primeira etapa: sincronizar arquivos da origem
     recursive_directory_iteration(origin_path, origin_to_destination, True, dry_run=dry_run)
 
-    show_message("\n[I] Limpando destino...", "green")
+    show_message("Concluido 1/3 - Transferências.", "i")
+    show_message("\n\n::: Estapa 2/3: Limpar Destino.", None, "gold3")
 
     # Segunda etapa: remover do destino o que não existe na origem
     recursive_directory_iteration(destination_path, remove_from_destination, True, dry_run=dry_run)
 
-    show_message("[I] Sincronização concluída.", "green")
+    show_message("Concluido 2/3 - Limpeza.", "i")
+    show_message("\n\n::: Estapa 3/3: Retentar arquivos falhados.", None, "gold3")
 
     # Tentativas de recópia de arquivos que falharam    
-    loop_count = 1
-    while len(failed_files)> 0 and loop_count < 11:
-        show_message("\n[TENTATIVA] Retentando arquivos com falha...\n" "yellow")
-        time.sleep(5)
+    if len(failed_files)> 0:
+        show_message(f"Há {len(failed_files)} arquivos a serem retentados.", "i")
 
-        for file, tipo in failed_files[:]:                                
-            show_message(f"[{loop_count}] Retentando ({tipo}) '{file}'", "cyan")
-            if tipo == 'cp':                    
-                if origin_to_destination(file, True, dry_run=dry_run):
-                    failed_files.remove([file, tipo])
-            elif tipo == 'rm':
-                if remove_from_destination(file, True, dry_run=dry_run):
-                    failed_files.remove([file, tipo])
-                
-        loop_count += 1
-    show_message("[I] Todos os arquivos recopiados com sucesso.", "green")
+        loop_count = 1
+        while len(failed_files)> 0 and loop_count < 11:
+            show_message("\n[{loop_count}] Retentando arquivos com falha...\n", None, "yellow")
+            time.sleep(5)
+
+            for file, tipo in failed_files[:]:                                
+                show_message(f"[{loop_count}] Retentando ({tipo}) '{file}'", "i")
+                if tipo == 'cp':                    
+                    if origin_to_destination(file, True, dry_run=dry_run):
+                        failed_files.remove([file, tipo])
+                elif tipo == 'rm':
+                    if remove_from_destination(file, True, dry_run=dry_run):
+                        failed_files.remove([file, tipo])
+                    
+            loop_count += 1
+
+        if  len(failed_files) > 0:
+            show_message("Terminado: Alguns arquivos falharam: {failed_files}.", "i")
+        else:
+            show_message("Terminado: Todos retentados com sucesso.", "i")
+    else:
+        show_message("Não há arquivos a serem retentados.", "i")
+
+    show_message("Concluido 3/3 - Retengagem.", "i")
 
 # Executa o script
 if __name__ == "__main__":
