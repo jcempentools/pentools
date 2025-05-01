@@ -2,6 +2,7 @@
 /System Volume Information
 *.iso
 *.sha256
+*.sha*
 *.img
 *.wim
 *.zip
