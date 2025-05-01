@@ -10,7 +10,6 @@ from rich.progress import Progress
 from pathlib import Path
 import time
 from datetime import datetime
-
 import random
 
 def gerar_id_unico():
@@ -394,7 +393,7 @@ def remove_from_destination(path, retry=True, dry_run=False):
     #path.replace(destination_path, origin_path)
     #print(origin_path)
 
-    show_inline(f"Deletar? '{path}'", "white")    
+    show_inline(f"Deletar? '{path}'", "i")    
 
     if not os.path.exists(src_path):
         if dry_run:
@@ -464,7 +463,8 @@ def main():
     else:
         show_message("Não há arquivos a serem retentados.", "i")
 
-    show_message("Concluido 3/3 - Retengagem.", "i")
+    show_message("Concluido 3/3 - Retentagem.", "i")
+    show_message("FIM.", "i")
 
 # Executa o script
 if __name__ == "__main__":
