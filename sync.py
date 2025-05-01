@@ -75,7 +75,7 @@ def truncar_log_se_necessario():
 
 def show_message(txt, tipo=None, cor="white", bold=True, inline=False):
     """Exibe mensagem formatada no console e salva uma versão limpa no log, com ID de execução"""
-    global _log_iniciado
+    global _log_iniciado, retent_loop_count
     
     tipos_demo = {
         "i": ("I", "cyan"),      # Usando "I" para INFO
@@ -105,6 +105,9 @@ def show_message(txt, tipo=None, cor="white", bold=True, inline=False):
         cor = cor or cor_definida
         # Usar a versão reduzida para a exibição e log
         txt = f"[{marcador}] {txt}"
+
+    if retent_loop_count > 0:
+        txt = f"(Retry: {retent_loop_count}) {txt}"
 
     style = f"{'bold ' if bold else ''}{cor}"
 
