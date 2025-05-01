@@ -5,7 +5,7 @@ $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $pythonScript = Join-Path $scriptPath 'sync.py'
 
 # Verifica se Python está instalado
-function Test-Python {
+function Test-PythonInstalled {
   try {
     python --version | Out-Null
     return $true
@@ -16,7 +16,7 @@ function Test-Python {
 }
 
 # Verifica se pip está instalado
-function Test-Pip {
+function Test-PipInstalled {
   try {
     pip --version | Out-Null
     return $true
@@ -27,7 +27,7 @@ function Test-Pip {
 }
 
 # Verifica se script está com privilégios elevados
-function Test-Elevated {
+function Test-HasElevatedPrivileges {
   $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
   $principal = New-Object Security.Principal.WindowsPrincipal $currentIdentity
   return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -47,7 +47,7 @@ function Install-Pip {
 }
 
 # Extrai dependências do sync.py
-function Get-Dependencies {
+function Get-SyncPyDependencies {
     (Get-Content $pythonScript) -match '^import |^from ' |
   ForEach-Object {
     if ($_ -match '^import\s+(\S+)' -or $_ -match '^from\s+(\S+)') {
@@ -57,9 +57,9 @@ function Get-Dependencies {
 }
 
 # Instala dependências ausentes
-function Ensure-Dependencies {
+function Install-MissingDependencies {
   $missing = @()
-  foreach ($dep in Get-Dependencies) {
+  foreach ($dep in Get-SyncPyDependencies) {
     try {
       python -c "import $dep" 2>$null
     }
@@ -68,7 +68,7 @@ function Ensure-Dependencies {
     }
   }
   if ($missing.Count -gt 0) {
-    if (-not (Test-Elevated)) {
+    if (-not (Test-HasElevatedPrivileges)) {
       Write-Host 'Dependências ausentes encontradas, mas privilégios de administrador são necessários para instalar. Abortando.' -ForegroundColor Red
       exit 1
     }
@@ -80,23 +80,23 @@ function Ensure-Dependencies {
 }
 
 # Lógica principal
-if (-not (Test-Python)) {
-  if (-not (Test-Elevated)) {
+if (-not (Test-PythonInstalled)) {
+  if (-not (Test-HasElevatedPrivileges)) {
     Write-Host 'Python não encontrado e privilégios de administrador ausentes. Abortando.' -ForegroundColor Red
     exit 1
   }
   Install-Python
 }
 
-if (-not (Test-Pip)) {
-  if (-not (Test-Elevated)) {
+if (-not (Test-PipInstalled)) {
+  if (-not (Test-HasElevatedPrivileges)) {
     Write-Host 'pip não encontrado e privilégios de administrador ausentes. Abortando.' -ForegroundColor Red
     exit 1
   }
   Install-Pip
 }
 
-Ensure-Dependencies
+Install-MissingDependencies
 
 # Executa sync.py com os mesmos parâmetros
 python $pythonScript @args
