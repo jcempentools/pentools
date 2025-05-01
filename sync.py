@@ -28,6 +28,7 @@ LOG_FILE = os.path.join(SCRIPT_DIR, "sync.log")
 MAX_LOG_SIZE = 2 * 1024 * 1024  # 5 MB
 
 _log_iniciado = False
+retent_loop_count = 0
 
 sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
 sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
@@ -393,16 +394,18 @@ def remove_from_destination(path, retry=True, dry_run=False):
     #path.replace(destination_path, origin_path)
     #print(origin_path)
 
-    show_inline(f"Deletar? '{path}'", "i")    
+    show_inline(f"Deletar? '{path}'", "i")
 
-    if not os.path.exists(src_path):
+    if not os.path.exists(path):
+        show_message(f"Já inexiste.....: '{path.replace(destination_path,'')}'.", "k")
+    elif not os.path.exists(src_path):
         if dry_run:
             show_message(f"[DRY RUN] Deletaria '{path.replace(destination_path,'')}'", "-")
-            return
+            return True
 
         try:
             if os.path.isdir(path):
-                shutil.rmtree(path)
+                shutil.rmtree(path)                
                 show_message(f"Pasta Removida..: '{path.replace(destination_path,'')}'.", "-")
             else:
                 os.remove(path)
@@ -419,6 +422,8 @@ def remove_from_destination(path, retry=True, dry_run=False):
 
 # Função principal
 def main():
+    global retent_loop_count
+
     dry_run = '--dry-run' in sys.argv
 
     show_message(f"\n\n::: Inicializando sincronização, ID = '{ID_EXECUCAO}'.", None, "gold3")
@@ -439,14 +444,14 @@ def main():
     # Tentativas de recópia de arquivos que falharam    
     if len(failed_files)> 0:
         show_message(f"Há {len(failed_files)} arquivos a serem retentados.", "i")
-
-        loop_count = 1
-        while len(failed_files)> 0 and loop_count < 11:
-            show_message("\n[{loop_count}] Retentando arquivos com falha...\n", None, "yellow")
+         
+        retent_loop_count = 1
+        while len(failed_files)> 0 and retent_loop_count < 11:
+            show_message(f"\nRetentando arquivos com falha...\n", None, "yellow")
             time.sleep(5)
 
             for file, tipo in failed_files[:]:                                
-                show_message(f"[{loop_count}] Retentando ({tipo}) '{file}'", "i")
+                show_message(f"Retentando ({tipo}) '{file}'", "i")
                 if tipo == 'cp':                    
                     if origin_to_destination(file, True, dry_run=dry_run):
                         failed_files.remove([file, tipo])
@@ -454,7 +459,9 @@ def main():
                     if remove_from_destination(file, True, dry_run=dry_run):
                         failed_files.remove([file, tipo])
                     
-            loop_count += 1
+            retent_loop_count += 1
+
+        retent_loop_count = 0
 
         if  len(failed_files) > 0:
             show_message("Terminado: Alguns arquivos falharam: {failed_files}.", "i")
