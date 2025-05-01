@@ -464,7 +464,7 @@ def main():
         show_message("Não há arquivos a serem retentados.", "i")
 
     show_message("Concluido 3/3 - Retentagem.", "i")
-    show_message("FIM.", "i")
+    show_message("FIM - tudo sincronizado.", "i")
 
 # Executa o script
 if __name__ == "__main__":
