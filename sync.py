@@ -1,17 +1,37 @@
 import os
 import sys
+import codecs
 import shutil
 import re
 import xxhash
 import hashlib
 from rich.console import Console
 from rich.progress import Progress
+from pathlib import Path
+import time
+
+sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
+sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
 
 # Inicializa o console para mensagens estilizadas
 console = Console()
 
 # Dicionário para armazenar hashes temporários em RAM
 hash_cache = {}
+
+def show_message(txt, cor="white", bold=True, inline=False):
+    """Exibe mensagem com cor e estilo, opcionalmente sobrescrevendo a linha atual."""
+    style = f"{'bold ' if bold else ''}{cor}"
+    if inline:
+        terminal_width = os.get_terminal_size().columns
+        console.print(' ' * terminal_width, end='\r')  # Limpa a linha
+        console.print(f"[{style}]{txt}[/{style}]", end='\r')
+    else:
+        console.print(f"[{style}]{txt}[/{style}]")
+  
+
+def show_inline(txt, cor="white", bold=True):
+    show_message(txt, cor, bold, True)
 
 # Regex para ignorar arquivos e pastas específicas
 # Regex para ignorar arquivos e pastas específicas, incluindo exFAT e Lixeira
@@ -58,26 +78,28 @@ failed_files = []    # Arquivos que falharam na cópia
 
 # Verifica argumento do destino
 if len(sys.argv) < 2:
-    console.print("[bold red][ERROR] Caminho de destino não fornecido.[/bold red]")
+    show_message("[ERROR] Caminho de destino não fornecido.", "red")
     sys.exit(1)
 
 # Caminhos
-destination_path = os.path.normpath(sys.argv[1]).rstrip(os.path.sep)
-origin_path = os.path.normpath(os.getcwd()).rstrip(os.path.sep)
+destination_path = os.path.normpath(sys.argv[1]).rstrip(os.path.sep) + os.path.sep
+origin_path = os.path.normpath(os.getcwd()).rstrip(os.path.sep) + os.path.sep
 
 # Valida caminho destino
 if not os.path.exists(destination_path):
-    console.print("[bold red][ERROR] Caminho de destino não existe.[/bold red]")
+    show_message("[ERROR] Caminho de destino não existe.", "red")
     sys.exit(1)
 if not os.path.isdir(destination_path):
-    console.print("[bold red][ERROR] Caminho de destino não é uma pasta.[/bold red]")
+    show_message("[ERROR] Caminho de destino não é uma pasta.", "red")
     sys.exit(1)
 
 # Função para calcular hash (xxHash ou SHA-256 para .iso/.img)
 def hash_file(filename, label):
+    filename = str(filename) if isinstance(filename, Path) else filename
+
     """Calcula hash de um arquivo. Usa xxHash para geral e SHA-256 para .iso/.img."""
     if os.path.isdir(filename):
-        return 1
+        return 1        
 
     # Verifica se o hash já foi calculado e está no cache
     if filename in hash_cache:
@@ -104,7 +126,7 @@ def hash_file(filename, label):
             hash_cache[filename] = hash_value
             return hash_value
     except Exception as e:
-        console.print(f"[bold red][ERROR] Erro ao calcular hash de '{filename}': {e}[/bold red]")
+        show_message(f"[ERROR] Erro ao calcular hash de '{filename}': {e}", "red")
         return None
     
     return 2
@@ -122,12 +144,12 @@ def create_hash_file(filename, hash_type='sha256'):
         if hash_value:
             with open(f"{filename}.{hash_type}", 'w') as f_hash:
                 f_hash.write(f"{hash_value}  {os.path.basename(filename)}\n")
-            console.print(f"[bold green][I] Hash {filename}.{hash_type} criado com sucesso.[/bold green]")
+            show_message(f"[I] Hash {filename}.{hash_type} criado com sucesso.", "green")
         else:
-            console.print(f"[bold red][ERROR] Não foi possível calcular o hash para '{filename}'[/bold red]")
+            show_message(f"[ERROR] Não foi possível calcular o hash para '{filename}'","red")
 
     except Exception as e:
-        console.print(f"[bold red][ERROR] Erro ao criar hash de '{filename}': {e}[/bold red]")
+        show_message(f"[ERROR] Erro ao criar hash de '{filename}': {e}", "red")
 
 # Função para log de mensagens
 def log_message(message):
@@ -159,9 +181,10 @@ def copy_file_sync(src, dst, retry=True, dry_run=False):
                 hash_src = hash_file(src, "origem")
                 hash_dst = hash_file(dst, "destino")
 
-                if ((hash_src == None) or (hash_dst == None)):
+                if (hash_src == None):
                     if retry:
-                        failed_files.append(src)
+                        failed_files.append([src, 'cp'])
+                        show_message(f"[I] Retentar Checagem: '{os.path.basename(src)}'.", "yellow")
                         return False
 
                 if hash_src != hash_dst:
@@ -182,13 +205,13 @@ def copy_file_sync(src, dst, retry=True, dry_run=False):
                         f_out.write(chunk)
                         progress.update(task, advance=len(chunk))
 
-            console.print(f"[bold green][I] Arquivo '{os.path.basename(src)}' copiado com sucesso.[/bold green]")
+            show_message(f"[+] Arquivo Copiado: '{os.path.basename(src)}'.", "green")
 
         elif cp_meta:
-            console.print(f"[bold light_green][I] Já sincronizado: '{os.path.basename(src)}'.[/bold light_green]")
+            show_message(f"[🗸] Já sincronizado: '{os.path.basename(src)}'.", "light_green", False)
         
         else:
-            console.print(f"[bold yellow][I] Arquivo '{os.path.basename(src)}' será retentado.[/bold yellow]")
+            show_message(f"[@] Retentar Cópia.: '{os.path.basename(src)}'.", "yellow")
 
         if copy or cp_meta:
             shutil.copystat(src, dst)
@@ -196,9 +219,10 @@ def copy_file_sync(src, dst, retry=True, dry_run=False):
         return os.path.exists(dst)
 
     except Exception as e:
-        console.print(f"[bold red][ERROR] Erro ao copiar '{src}': {e}[/bold red]")
+        show_message(f"[ERROR] Erro ao copiar '{src}': {e}", "red")
         if retry:
-            failed_files.append(src)
+            failed_files.append([src, 'cp'])
+            show_message(f"[@] Retentar Cópia.: '{os.path.basename(src)}'.", "yellow")
 
     return False        
 
@@ -212,6 +236,25 @@ def recursive_directory_iteration(directory, action, retry=True, dry_run=False):
             action(os.path.join(root, subdir), retry, dry_run)
             recursive_directory_iteration(os.path.join(root, subdir), action, retry, dry_run)
 
+def trocar_prefixo(caminho_alvo, prefixo_antigo, prefixo_novo):
+    """
+    Substitui o prefixo de um caminho pelo novo prefixo, mantendo o separador correto.
+    """
+    caminho_alvo = Path(caminho_alvo).resolve(strict=False)
+    prefixo_antigo = Path(prefixo_antigo).resolve(strict=False)
+    prefixo_novo = Path(prefixo_novo).resolve(strict=False)
+
+    try:
+        sufixo = caminho_alvo.relative_to(prefixo_antigo)
+    except ValueError:
+        raise ValueError(f"O caminho '{caminho_alvo}' não começa com '{prefixo_antigo}'")
+
+    # Retornar o novo caminho com o novo prefixo
+    novo_caminho = prefixo_novo / sufixo
+
+    # Ajuste para Windows, se necessário
+    return novo_caminho.as_posix() if Path().drive else novo_caminho
+
 # Função que verifica e sincroniza cada item da origem
 def origin_to_destination(path, retry=True, dry_run=False):
     """Sincroniza arquivo/pasta da origem para o destino."""
@@ -220,15 +263,17 @@ def origin_to_destination(path, retry=True, dry_run=False):
 
     global destination_path, origin_path, verifieds
 
-    dest_path = path.replace(origin_path, destination_path)
+    #dest_path = path.replace(origin_path, destination_path)
+    dest_path = trocar_prefixo(path, origin_path, destination_path)
 
     if dest_path not in verifieds:
-        verifieds.append(dest_path)
-        console.print(f"[bold green][I] Verificando '{os.path.basename(path)}'...[/bold green]", end='\r')
+        verifieds.append(dest_path)                
+        
+        show_inline(f"[I] Verificando '{path.replace(origin_path, '')}'...")
 
         if os.path.exists(dest_path):
             if not os.path.isdir(dest_path):
-                copy_file_sync(path, dest_path, retry, dry_run)
+                return copy_file_sync(path, dest_path, retry, dry_run)
         else:
             if os.path.isdir(path):
                 os.makedirs(dest_path, exist_ok=True)
@@ -236,55 +281,74 @@ def origin_to_destination(path, retry=True, dry_run=False):
                 if path.endswith(('.iso', '.img')):
                     create_hash_file(path)
                 if not dry_run:
-                    copy_file_sync(path, dest_path, retry, dry_run)
+                    return copy_file_sync(path, dest_path, retry, dry_run)
+
+    return False
 
 # Função que remove arquivos/pastas no destino que não existem mais na origem
 def remove_from_destination(path, retry=True, dry_run=False):
     """Remove arquivos ou pastas do destino que não existem na origem."""
     global destination_path, origin_path
 
-    src_path = path.replace(destination_path, origin_path)
+    src_path = trocar_prefixo(path, destination_path, origin_path)
+    #path.replace(destination_path, origin_path)
+    #print(origin_path)
+
+    show_inline(f"Deletar? '{path}'","white")    
 
     if not os.path.exists(src_path):
         if dry_run:
-            console.print(f"[bold yellow][DRY RUN] Deletaria '{path}'[/bold yellow]")
+            show_message(f"[DRY RUN] Deletaria '{path}'", "yellow")
             return
 
         try:
             if os.path.isdir(path):
                 shutil.rmtree(path)
-                console.print(f"[bold red][I] Pasta '{path}' removida.[/bold red]")
+                show_message(f"[-] Pasta Removida..: '{path}'.", "bright_magenta")
             else:
                 os.remove(path)
-                console.print(f"[bold red][I] Arquivo '{path}' removido.[/bold red]")
+                show_message(f"[-] Arquivo Removido: '{path}'.", "bright_magenta")
         except Exception as e:
-            console.print(f"[bold red][ERROR] Erro ao remover '{path}': {e}[/bold red]")
+            show_message(f"[ERROR] Erro ao remover '{path}': {e}", "red")
+            if retry:
+                failed_files.append([path, 'rm'])
+                show_message(f"[@] Retentar Remover: '{os.path.basename(path)}'.", "yellow")
+
+            return False
+        
+    return True
 
 # Função principal
 def main():
     dry_run = '--dry-run' in sys.argv
 
     # Primeira etapa: sincronizar arquivos da origem
-    recursive_directory_iteration(origin_path, origin_to_destination, dry_run=dry_run)
+    recursive_directory_iteration(origin_path, origin_to_destination, True, dry_run=dry_run)
 
-    console.print("\n[bold green][I] Limpando destino...[/bold green]")
+    show_message("\n[I] Limpando destino...", "green")
 
     # Segunda etapa: remover do destino o que não existe na origem
-    recursive_directory_iteration(destination_path, remove_from_destination, dry_run=dry_run)
+    recursive_directory_iteration(destination_path, remove_from_destination, True, dry_run=dry_run)
 
-    console.print("[bold green][I] Sincronização concluída.[/bold green]")
+    show_message("[I] Sincronização concluída.", "green")
 
-    # Tentativas de recópia de arquivos que falharam
-    if failed_files:
-        console.print("\n[bold yellow][TENTATIVA] Retentando arquivos com falha...[/bold yellow]\n")
-        loop_count = 1
-        while failed_files:
-            console.print(f"[bold cyan][{loop_count}] Tentativa de recópia...[/bold cyan]")
-            for file in failed_files[:]:
-                if copy_file_sync(file, os.path.join(destination_path, os.path.basename(file)), retry=True):
-                    failed_files.remove(file)
-            loop_count += 1
-        console.print("[bold green][I] Todos os arquivos recopiados com sucesso.[/bold green]")
+    # Tentativas de recópia de arquivos que falharam    
+    loop_count = 1
+    while len(failed_files)> 0 and loop_count < 11:
+        show_message("\n[TENTATIVA] Retentando arquivos com falha...\n" "yellow")
+        time.sleep(5)
+
+        for file, tipo in failed_files[:]:                                
+            show_message(f"[{loop_count}] Retentando ({tipo}) '{file}'", "cyan")
+            if tipo == 'cp':                    
+                if origin_to_destination(file, True, dry_run=dry_run):
+                    failed_files.remove([file, tipo])
+            elif tipo == 'rm':
+                if remove_from_destination(file, True, dry_run=dry_run):
+                    failed_files.remove([file, tipo])
+                
+        loop_count += 1
+    show_message("[I] Todos os arquivos recopiados com sucesso.", "green")
 
 # Executa o script
 if __name__ == "__main__":
