@@ -114,10 +114,9 @@ def show_message(txt, tipo=None, cor="white", bold=True, inline=False):
     # Exibição no console
     if inline:
         terminal_width = os.get_terminal_size().columns
-        console.print(' ' * terminal_width, end='\r')
-        console.print(f"[{style}]{txt}[/{style}]", end='\r')
-    else:
-        console.print(f"[{style}]{txt}[/{style}]")
+        console.print(' ' * terminal_width, end='\r')        
+    
+    console.print(f"[{style}]{txt}[/{style}]", end=f"{'\r' if inline else '\n'}")
 
     # Escrita no log com ID de execução
     mensagem_limpa = limpar_formatacao_rich(txt)
