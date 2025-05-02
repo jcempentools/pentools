@@ -12,6 +12,17 @@ import time
 from datetime import datetime
 import random
 
+from rich.style import Style
+from rich.progress import (
+    Progress,
+    TextColumn,
+    BarColumn,
+    TimeRemainingColumn,
+    DownloadColumn,
+    TransferSpeedColumn,
+    TaskProgressColumn
+)
+
 # Variável global para o ID da execução
 ID_EXECUCAO = ''.join(random.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in range(3))
 
@@ -188,9 +199,29 @@ def hash_file(filename, label):
             else:
                 hasher = xxhash.xxh3_64()
 
-            file_name = os.path.basename(filename)            
-            with Progress(transient=True) as progress:
-                task = progress.add_task(f"[magenta]Hash {label}: {file_name}[/magenta]", total=file_size, unit="B", unit_scale=True)
+            file_name = os.path.basename(filename)  
+            
+            bar_complete_style = "orange3"
+            bar_finished_style = "gold1"
+            bar_pulse_style = "lightgoldenrod1"
+
+            with Progress(
+                TextColumn("[bold lightmagenta]→ Hash {task.fields[label]}: {task.fields[name]}"),
+                BarColumn(
+                    bar_width=None,
+                    complete_style=bar_complete_style,
+                    finished_style=bar_finished_style,
+                    pulse_style=bar_pulse_style
+                ),
+                TextColumn(
+                    "[white]{task.percentage:>3.0f}%[/] "
+                ),
+                transient=True
+            ) as progress:
+                task = progress.add_task(
+                    "", total=file_size,
+                    label=label, name=file_name
+                )
                 progress.update(task, advance=0)
                 while chunk := file.read(4096):
                     hasher.update(chunk)
@@ -274,8 +305,27 @@ def copy_file_sync(src, dst, retry=True, dry_run=False):
                 os.remove(dst)
 
             with open(src, 'rb') as f_in, open(dst, 'wb') as f_out:
-                with Progress(transient=True) as progress:
-                    task = progress.add_task(f"[cyan]Copiando {os.path.basename(src)}[/cyan]", total=file_size, unit="B", unit_scale=True)
+                bar_complete_style = "orange3"
+                bar_finished_style = "gold1"
+                bar_pulse_style = "lightgoldenrod1"
+
+                with Progress(
+                    TextColumn("[bold lightmagenta]→ Copiando {task.fields[name]}"),
+                    BarColumn(
+                        bar_width=None,
+                        complete_style=bar_complete_style,
+                        finished_style=bar_finished_style,
+                        pulse_style=bar_pulse_style
+                    ),
+                    TextColumn(
+                        "[white]{task.percentage:>3.0f}%[/] "
+                    ),
+                    transient=True
+                ) as progress:
+                    task = progress.add_task(
+                        "", total=file_size,
+                        name=os.path.basename(src)
+                    )
                     while chunk := f_in.read(4096):
                         f_out.write(chunk)
                         progress.update(task, advance=len(chunk))
