@@ -102,7 +102,7 @@ def show_message(txt, tipo=None, cor="white", bold=True, inline=False):
             raise ValueError(f"Tipo de mensagem desconhecido: {tipo}")
         
         marcador, cor_definida = tipos_demo[tipo_str]
-        cor = cor or cor_definida
+        cor = cor_definida
         # Usar a versão reduzida para a exibição e log
         txt = f"[{marcador}] {txt}"
 
