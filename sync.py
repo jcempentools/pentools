@@ -78,14 +78,14 @@ def show_message(txt, tipo=None, cor="white", bold=True, inline=False):
     global _log_iniciado, retent_loop_count
     
     tipos_demo = {
-        "i": ("I", "cyan"),      # Usando "I" para INFO
-        "e": ("E", "red"),       # Usando "E" para ERROR
-        "w": ("W", "yellow"),    # Usando "W" para WARN
-        "d": ("D", "bright_black"), # Usando "D" para DEBUG
-        "s": ("✓", "green"),     # Usando "✓" para SUCCESS
-        "k": ("✓", "green"),     # Usando "✓" para OK
-        "+": ("+", "bright_green"),  # Usando "+" para ADD
-        "-": ("-", "bright_red"),    # Usando "-" para DEL
+        "i": ("I", "cyan"),      
+        "e": ("E", "bright_magenta"),
+        "w": ("W", "yellow"),    
+        "d": ("D", "bright_black"),
+        "s": ("✓", "green"),    
+        "k": ("✓", "dodger_blue2"),
+        "+": ("+", "bright_green"), 
+        "-": ("-", "bright_red"),   
     }
 
     aliases = {
@@ -310,7 +310,7 @@ def copy_file_sync(src, dst, retry=True, dry_run=False):
             show_message(f"Arquivo Copiado: '{os.path.basename(src)}'.", "+")
 
         elif cp_meta:
-            show_message(f"Já sincronizado: '{os.path.basename(src)}'.", "s")
+            show_message(f"Já sincronizado: '{os.path.basename(src)}'.", "k")
         
         else:
             show_message(f"Retentar Cópia.: '{os.path.basename(src)}'.", "w")
