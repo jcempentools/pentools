@@ -1,15 +1,78 @@
+# =========================================================
+# AUTONOME INSTALL SCRIPT
+# =========================================================
+# Objetivo:
+# Preparar ambiente Windows de forma automática, previsível e rastreável.
+#
+# Princípios:
+# - Idempotente: não reinstala o que já foi instalado (checklist global)
+# - Híbrido: prioriza offline (pendrive/cache), usa online como fallback
+# - Resiliente: múltiplos métodos de execução e verificação
+# - Rastreável: cada execução gera log isolado
+# - Compatível: funciona em PS antigo com fallback automático para PS7+
+#
+# Logs:
+# - Raiz: %SystemDrive%\autonome-install-LOG
+# - Execução: ID-MMDD-HHMM-MODE (SYSTEM|USER)
+# - Conteúdo:
+#     auto-install.log  → log geral (transcript)
+#     /apps/            → logs por aplicação
+#
+# Checklist:
+# - Arquivo global: installed_apps.json
+# - Evita reinstalações
+# - Persistente entre execuções
+#
+# Fluxo:
+# 0. Totalmente síncrono, com apenas uma única excessão (drivers)
+# 1. Detecta contexto (SYSTEM/USER)
+# 2. Garante PowerShell 7+
+# 3. Prepara cache local (TEMP persistente via registry)
+# 4. Instala drivers offline (assíncrono)
+# 5. Configura ambiente (energia, wallpaper, etc)
+# 6. Atualiza winget
+# 7. Instala apps:
+#    - offline (preferencial)
+#    - URL direta
+#    - winget (fallback)
+#
+# Detecção de instalação:
+# - winget list
+# - registry (Uninstall)
+# - PATH (Get-Command)
+#
+# Cache:
+# - %SystemRoot%\Temp\<ID_RANDOM>
+# - Controlado via HKLM:\SOFTWARE\Autonome
+# - Sincronização incremental via robocopy
+#
+# Execução:
+# - Padrão: cmd.exe
+# - Fallback: PowerShell 7
+# - Execução síncrona para etapas críticas
+#
+# Diretrizes:
+# - Espera privilégio administrativo
+# - Ambiente controlado (ex: pendrive)
+# - Foco em confiabilidade e previsibilidade
+# - Falhas pontuais não devem interromper o fluxo
+#
+# Codificação:
+# - Mudanças minimas par implementar correções e melhorias
+# - Garantir rastreabilidade com git
+# =========================================================
 Param(
   [string]$is_test
 )
 $script:__ps7_fallback_used = $false
-$path_log = "%SystemDrive%\autonome-install-LOG"
-$pwsh_msi_path = "%SystemDrive%\pwsh_install.msi"
+$path_log = "$env:SystemDrive\autonome-install-LOG"
+$pwsh_msi_path = "$env:SystemDrive\pwsh_install.msi"
 # exigido exiência de unidade:/.pentools/.pentools
 $pendrive_autonome_checker = ".pentools"
 $pendrive_autonome_root = "boot\autonome"
 # instalações dentro da pasta /apps em windows:
 $pendrive_autonome_path = "$pendrive_autonome_root\windows"
-$image_folder = "%SystemDrive%\Users\Default\Pictures"
+$image_folder = "$env:SystemDrive\Users\Default\Pictures"
 $pendrive_script_name = "run.ps1"
 $url_pwsh = "github.com/PowerShell/PowerShell/releases/download/v7.6.0/PowerShell-7.6.0-win-x64.msi"
 $url_WallPapers_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/$pendrive_autonome_root/WallPapers/WallPaper.lst"
@@ -38,7 +101,7 @@ if (-Not ([string]::IsNullOrEmpty($is_test))) {
   $Env:autonome_test = "1"
 }
 if ("$in_system_context" -eq "$False") {
-  $image_folder = "%SystemDrive%\Users\${env:USERNAME}\Pictures"
+  $image_folder = "$env:SystemDrive\Users\${env:USERNAME}\Pictures"
 }
 try {
   Set-ExecutionPolicy -ExecutionPolicy Bypass -Force  
@@ -55,23 +118,42 @@ try {
 }
 catch {}
 
-if (-Not (Test-Path -Path "$path_log\")) {
-  New-Item -Path "$path_log" -Force -ItemType Directory
+if (-Not (Test-Path -Path $path_log)) {
+  New-Item -Path $path_log -Force -ItemType Directory | Out-Null
 }
-if (-Not (Test-Path -Path "$path_log\apps")) {
-  New-Item -Path "$path_log\apps\" -Force -ItemType Directory
+
+# CONTEXTO
+$mode = if ($in_system_context) { "SYSTEM" } else { "USER" }
+
+# ID incremental baseado em diretórios existentes
+$dirs = Get-ChildItem -Path $path_log -Directory -ErrorAction SilentlyContinue
+$id = 1
+while (Test-Path (Join-Path $path_log "$id-*")) {
+  $id++
 }
+
+# DATA
+$now = Get-Date
+$mm = $now.ToString("MM")
+$dd = $now.ToString("dd")
+$hhmm = $now.ToString("HHmm")
+
+# NOME FINAL
+$run_name = "$id-$mm$dd-$hhmm-$mode"
+$script:run_log_dir = Join-Path $path_log $run_name
+
+# GARANTE DIRETÓRIOS
+New-Item -Path $script:run_log_dir -ItemType Directory -Force | Out-Null
+New-Item -Path (Join-Path $script:run_log_dir "apps") -ItemType Directory -Force | Out-Null
+
 try {
   $name_install_log = $env:USERNAME
   if ([string]::IsNullOrEmpty($name_install_log)) {
     $name_install_log = ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name).Replace("\", "-")
   }
-  $i = 0
-  $path_log_file = "$path_log\auto-install-$name_install_log"
-  while (Test-Path "$path_log_file.$i.log") {
-    $i = $i + 1
-  }
-  Start-Transcript -Append "$path_log_file.$i.log"
+
+  $transcript_file = Join-Path $script:run_log_dir "auto-install.log"
+  Start-Transcript -Append $transcript_file
 }
 catch {}
 Write-Host "-------------------------------------------------" -BackgroundColor blue
@@ -249,25 +331,13 @@ function download_to_string() {
       return ""
     }
 
-    $tmp = rand_name
-    $tmpFile = "$env:TEMP\$tmp.tmp"
+    $resp = Invoke-WebRequest $url -ErrorAction Stop
 
-    Invoke-WebRequest $url -OutFile $tmpFile -ErrorAction Stop
-
-    if (-Not (Test-Path $tmpFile)) {
-      show_warn "Arquivo temporário não foi criado."
+    if ($null -eq $resp -or [string]::IsNullOrEmpty($resp.Content)) {
       return ""
     }
 
-    $myString = Get-Content $tmpFile -ErrorAction SilentlyContinue
-
-    Remove-Item $tmpFile -Force -ErrorAction SilentlyContinue
-
-    if ($null -eq $myString) {
-      return ""
-    }
-
-    return $myString.ToString().Trim()
+    return $resp.Content.ToString().Trim()
   }
   catch {
     show_error "Falha ao baixar conteúdo de '$url'"
@@ -278,8 +348,8 @@ function download_to_string() {
 function fixWingetLocation {
   $winget = $null
   try {
-    $DesktopAppInstaller = "%SystemDrive%\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe"
-    $paths = Get-ChildItem "%SystemDrive%\Program Files\WindowsApps" -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe" } | Sort-Object Name -Descending
+    $DesktopAppInstaller = "$env:SystemDrive\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe"
+    $paths = Get-ChildItem "$env:SystemDrive\Program Files\WindowsApps" -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe" } | Sort-Object Name -Descending
     if ($paths) {
       $SystemContext = $paths[0].FullName
     }
@@ -311,8 +381,8 @@ function fixWingetLocation {
 function isowin_winget_update {
   show_log_title "Atualizando winget..."
   $i = 0
-  for (; Test-Path "$path_log\apps\winget.update.$i.log"; $i = $i + 1) {}
-  $path_log_full = "$path_log\apps\winget.update.$i.log"
+  for (; Test-Path "$script:run_log_dir\apps\winget.update.$i.log"; $i = $i + 1) {}
+  $path_log_full = "$script:run_log_dir\apps\winget.update.$i.log"
   winget_run_command "upgrade --all --silent --disable-interactivity --accept-package-agreements --accept-source-agreements | Out-File -FilePath '$path_log_full'"
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -321,7 +391,7 @@ function runInPWSH7() {
     [string]$cmd_
   )
 
-  $pwshPath = "%SystemDrive%\Program Files\PowerShell\7\pwsh.exe"
+  $pwshPath = "$env:SystemDrive\Program Files\PowerShell\7\pwsh.exe"
 
   # Se já estiver no PS7, executa direto
   if ($PSVersionTable.PSVersion.Major -ge 7) {
@@ -367,7 +437,7 @@ function run_command {
   $id_ = rand_name(7)
   try {
     show_cmd "[$id_] $command_"
-    $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c $command_" -Wait -PassThru -WindowStyle Hidden
+    $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c ""$command_""" -Wait -PassThru -WindowStyle Hidden
     show_log "[$id_] Executado."
   }
   catch {    
@@ -392,7 +462,7 @@ function winget_run_command {
     $script:winget_timeout = [datetime]::Now.AddMinutes(5)
   }
   while ($true) {
-    if ( $winget | Test-Path) {
+    if (Test-Path $winget) {
       run_command "$winget $command_"
       return ;
     }
@@ -411,8 +481,8 @@ function isowin_winget_install {
   )
   show_log "Winget: Instalando $name_id"
   $i = 0
-  for (; Test-Path "$path_log\apps\$name_id.winget.$i.log"; $i = $i + 1) {}
-  $path_log_full = "$path_log\apps\$name_id.winget.$i.log"
+  for (; Test-Path "$script:run_log_dir\apps\$name_id.winget.$i.log"; $i = $i + 1) {}
+  $path_log_full = "$script:run_log_dir\apps\$name_id.winget.$i.log"
   show_log "Log: '$path_log_full'"
   if (-Not ([string]::IsNullOrEmpty($override))) {
     $override = "--override `"$override`""
@@ -622,6 +692,76 @@ function findExeMsiOnFolders {
   return $null
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function Get-GlobalChecklistPath {
+  return Join-Path $path_log "installed_apps.json"
+}
+
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function Load-Checklist {
+  $file = Get-GlobalChecklistPath
+  if (Test-Path $file) {
+    try {
+      $json = Get-Content $file -Raw | ConvertFrom-Json
+      return @{} + $json
+    }
+    catch { return @{} }
+  }
+  return @{}
+}
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function Save-Checklist {
+  param($data)
+  $file = Get-GlobalChecklistPath
+  try {
+    $data | ConvertTo-Json -Depth 5 | Set-Content $file
+  }
+  catch {}
+}
+
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function Test-AppInstalled {
+  param([string]$name)
+
+  # 1. winget
+  try {
+    $res = winget list --id "$name" 2>$null
+    if ($res -and $res -notmatch "No installed package") {
+      return $true
+    }
+  }
+  catch {}
+
+  # 2. registry uninstall
+  $paths = @(
+    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+    "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+  )
+
+  foreach ($p in $paths) {
+    try {
+      $items = Get-ChildItem $p -ErrorAction SilentlyContinue
+      foreach ($i in $items) {
+        $dn = (Get-ItemProperty $i.PSPath -ErrorAction SilentlyContinue).DisplayName
+        if ($dn -and $dn -match $name) {
+          return $true
+        }
+      }
+    }
+    catch {}
+  }
+
+  # 3. PATH / executável conhecido
+  try {
+    $cmd = Get-Command $name -ErrorAction SilentlyContinue
+    if ($cmd) {
+      return $true
+    }
+  }
+  catch {}  
+
+  return $false
+}
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function isowin_install_app {
   param(
     [string]$name_id,
@@ -629,6 +769,22 @@ function isowin_install_app {
   )
   show_log_title "Instalando '$name_id'"
   $name_id = $name_id.trim()
+
+  $checklist = Load-Checklist
+
+  if ($checklist.ContainsKey($name_id) -and $checklist[$name_id] -eq $true) {
+    show_log "Ignorado (já instalado - checklist): $name_id"
+    if (Test-AppInstalled $name_id) {
+      $checklist = Load-Checklist
+      $checklist[$name_id] = $true
+      Save-Checklist $checklist
+      show_log "Confirmado instalado: $name_id"
+    }
+    else {
+      show_warn "Instalação não confirmada: $name_id"
+    }
+    return
+  }
     
   # Separa ID e URL se existirem
   $id_only = $name_id
@@ -646,7 +802,7 @@ function isowin_install_app {
     show_log "Arquivo offline found: '$nn'"
         
     # Define caminho do log corretamente
-    $current_log = Join-Path $path_log "apps\$id_only.log"
+    $current_log = Join-Path $script:run_log_dir "apps\$id_only.log"
 
     if ("msi" -eq $extencao) {
       $msi_args = "/i ""$nn"" /qn -Wait /L*V ""$current_log"" $override"
@@ -674,6 +830,15 @@ function isowin_install_app {
         show_error "Falha ao executar '$nn'"
       }
     }
+    if (Test-AppInstalled $name_id) {
+      $checklist = Load-Checklist
+      $checklist[$name_id] = $true
+      Save-Checklist $checklist
+      show_log "Confirmado instalado: $name_id"
+    }
+    else {
+      show_warn "Instalação não confirmada: $name_id"
+    }    
     return
   }
 
@@ -699,7 +864,7 @@ function download_msi_install {
   }
   if ([string]::IsNullOrEmpty($to)) {
     $tmp = rand_name
-    $to = "$env:TEMP\$tmp.tmp"
+    $to = Join-Path $script:run_log_dir "$tmp.tmp"
   }
   try {
     download_save "$url" "$to"
@@ -743,7 +908,7 @@ function install_offline_drivers_async {
     }
 
     $drive_root = (Get-Item $script:appsinstall_folder).PSDrive.Root
-    $drivers_path = "$drive_root" + "Drivers"
+    $drivers_path = Join-Path $drive_root "Drivers"
 
     if (-Not (Test-Path $drivers_path)) {
       show_log "Nenhuma pasta 'Drivers' encontrada."
@@ -766,7 +931,7 @@ function install_offline_drivers_async {
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function Ensure-PS7 {
-  $pwshPath = "%SystemDrive%\Program Files\PowerShell\7\pwsh.exe"
+  $pwshPath = "$env:SystemDrive\Program Files\PowerShell\7\pwsh.exe"
 
   # Já estamos no PS7? então NÃO faz nada
   if ($PSVersionTable.PSVersion.Major -ge 7) {
@@ -810,7 +975,72 @@ function Ensure-PS7 {
     }
   }
 }
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function Initialize-AutonomeCache {
 
+  $regPath = "HKLM:\SOFTWARE\Autonome"
+  $regName = "TempRoot"
+
+  try {
+    if (-not (Test-Path $regPath)) {
+      New-Item -Path $regPath -Force | Out-Null
+    }
+  }
+  catch {}
+
+  $temp_root = ""
+  try {
+    $temp_root = (Get-ItemProperty -Path $regPath -Name $regName -ErrorAction SilentlyContinue).$regName
+  }
+  catch {}
+
+  if ([string]::IsNullOrEmpty($temp_root) -or -not (Test-Path $temp_root)) {
+    $rand = rand_name 16
+    $temp_root = Join-Path "$env:SystemRoot\Temp" $rand
+
+    try {
+      New-Item -Path $temp_root -ItemType Directory -Force | Out-Null
+      Set-ItemProperty -Path $regPath -Name $regName -Value $temp_root -Force
+    }
+    catch {
+      show_error "Falha ao criar cache TEMP"
+      return ""
+    }
+  }
+
+  $dest = Join-Path $temp_root $pendrive_autonome_path
+
+  if (-not (Test-Path $dest)) {
+    New-Item -Path $dest -ItemType Directory -Force | Out-Null
+  }
+
+  $src = appinstall_find_path
+
+  if ([string]::IsNullOrEmpty($src)) {
+    show_warn "Pendrive não encontrado para cache."
+    return $temp_root
+  }
+
+  show_log_title "Preparando cache local (TEMP)"
+
+  run_command "robocopy `"$src`" `"$dest`" /E /XO /R:1 /W:1 /NFL /NDL /NJH /NJS"
+
+  $drive_root = (Get-Item $src).PSDrive.Root
+
+  $drivers = Join-Path $drive_root "Drivers"
+  if (Test-Path $drivers) {
+    show_log "Merge Drivers → cache"
+    run_command "robocopy `"$drivers`" `"$dest`" /E /XO /R:1 /W:1 /NFL /NDL /NJH /NJS"
+  }
+
+  $apps = Join-Path $drive_root "apps"
+  if (Test-Path $apps) {
+    show_log "Merge apps → cache"
+    run_command "robocopy `"$apps`" `"$dest`" /E /XO /R:1 /W:1 /NFL /NDL /NJH /NJS"
+  }
+
+  return $temp_root
+}
 #######################################################
 #######################################################
 #####
@@ -838,7 +1068,7 @@ catch {
 #######################################################
 #######################################################
 $x = Get-Command "pwsh" -errorAction SilentlyContinue
-if ([string]::IsNullOrEmpty($x)) {
+if (-not (Get-Command pwsh -ErrorAction SilentlyContinue)) {
   show_log_title "Instalando powershell 7"
   try {
     download_msi_install $url_pwsh "ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1 ADD_PATH=1"
@@ -854,6 +1084,13 @@ if ([string]::IsNullOrEmpty($x)) {
 }
 $appsinstall_folder = appinstall_find_path
 Write-Host "Pendrive?: '$appsinstall_folder'"
+
+$cache_root = Initialize-AutonomeCache
+
+if (-not ([string]::IsNullOrEmpty($cache_root))) {
+  $appsinstall_folder = Join-Path $cache_root $pendrive_autonome_path
+  show_log "Usando cache TEMP: '$appsinstall_folder'"
+}
 install_offline_drivers_async
 #######################################################
 #######################################################
@@ -973,7 +1210,7 @@ if ("$in_system_context" -eq "$False") {
   }
   show_log_title "Winget setup fix 1"
   try {
-    $ResolveWingetPath = Resolve-Path "%SystemDrive%\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe"
+    $ResolveWingetPath = Resolve-Path "$env:SystemDrive\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe"
     if ($ResolveWingetPath) {
       $WingetPath = $ResolveWingetPath[-1].Path
     }
