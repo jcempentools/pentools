@@ -100,6 +100,7 @@ $in_system_context = (("$env:USERNAME" -eq "$env:COMPUTERNAME") -Or ("$env:USERN
 if (-Not ([string]::IsNullOrEmpty($is_test))) {
   $Env:autonome_test = "1"
 }
+$script:is_test_mode = -not [string]::IsNullOrEmpty($Env:autonome_test)
 if ("$in_system_context" -eq "$False") {
   $image_folder = "$env:SystemDrive\Users\${env:USERNAME}\Pictures"
 }
@@ -917,7 +918,13 @@ function install_offline_drivers_async {
 
     show_log "Disparando instalação assíncrona de drivers em '$drivers_path'"
 
-    $cmd = "pnputil.exe /add-driver `"$drivers_path\*.inf`" /subdirs /install & pnputil.exe /scan-devices"
+    if ($script:is_test_mode) {
+      show_log "TEST MODE: staging de drivers (sem instalar no sistema ativo)"
+      $cmd = "pnputil.exe /add-driver `"$drivers_path\*.inf`" /subdirs"
+    }
+    else {
+      $cmd = "pnputil.exe /add-driver `"$drivers_path\*.inf`" /subdirs /install & pnputil.exe /scan-devices"
+    }
 
     Start-Process -FilePath "cmd.exe" -ArgumentList "/c $cmd" -WindowStyle Hidden
 
@@ -1055,7 +1062,12 @@ $appsinstall_folder = appinstall_find_path
 Write-Host "Pendrive?: '$appsinstall_folder'"
 show_log_title "Desabilitando Hibernação."
 try {
-  powercfg.exe /hibernate off
+  if (-not $script:is_test_mode) {
+    powercfg.exe /hibernate off
+  }
+  else {
+    show_log "TEST MODE: hibernação não alterada"
+  }
 }
 catch {
   show_log "Falha ao desabilitar hibernação."
@@ -1221,7 +1233,12 @@ if ("$in_system_context" -eq "$False") {
     show_error "FALHA ao executar FIX 1"
   }
   write-host "Atual: $pwd"
-  isowin_winget_update
+  if (-not $script:is_test_mode) {
+    isowin_winget_update
+  }
+  else {
+    show_log "TEST MODE: winget upgrade ignorado"
+  }
 }
 #######################################################
 #######################################################
