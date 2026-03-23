@@ -2,7 +2,7 @@ Param(
   [string]$is_test
 )
 $script:__ps7_fallback_used = $false
-$path_log = "%SystemDrive%\appinstall.log"
+$path_log = "%SystemDrive%\autonome-install-LOG"
 $pwsh_msi_path = "%SystemDrive%\pwsh_install.msi"
 # exigido exiência de unidade:/.pentools/.pentools
 $pendrive_autonome_checker = ".pentools"
