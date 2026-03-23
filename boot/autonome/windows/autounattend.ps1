@@ -94,7 +94,6 @@ if ("$in_system_context" -eq "$False") {
 #######################################################
 #######################################################
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function show_log_title {
   param(
     [string]$str_menssagem
@@ -108,7 +107,6 @@ function show_log_title {
   write-host ""
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function show_error {
   param(
     [string]$str_menssagem
@@ -117,14 +115,12 @@ function show_error {
   Write-Host "[ERROR]: $str_menssagem" -BackgroundColor Red
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function show_log {
   param(
     [string]$str_menssagem
   )
   Write-Host "---> $str_menssagem" -BackgroundColor DarkGray
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function show_cmd {
   param(
@@ -136,7 +132,6 @@ function show_cmd {
   Write-Host "---------------------------------------------"
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function show_warn {
   param(
     [string]$str_menssagem
@@ -145,14 +140,12 @@ function show_warn {
   Write-Host "[WARN]: $str_menssagem" -BackgroundColor Yellow -ForegroundColor Black
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function show_nota {
   param(
     [string]$str_menssagem
   )
   Write-Host "[NOTA]: $str_menssagem" -BackgroundColor Gray -ForegroundColor Black
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function rand_name {
   param(
@@ -164,7 +157,6 @@ function rand_name {
   }
   return -join ((65..90) + (97..122) | Get-Random -Count $num | ForEach-Object { [char]$_ })
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function setrgkey() {
   Param(
@@ -179,7 +171,6 @@ function setrgkey() {
   Set-ItemProperty -Path $regKey -Name $keyName -value $value
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function sha256 {
   Param (
     [Parameter(Mandatory = $true)]
@@ -190,7 +181,6 @@ function sha256 {
   $hashString = [System.BitConverter]::ToString($hash)
   return $hashString.trim().Replace('-', '')
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function download_save() {
   param(
@@ -227,7 +217,6 @@ function download_save() {
   }
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function download_to_string() {
   param(
     [string]$url
@@ -239,7 +228,6 @@ function download_to_string() {
   Remove-Item $tmpFile
   return $myString.trim()
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function fixWingetLocation {
   $winget = $null
@@ -274,7 +262,6 @@ function fixWingetLocation {
   return $winget
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function isowin_winget_update {
   show_log_title "Atualizando winget..."
   $i = 0
@@ -282,7 +269,6 @@ function isowin_winget_update {
   $path_log_full = "$path_log\apps\winget.update.$i.log"
   winget_run_command "upgrade --all --silent --disable-interactivity --accept-package-agreements --accept-source-agreements | Out-File -FilePath '$path_log_full'"
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function runInPWSH7() {
   param(
@@ -319,7 +305,6 @@ function runInPWSH7() {
   } # switch
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function run_command {
   param(
     [string]$command_
@@ -335,7 +320,6 @@ function run_command {
     runInPWSH7 "$command_"
   }
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function winget_run_command {
   param(
@@ -359,7 +343,6 @@ function winget_run_command {
   }
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function isowin_winget_install {
   param(
     [string]$name_id,
@@ -376,7 +359,6 @@ function isowin_winget_install {
   $defaut_parameters = "--verbose --scope machine --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements $override"
   winget_run_command "install --id '$name_id' $defaut_parameters | Out-File -FilePath '$path_log_full'"
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function Normalize-AppName {
   param([string]$name)
@@ -406,7 +388,6 @@ function Normalize-AppName {
   }
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function appinstall_find_path {
   if (([string]::IsNullOrEmpty($script:appsinstall_folder)) -or (-not (Test-Path $script:appsinstall_folder))) {
     try {
@@ -427,7 +408,6 @@ function appinstall_find_path {
   return $script:appsinstall_folder
 }
 
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function Initialize-AppFileCache {
   if ($script:AppFileCache) { return }
@@ -460,7 +440,6 @@ function Initialize-AppFileCache {
     }
   }
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function Find-BestMatch {
   param($inputTokens)
@@ -507,7 +486,6 @@ function Find-BestMatch {
   return $bestMatch
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function Resolve-NameIdTokens {
   param([string]$name_id)
 
@@ -542,7 +520,6 @@ function Resolve-NameIdTokens {
 
   return $tokens
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function findExeMsiOnFolders {
   param([string]$name_id)
@@ -583,7 +560,6 @@ function findExeMsiOnFolders {
 
   return $null
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function isowin_install_app {
   param(
@@ -631,7 +607,6 @@ function isowin_install_app {
     isowin_winget_install $id_only $override
   }
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function download_msi_install {
   Param(
