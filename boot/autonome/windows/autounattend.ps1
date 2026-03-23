@@ -1,6 +1,7 @@
 Param(
   [string]$is_test
 )
+$script:__ps7_fallback_used = $false
 $path_log = "c:\appinstall.log"
 $pwsh_msi_path = "c:\pwsh_install.msi"
 # exigido exiência de unidade:/.pentools/.pentools
@@ -78,8 +79,8 @@ Start-Sleep -Seconds 1
 if ("$in_system_context" -eq "$False") {
   if ([string]::IsNullOrEmpty($Env:autonome_test)) {
     try {
-      taskkill /F /IM explorer.exe
-      taskkill /F /IM msedge.exe
+      Get-Process explorer -ErrorAction SilentlyContinue | Stop-Process -Force
+      Get-Process msedge -ErrorAction SilentlyContinue | Stop-Process -Force
     }
     catch {
       show_log "falha ao encerar explorer.exe / msedge.exe"
@@ -150,8 +151,7 @@ function show_nota {
 function rand_name {
   param(
     [AllowNull()][int]$num
-  )
-  Write-Host "You passed $($args.Count) arguments:"
+  )  
   if (($args.Count -le 0) -Or ([string]::IsNullOrEmpty($num))) {
     $num = 18
   }
@@ -224,7 +224,7 @@ function download_to_string() {
   $tmp = rand_name
   $tmpFile = "$env:TEMP\$tmp.tmp"
   Invoke-WebRequest $url -OutFile $tmpFile
-  $myString = Get-Content $tmpFile
+  $myString = Get-Content $tmpFile -Raw -Encoding UTF8
   Remove-Item $tmpFile
   return $myString.trim()
 }
@@ -233,9 +233,9 @@ function fixWingetLocation {
   $winget = $null
   try {
     $DesktopAppInstaller = "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe"
-    $SystemContext = Resolve-Path "$DesktopAppInstaller"
-    if ($SystemContext) {
-      $SystemContext = $SystemContext[-1].Path
+    $paths = Get-ChildItem "C:\Program Files\WindowsApps" -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe" } | Sort-Object Name -Descending
+    if ($paths) {
+      $SystemContext = $paths[0].FullName
     }
     $UserContext = Get-Command winget.exe -ErrorAction SilentlyContinue
     if ($UserContext) {
@@ -288,7 +288,7 @@ function runInPWSH7() {
       $command_ = "pwsh.exe -NoProfile -Command 'Get-Content -LiteralPath $tmp -Raw | Invoke-Expression;'"
       try {
         show_cmd "$command_"
-        $command_ | Invoke-Expression
+        $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c $command_" -Wait -PassThru -WindowStyle Hidden
         show_nota "winget supostamente executado corretamente."
       }
       catch {
@@ -312,12 +312,18 @@ function run_command {
   $id_ = rand_name(7)
   try {
     show_cmd "[$id_] $command_"
-    "& $command_" | Invoke-Expression
+    $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c $command_" -Wait -PassThru -WindowStyle Hidden
     show_log "[$id_] Executado."
   }
-  catch {
-    show_error "[$id_] Falha ao executar comando. Tentando com PWSH 7..."
-    runInPWSH7 "$command_"
+  catch {    
+    if (-not $script:__ps7_fallback_used) {
+      $script:__ps7_fallback_used = $true
+      show_error "[$id_] Falha ao executar comando. Tentando com PWSH 7..."
+      runInPWSH7 "$command_"
+    }
+    else {
+      show_error "[$id_] Falha definitiva (já tentou PS7)."
+    }
   }
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -326,8 +332,8 @@ function winget_run_command {
     [string]$command_
   )
   show_log "Configurando Winget..."
-  $winget = fixWingetLocation
-  if ([string]::IsNullOrEmpty($winget_timeout)) {
+  $winget = fixWingetLocation  
+  if (-not ($winget_timeout -is [datetime])) {
     $winget_timeout = [datetime]::Now.AddMinutes(5)
   }
   while ($true) {
@@ -625,7 +631,7 @@ function download_msi_install {
   try {
     download_save "$url" "$to"
     show_cmd "& msiexec.exe /package '$to' /quiet $op | write-host"
-    run_command "msiexec.exe /package '$to' /quiet $op | write-host"
+    run_command "msiexec.exe /package `"$to`" /quiet $op"
     write-host "Supostamente instalado."
     return ""
   }
@@ -633,6 +639,20 @@ function download_msi_install {
     show_error "Falha ao instalar da URL: '$url'"
   }
 }
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function Ensure-PS7 {
+  $pwshPath = "C:\Program Files\PowerShell\7\pwsh.exe"
+  if (-Not (Test-Path $pwshPath)) {
+    download_save "$url_pwsh" "$pwsh_msi_path"
+    Start-Process msiexec.exe -ArgumentList "/i `"$pwsh_msi_path`" /qn ADD_PATH=1" -Wait
+  }
+  if (Test-Path $pwshPath) {
+    $proc = Start-Process -FilePath $pwshPath -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -PassThru
+    while (-not $proc.HasExited) { Start-Sleep 1 }
+    exit
+  }
+}
+
 #######################################################
 #######################################################
 #####
@@ -641,6 +661,7 @@ function download_msi_install {
 #######################################################
 #######################################################
 write-host "Iniciando..."
+Ensure-PS7
 Start-Sleep -Seconds 1
 $appsinstall_folder = appinstall_find_path
 Write-Host "Pendrive?: '$appsinstall_folder'"
@@ -834,7 +855,7 @@ if ("$in_system_context" -eq "$False") {
     }
     if (-Not ([string]::IsNullOrEmpty($apps_lst))) {
       show_log "usando 'apps.lst do pendrive'..."
-      foreach ($line in Get-Content "$appsinstall_folder\apps.lst") {
+      foreach ($line in Get-Content "$apps_lst") {
         $line = $line.trim()
         if ([string]::IsNullOrEmpty($line) -Or ($line -match '^\s*$')) {
           continue
@@ -876,7 +897,7 @@ if ("$in_system_context" -eq "$False") {
     # tenta executar o script localizado no pendrive
     if (Test-Path "$appsinstall_folder\$pendrive_script_name") {
       show_log "Sim, executando..."
-      run_command "& powershell.exe -NoProfile -Command 'Get-Content -LiteralPath '$appsinstall_folder\$pendrive_script_name' -Raw | Invoke-Expression; ' | write-host"
+      run_command "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$appsinstall_folder\$pendrive_script_name`""
     }
     else {
       show_log 'Não, não localizado.'
@@ -894,6 +915,7 @@ catch {}
 if ("$in_system_context" -eq "$False") {
   if ([string]::IsNullOrEmpty($Env:autonome_test)) {
     Start-Sleep -Seconds 1
+    Start-Sleep -Seconds 2
     Restart-Computer
   }
 }
