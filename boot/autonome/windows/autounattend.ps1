@@ -17,7 +17,7 @@ $url_apps_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/mast
 $url_lockscreen = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/$pendrive_autonome_root/WallPapers/lockscreen.lst"
 $url_defWallPaper = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/$pendrive_autonome_root/WallPapers/default.lst"
 $appsinstall_folder = "" # manter vazio
-$winget_timeout = "" # manter vazio
+$script:winget_timeout = "" # manter vazio
 Write-Host " "
 # modo full
 if ("$Env:install_mode" -eq "dev") {
@@ -41,11 +41,20 @@ if ("$in_system_context" -eq "$False") {
   $image_folder = "C:\Users\${env:USERNAME}\Pictures"
 }
 try {
-  Set-ExecutionPolicy -ExecutionPolicy Bypass -Force
+  Set-ExecutionPolicy -ExecutionPolicy Bypass -Force  
 }
 catch {
   write-host "[ERROR]: falha ao setar política de execuçao."
 }
+
+try {
+  [Net.ServicePointManager]::SecurityProtocol =
+  [Net.SecurityProtocolType]::Tls12 `
+    -bor [Net.SecurityProtocolType]::Tls11 `
+    -bor [Net.SecurityProtocolType]::Tls
+}
+catch {}
+
 if (-Not (Test-Path -Path "$path_log\")) {
   New-Item -Path "$path_log" -Force -ItemType Directory
 }
@@ -195,6 +204,18 @@ function download_save() {
   if ($url -notmatch '^http.+') {
     $url = "https://$url"
   }
+  $destDir = Split-Path -Path $dest -Parent
+
+  if (-Not (Test-Path $destDir)) {
+    try {
+      New-Item -Path $destDir -ItemType Directory -Force | Out-Null
+    }
+    catch {
+      show_error "Falha ao criar diretório '$destDir'"
+      return ""
+    }
+  }
+
   if (-Not (Test-Path "$dest")) {
     show_log "Baixando URL..."
     show_cmd "Invoke-WebRequest '$url' -OutFile '$dest'"
@@ -221,12 +242,37 @@ function download_to_string() {
   param(
     [string]$url
   )
-  $tmp = rand_name
-  $tmpFile = "$env:TEMP\$tmp.tmp"
-  Invoke-WebRequest $url -OutFile $tmpFile
-  $myString = Get-Content $tmpFile -Raw -Encoding UTF8
-  Remove-Item $tmpFile
-  return $myString.trim()
+
+  try {
+    if ([string]::IsNullOrEmpty($url)) {
+      show_log "URL vazia."
+      return ""
+    }
+
+    $tmp = rand_name
+    $tmpFile = "$env:TEMP\$tmp.tmp"
+
+    Invoke-WebRequest $url -OutFile $tmpFile -ErrorAction Stop
+
+    if (-Not (Test-Path $tmpFile)) {
+      show_warn "Arquivo temporário não foi criado."
+      return ""
+    }
+
+    $myString = Get-Content $tmpFile -ErrorAction SilentlyContinue
+
+    Remove-Item $tmpFile -Force -ErrorAction SilentlyContinue
+
+    if ($null -eq $myString) {
+      return ""
+    }
+
+    return $myString.ToString().Trim()
+  }
+  catch {
+    show_error "Falha ao baixar conteúdo de '$url'"
+    return ""
+  }
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function fixWingetLocation {
@@ -274,35 +320,44 @@ function runInPWSH7() {
   param(
     [string]$cmd_
   )
-  switch ($PSVersionTable.PSVersion.Major) {
-    ## 7 and (hopefully) later versions
-    { $_ -ge 7 } {
-      show_log "já estávamos no PSWH 7"
-      return ""
-    } # PowerShell 7
-    ## 5, and only 5. We aren't interested in previous versions.
-    5 {
-      $tmp = rand_name
-      $tmp = "c:\run_$tmp.ps1"
-      write-host "$cmd_" | Out-File -FilePath "$tmp"
-      $command_ = "pwsh.exe -NoProfile -Command 'Get-Content -LiteralPath $tmp -Raw | Invoke-Expression;'"
-      try {
-        show_cmd "$command_"
-        $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c $command_" -Wait -PassThru -WindowStyle Hidden
-        show_nota "winget supostamente executado corretamente."
-      }
-      catch {
-        show_error "FALHA final ao instalar '$name_id'"
-      }
-      finally {
-        Remove-Item $tmp -Force
-      }
-    } # PowerShell 5
-    default {
-      ## If it's not 7 or later, and it's not 5, then we aren't doing it.
-      show_error "Unsupported PowerShell version [2]."
-    } # default
-  } # switch
+
+  $pwshPath = "C:\Program Files\PowerShell\7\pwsh.exe"
+
+  # Se já estiver no PS7, executa direto
+  if ($PSVersionTable.PSVersion.Major -ge 7) {
+    show_log "Já estamos no PowerShell 7"
+    try {
+      Invoke-Expression $cmd_
+    }
+    catch {
+      show_error "Falha ao executar comando no PS7"
+    }
+    return
+  }
+
+  # Se não existir PS7, não tenta fallback infinito
+  if (-not (Test-Path $pwshPath)) {
+    show_error "PowerShell 7 não encontrado para fallback."
+    return
+  }
+
+  try {
+    show_cmd "$pwshPath -Command $cmd_"
+
+    $proc = Start-Process -FilePath $pwshPath `
+      -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"$cmd_`"" `
+      -PassThru
+
+    # execução síncrona (seu requisito)
+    while (-not $proc.HasExited) {
+      Start-Sleep -Seconds 1
+    }
+
+    show_nota "Comando executado via PS7."
+  }
+  catch {
+    show_error "Falha ao executar comando via PS7"
+  }
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function run_command {
@@ -333,15 +388,15 @@ function winget_run_command {
   )
   show_log "Configurando Winget..."
   $winget = fixWingetLocation  
-  if (-not ($winget_timeout -is [datetime])) {
-    $winget_timeout = [datetime]::Now.AddMinutes(5)
+  if (-not ($script:winget_timeout -is [datetime])) {
+    $script:winget_timeout = [datetime]::Now.AddMinutes(5)
   }
   while ($true) {
     if ( $winget | Test-Path) {
       run_command "$winget $command_"
       return ;
     }
-    if ( [datetime]::Now -gt $winget_timeout ) {
+    if ( [datetime]::Now -gt $script:winget_timeout) {
       'Winget: File {0} indisponível ainda.' -f $winget | Write-Warning;
       return ;
     }
@@ -430,8 +485,8 @@ function Initialize-AppFileCache {
   foreach ($f in $folders) {
     $root = if ($f) { Join-Path $path $f } else { $path }
     if (-not (Test-Path $root)) { continue }
-
-    $files += Get-ChildItem -Path $root -Include *.exe, *.msi -File -ErrorAction SilentlyContinue
+        
+    $files += Get-ChildItem -Path $root -Recurse -Include *.exe, *.msi -File -ErrorAction SilentlyContinue
   }
 
   $script:AppFileCache = $files | ForEach-Object {
@@ -599,7 +654,25 @@ function isowin_install_app {
     }
     elseif ("exe" -eq $extencao) {
       # CORREÇÃO: Agora o log do EXE funciona corretamente
-      run_command "& ""$nn"" /silent /install $override | Out-File -FilePath ""$current_log"""
+      try {
+        show_cmd "& ""$nn"" /silent /install $override"
+
+        $proc = Start-Process -FilePath $nn `
+          -ArgumentList "/silent /install $override" `
+          -RedirectStandardOutput "$current_log" `
+          -RedirectStandardError "$current_log" `
+          -NoNewWindow `
+          -PassThru
+
+        while (-not $proc.HasExited) {
+          Start-Sleep -Seconds 1
+        }
+
+        show_log "Instalação concluída (EXE)."
+      }
+      catch {
+        show_error "Falha ao executar '$nn'"
+      }
     }
     return
   }
@@ -640,16 +713,101 @@ function download_msi_install {
   }
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function install_offline_drivers_async {
+  <#
+    EXECUÇÃO ASSÍNCRONA (INTENCIONAL)
+
+    Esta é a ÚNICA parte do script que roda de forma assíncrona.
+    Motivo:
+      - instalação de drivers pode ser demorada
+      - não deve bloquear o fluxo principal
+      - não deve impedir conclusão do setup
+
+    Comportamento:
+      - varre pasta "Drivers" na raiz do pendrive
+      - instala todos os .inf (subpastas incluídas)
+      - executa em background
+      - não gera erro fatal
+
+    Observação:
+      - falhas aqui NÃO devem interromper o script principal
+      - não depende de rede
+  #>
+
+  show_log_title "Instalando drivers offline (modo assíncrono)"
+
+  try {
+    if ([string]::IsNullOrEmpty($script:appsinstall_folder)) {
+      show_log "Pasta base do pendrive não definida."
+      return
+    }
+
+    $drive_root = (Get-Item $script:appsinstall_folder).PSDrive.Root
+    $drivers_path = "$drive_root" + "Drivers"
+
+    if (-Not (Test-Path $drivers_path)) {
+      show_log "Nenhuma pasta 'Drivers' encontrada."
+      return
+    }
+
+    show_log "Disparando instalação assíncrona de drivers em '$drivers_path'"
+
+    $cmd = "pnputil.exe /add-driver `"$drivers_path\*.inf`" /subdirs /install & pnputil.exe /scan-devices"
+
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/c $cmd" -WindowStyle Hidden
+
+    show_log "Instalação de drivers iniciada em background."
+
+  }
+  catch {
+    show_error "Falha ao iniciar instalação assíncrona de drivers."
+  }
+}
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function Ensure-PS7 {
   $pwshPath = "C:\Program Files\PowerShell\7\pwsh.exe"
-  if (-Not (Test-Path $pwshPath)) {
-    download_save "$url_pwsh" "$pwsh_msi_path"
-    Start-Process msiexec.exe -ArgumentList "/i `"$pwsh_msi_path`" /qn ADD_PATH=1" -Wait
+
+  # Já estamos no PS7? então NÃO faz nada
+  if ($PSVersionTable.PSVersion.Major -ge 7) {
+    show_log "Já em PowerShell 7 — não é necessário relançar."
   }
-  if (Test-Path $pwshPath) {
-    $proc = Start-Process -FilePath $pwshPath -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -PassThru
-    while (-not $proc.HasExited) { Start-Sleep 1 }
-    exit
+  else {
+
+    # Se não existe PS7, instala
+    if (-Not (Test-Path $pwshPath)) {
+      show_log "PowerShell 7 não encontrado. Instalando..."
+      download_save "$url_pwsh" "$pwsh_msi_path"
+      Start-Process msiexec.exe -ArgumentList "/i `"$pwsh_msi_path`" /qn ADD_PATH=1" -Wait
+    }
+
+    # Se existe PS7, relança
+    if (Test-Path $pwshPath) {
+      show_log "Relançando script em PowerShell 7..."
+
+      # preserva argumentos originais
+      $argList = @()
+
+      foreach ($a in $args) {
+        $argList += "`"$a`""
+      }
+
+      $argString = $argList -join " "
+
+      $proc = Start-Process -FilePath $pwshPath `
+        -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $argString" `
+        -PassThru
+
+      # ⚠️ IMPORTANTE: bloqueia até terminar (seu requisito)
+      while (-not $proc.HasExited) {
+        Start-Sleep -Seconds 1
+      }
+
+      exit
+    }
+    else {
+      show_error "PowerShell 7 não encontrado mesmo após tentativa de instalação."
+    }
   }
 }
 
@@ -694,6 +852,9 @@ if ([string]::IsNullOrEmpty($x)) {
     show_error "FALHA AO INSTALAR POWESHELL 7"
   }
 }
+$appsinstall_folder = appinstall_find_path
+Write-Host "Pendrive?: '$appsinstall_folder'"
+install_offline_drivers_async
 #######################################################
 #######################################################
 #####
