@@ -3,8 +3,10 @@ Param(
 )
 $path_log = "c:\appinstall.log"
 $pwsh_msi_path = "c:\pwsh_install.msi"
+# exigido exiência de unidade:/.pentools/.pentools
 $pendrive_autonome_checker = ".pentools"
 $pendrive_autonome_root = "boot\autonome"
+# instalações dentro da pasta /apps em windows:
 $pendrive_autonome_path = "$pendrive_autonome_root\windows"
 $image_folder = "C:\Users\Default\Pictures"
 $pendrive_script_name = "run.ps1"
