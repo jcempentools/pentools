@@ -378,48 +378,210 @@ function isowin_winget_install {
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-function appinstall_find_path() {
-  if (([string]::IsNullOrEmpty($appsinstall_folder)) -Or (-Not (Test-path $appsinstall_folder))) {
+function Normalize-AppName {
+  param([string]$name)
+
+  if (-not $name) { return @{ Tokens = @(); Vendor = $null } }
+
+  $n = $name.ToLower()
+
+  # remove versões
+  $n = $n -replace '\d+(\.\d+)+', ''
+  $n = $n -replace '\b(19|20)\d{2}\b', ''
+
+  # remove lixo comum
+  $n = $n -replace '\b(x64|x86|amd64|arm64|win(dows)?|setup|installer|portable|release|final)\b', ''
+
+  # limpa caracteres
+  $n = $n -replace '[^a-z0-9]', ' '
+
+  $tokens = $n -split '\s+' | Where-Object { $_ -and $_.Length -ge 3 }
+
+  # vendor = primeiro token apenas se fizer sentido
+  $vendor = if ($tokens.Count -ge 2) { $tokens[0] } else { $null }
+
+  return @{
+    Tokens = $tokens
+    Vendor = $vendor
+  }
+}
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function appinstall_find_path {
+  if (([string]::IsNullOrEmpty($script:appsinstall_folder)) -or (-not (Test-Path $script:appsinstall_folder))) {
     try {
       foreach ($Drive in (Get-PSDrive -PSProvider 'FileSystem')) {
-        #foreach ($Drive in [System.IO.DriveInfo]::GetDrives())) {
-        if ((Test-Path Path "$pendrive_autonome_checker/$pendrive_autonome_checker") -And (Test-Path -Path "${Drive}:\$pendrive_autonome_path")) {
-          $appsinstall_folder = "${Drive}:\$pendrive_autonome_path"
+        $root = "${Drive.Root}"
+        # CORREÇÃO: Removido o "Path" solto e a redundância da pasta .pentools
+        if ((Test-Path -Path (Join-Path $root $pendrive_autonome_checker)) -and (Test-Path -Path (Join-Path $root $pendrive_autonome_path))) {
+          $script:appsinstall_folder = Join-Path $root $pendrive_autonome_path
           break
         }
       }
     }
     catch {
-      write-host ""
       show_nota 'Falha ao localizar pasta de instalação offline'
       return ""
     }
   }
-  return $appsinstall_folder
+  return $script:appsinstall_folder
+}
+
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function Initialize-AppFileCache {
+  if ($script:AppFileCache) { return }
+
+  $path = appinstall_find_path
+  if (-not $path -or -not (Test-Path $path)) {
+    $script:AppFileCache = @()
+    return
+  }
+
+  $folders = @('', 'apps')
+  $files = @()
+
+  foreach ($f in $folders) {
+    $root = if ($f) { Join-Path $path $f } else { $path }
+    if (-not (Test-Path $root)) { continue }
+
+    $files += Get-ChildItem -Path $root -Include *.exe, *.msi -File -ErrorAction SilentlyContinue
+  }
+
+  $script:AppFileCache = $files | ForEach-Object {
+    $norm = Normalize-AppName $_.BaseName
+
+    [PSCustomObject]@{
+      FullName = $_.FullName
+      BaseName = $_.BaseName
+      Tokens   = $norm.Tokens
+      Vendor   = $norm.Vendor
+      Flat     = ($norm.Tokens -join ' ')
+    }
+  }
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-function findExeMsiOnFolders() {
-  param(
-    [string]$name_id
-  )
-  $path = appinstall_find_path
-  if ((-Not ([string]::IsNullOrEmpty($path))) -And (Test-path $path)) {
-    $name_id = $name_id.trim()
-    $exts = @('exe', 'msi')
-    $names = @($name_id, $name_id.split(".")[-1])
-    $folders = @('', 'apps\')
-    foreach ( $f in $folders) {
-      foreach ( $n in $names) {
-        foreach ( $e in $exts) {
-          if (Test-Path -Path "${path}\${f}${n}.$e") {
-            return "${path}\${f}${n}.$e"
-          }
-        }
+function Find-BestMatch {
+  param($inputTokens)
+
+  if (-not $script:AppFileCache -or -not $inputTokens) { return $null }
+
+  $bestScore = -1
+  $bestMatch = $null
+
+  foreach ($app in $script:AppFileCache) {
+
+    $score = 0
+
+    # matches diretos (forte)
+    foreach ($t in $inputTokens) {
+      if ($app.Tokens -contains $t) {
+        $score += 3
       }
     }
+
+    # match parcial (moderado)
+    foreach ($t in $inputTokens) {
+      if ($app.Flat -like "*$t*") {
+        $score += 1
+      }
+    }
+
+    # bônus: todos tokens bateram
+    if (($inputTokens | Where-Object { $app.Tokens -contains $_ }).Count -eq $inputTokens.Count) {
+      $score += 5
+    }
+
+    # penalização: nenhum match forte
+    if ($score -lt 3) {
+      continue
+    }
+
+    if ($score -gt $bestScore) {
+      $bestScore = $score
+      $bestMatch = $app
+    }
   }
-  return ""
+
+  return $bestMatch
+}
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function Resolve-NameIdTokens {
+  param([string]$name_id)
+
+  if (-not $name_id) { return @() }
+
+  $tokens = @()
+
+  if ($name_id -match '^https?://') {
+    try {
+      $uri = [uri]$name_id
+
+      $tokens += ($uri.Host -split '\.')
+      $tokens += ($uri.AbsolutePath -split '[\/\-\._]')
+
+      if ($uri.Query) {
+        $tokens += ($uri.Query -split '[=&\-\._]')
+      }
+    }
+    catch {}
+  }
+  elseif (Test-Path $name_id) {
+    $tokens += (Split-Path $name_id -LeafBase)
+  }
+  else {
+    $tokens += ($name_id -split '[\.\-\_\s]')
+  }
+
+  # normalizar igual aos apps
+  $tokens = $tokens | ForEach-Object {
+    $_.ToLower() -replace '[^a-z0-9]', ''
+  } | Where-Object { $_ -and $_.Length -ge 3 }
+
+  return $tokens
+}
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function findExeMsiOnFolders {
+  param([string]$name_id)
+
+  if (-not $name_id) { return $null }
+
+  # Divide entrada composta
+  $parts = $name_id -split '\|'
+  $clean_id = $parts[0].Trim()
+  $extra = if ($parts.Count -gt 1) { $parts[1] } else { $null }
+
+  # Caminho direto (mais seguro)
+  if ([System.IO.Path]::IsPathRooted($clean_id) -and (Test-Path $clean_id -PathType Leaf)) {
+    return (Resolve-Path $clean_id).Path
+  }
+
+  Initialize-AppFileCache
+
+  # Tokens principais
+  $tokens = @()
+  $tokens += Resolve-NameIdTokens $clean_id
+
+  # Tokens extras (URL ou complemento)
+  if ($extra) {
+    $tokens += Resolve-NameIdTokens $extra
+  }
+
+  # Remove duplicados
+  $tokens = $tokens | Select-Object -Unique
+
+  if (-not $tokens) { return $null }
+
+  $match = Find-BestMatch $tokens
+
+  if ($null -ne $match) {
+    return $match.FullName
+  }
+
+  return $null
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -430,35 +592,43 @@ function isowin_install_app {
   )
   show_log_title "Instalando '$name_id'"
   $name_id = $name_id.trim()
+    
+  # Separa ID e URL se existirem
+  $id_only = $name_id
   $is_url = ""
-  if ("$name_id" -match "^[\w]+|s*(http|ftp)s?[^|]+") {
-    $is_url = $name_id.split("|")[-1]
-    $name_id = $name_id.split("|")[0]
+  if ($name_id -match "\|") {
+    $id_only = $name_id.Split("|")[0]
+    $is_url = $name_id.Split("|")[-1]
   }
-  $nn = findExeMsiOnFolders($name_id)
-  if (-Not ([string]::IsNullOrEmpty($nn))) {
-    $extencao = $nn.split(".")[-1]
-    show_log "Arquivo offline '.$extencao' encontrado"
-    show_log "File: '$nn'"
-    show_log "Executando..."
-    if ("msi" -eq "$extencao") {
-      if ([string]::IsNullOrEmpty($override)) {
-        $override = ""
-      }
-      run_command "& msiexec.exe /i '$nn' /qn -Wait /L*V '$path_log\apps\$name_id.log' $override"
+
+  # Busca no Pendrive usando seu novo sistema de Score
+  $nn = findExeMsiOnFolders $id_only
+    
+  if (-not ([string]::IsNullOrEmpty($nn))) {
+    $extencao = [System.IO.Path]::GetExtension($nn).Replace(".", "").ToLower()
+    show_log "Arquivo offline found: '$nn'"
+        
+    # Define caminho do log corretamente
+    $current_log = Join-Path $path_log "apps\$id_only.log"
+
+    if ("msi" -eq $extencao) {
+      $msi_args = "/i ""$nn"" /qn -Wait /L*V ""$current_log"" $override"
+      run_command "msiexec.exe $msi_args"
     }
-    elseif ("exe" -eq "$extencao") {
-      run_command "'$nn' | Out-File -FilePath '$path_log_full'"
+    elseif ("exe" -eq $extencao) {
+      # CORREÇÃO: Agora o log do EXE funciona corretamente
+      run_command "& ""$nn"" /silent /install $override | Out-File -FilePath ""$current_log"""
     }
-    return ""
+    return
   }
-  show_nota "Arquivo de instalação offline inexistente, tentando via winget..."
-  $installed = "1"
-  if (-Not ([string]::IsNullOrEmpty($is_url))) {
-    $installed = download_msi_install "$is_url"
+
+  # Se não achou no pendrive, segue o fluxo normal
+  show_nota "Arquivo offline não encontrado, tentando nuvem..."
+  if (-not [string]::IsNullOrEmpty($is_url)) {
+    download_msi_install "$is_url" "$override"
   }
-  if (([string]::IsNullOrEmpty($is_url)) -Or ([string]::IsNullOrEmpty($installed))) {
-    isowin_winget_install $name_id $override
+  else {
+    isowin_winget_install $id_only $override
   }
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
