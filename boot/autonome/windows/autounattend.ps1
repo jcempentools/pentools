@@ -2,14 +2,14 @@ Param(
   [string]$is_test
 )
 $script:__ps7_fallback_used = $false
-$path_log = "c:\appinstall.log"
-$pwsh_msi_path = "c:\pwsh_install.msi"
+$path_log = "%SystemDrive%\appinstall.log"
+$pwsh_msi_path = "%SystemDrive%\pwsh_install.msi"
 # exigido exiência de unidade:/.pentools/.pentools
 $pendrive_autonome_checker = ".pentools"
 $pendrive_autonome_root = "boot\autonome"
 # instalações dentro da pasta /apps em windows:
 $pendrive_autonome_path = "$pendrive_autonome_root\windows"
-$image_folder = "C:\Users\Default\Pictures"
+$image_folder = "%SystemDrive%\Users\Default\Pictures"
 $pendrive_script_name = "run.ps1"
 $url_pwsh = "github.com/PowerShell/PowerShell/releases/download/v7.6.0/PowerShell-7.6.0-win-x64.msi"
 $url_WallPapers_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/$pendrive_autonome_root/WallPapers/WallPaper.lst"
@@ -38,7 +38,7 @@ if (-Not ([string]::IsNullOrEmpty($is_test))) {
   $Env:autonome_test = "1"
 }
 if ("$in_system_context" -eq "$False") {
-  $image_folder = "C:\Users\${env:USERNAME}\Pictures"
+  $image_folder = "%SystemDrive%\Users\${env:USERNAME}\Pictures"
 }
 try {
   Set-ExecutionPolicy -ExecutionPolicy Bypass -Force  
@@ -278,8 +278,8 @@ function download_to_string() {
 function fixWingetLocation {
   $winget = $null
   try {
-    $DesktopAppInstaller = "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe"
-    $paths = Get-ChildItem "C:\Program Files\WindowsApps" -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe" } | Sort-Object Name -Descending
+    $DesktopAppInstaller = "%SystemDrive%\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe"
+    $paths = Get-ChildItem "%SystemDrive%\Program Files\WindowsApps" -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe" } | Sort-Object Name -Descending
     if ($paths) {
       $SystemContext = $paths[0].FullName
     }
@@ -321,7 +321,7 @@ function runInPWSH7() {
     [string]$cmd_
   )
 
-  $pwshPath = "C:\Program Files\PowerShell\7\pwsh.exe"
+  $pwshPath = "%SystemDrive%\Program Files\PowerShell\7\pwsh.exe"
 
   # Se já estiver no PS7, executa direto
   if ($PSVersionTable.PSVersion.Major -ge 7) {
@@ -766,7 +766,7 @@ function install_offline_drivers_async {
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function Ensure-PS7 {
-  $pwshPath = "C:\Program Files\PowerShell\7\pwsh.exe"
+  $pwshPath = "%SystemDrive%\Program Files\PowerShell\7\pwsh.exe"
 
   # Já estamos no PS7? então NÃO faz nada
   if ($PSVersionTable.PSVersion.Major -ge 7) {
@@ -973,7 +973,7 @@ if ("$in_system_context" -eq "$False") {
   }
   show_log_title "Winget setup fix 1"
   try {
-    $ResolveWingetPath = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe"
+    $ResolveWingetPath = Resolve-Path "%SystemDrive%\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe"
     if ($ResolveWingetPath) {
       $WingetPath = $ResolveWingetPath[-1].Path
     }
