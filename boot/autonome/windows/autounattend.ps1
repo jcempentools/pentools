@@ -2,14 +2,18 @@
 # AUTONOME INSTALL SCRIPT
 # =========================================================
 # Objetivo:
-# Preparar ambiente Windows de forma automática, previsível e rastreável.
+# Preparar ambiente Windows de forma automática,
+# previsível e rastreável.
 #
 # Princípios:
-# - Idempotente: não reinstala o que já foi instalado (checklist global)
-# - Híbrido: prioriza offline (pendrive/cache), usa online como fallback
+# - Idempotente: não reinstala o que já foi instalado
+#   (checklist global)
+# - Híbrido: prioriza offline (pendrive/cache), usa online
+#   como fallback
 # - Resiliente: múltiplos métodos de execução e verificação
 # - Rastreável: cada execução gera log isolado
-# - Compatível: funciona em PS antigo com fallback automático para PS7+
+# - Compatível: funciona em PS antigo com fallback
+#   automático para PS7+
 #
 # Logs:
 # - Raiz: %SystemDrive%\autonome-install-LOG
@@ -22,10 +26,12 @@
 # - Arquivo global: installed_apps.json
 # - Evita reinstalações
 # - Persistente entre execuções
-# - Apenas uma versão do software, não deve-se controlar versõesv (Ex. Adobe Photoshop, ignore-se a versão)
+# - Apenas uma versão do software, não deve-se controlar
+#   versões (Ex. Adobe Photoshop, ignore-se a versão)
 #
 # Fluxo:
-# 0. Totalmente síncrono, com apenas uma única excessão (drivers)
+# 0. Totalmente síncrono, com apenas uma única exceção
+#    (drivers)
 # 1. Detecta contexto (SYSTEM/USER)
 # 2. Garante PowerShell 7+
 # 3. Prepara cache local (TEMP persistente via registry)
@@ -59,9 +65,71 @@
 # - Falhas pontuais não devem interromper o fluxo
 #
 # Codificação:
-# - Mudanças minimas par implementar correções e melhorias
+# - Mudanças mínimas para implementar correções e melhorias
 # - Garantir rastreabilidade com git
+#
+# Boas práticas de CORRÇÕES E APRIMORAMENTOS:
+# Toda e qualquer alteração de primar por alterações
+# minimas objetivando um fácil rastreo git, mas com bom 
+# senso, afim de obter eficiência e gestão de código.
+#
+# TO-DO[1]: Implementar/atualizar instalação de drivers, agora
+# compactados.
+#
+# Originalmente, os drivers offline residiam na pasta
+# 'Drivers' localizada sob a raiz do pendrive ou sob
+# $pendrive_autonome_path, entretanto, agora, os drivers
+# estão compactados em "$pendrive_autonome_path\Drivers.zip"
+# ou "$pendrive_autonome_path\Drivers.7z" com compactação
+# LZMA2, modo ultra. A função de atualização de driver que
+# utiliza o cache local (que é uma cópia do pendrive), deve
+# localizar o arquivo compactado no cache, descompactá-lo
+# para a mesma localização dele sob pasta .\Drivers\. E
+# então usar esta pasta para atualizar os drivers de
+# hardware.
+#
+# Importante, apenas hardware não reconhecido deve ser
+# atualizado, ou aqueles que o Windows identifique como
+# com mau funcionamento.
+#
+# TO-DO[2]: Ajuste de $in_system_context aliado a
+#           $Env:LOCAL_EXEC
+#
+# Antes da execução deste script, $Env:LOCAL_EXEC é
+# definido e pode assumir 4 valores string (UPPERCASE), que
+# indicam em que estágio da instalação do Windows o script
+# foi invocado:
+# - "System": Scripts rodam no contexto de sistema, antes
+#   da criação de contas de usuário.
+# - "DefaultUser": Scripts para modificar a hive do usuário
+#   padrão (C:\Users\Default\NTUSER.DAT). Afetam todas as
+#   contas criadas.
+# - "FirstLogon": Scripts rodam no primeiro logon após a
+#   instalação, tipicamente com privilégios elevados.
+# - "UserOnce": Scripts rodam sempre que um usuário faz
+#   logon pela primeira vez.
+#
+# 1. Precisamos unificar ou deixar de usar a ideia de
+#    $in_system_context, ou então usá-la apenas como um
+#    validador lógico adicional, mas sem deixar de fazer
+#    o que é feito quando ela é usada, ou seja, apenas
+#    vamos aprimorar a forma de verificação;
+# 2. Precisamos garantir a existência de gatilhos
+#    customizáveis opcionais que executem scripts antes da
+#    conclusão. Se existentes, não vazios e não em branco
+#    (content.trim() != ""), localizados no cache sob:
+#    "$pendrive_autonome_path\scripts".
+#    O padrão do nome deve ser "in.{$Env:LOCAL_EXEC}.ps1",
+#    em letras totalmente minúsculas.
+# 3. Garantir que apenas funcionalidades do script sejam 
+#    executadas nas etapas em que fazem sentido (são
+#    possíveis de serem executadas)
+#    Por exemplo: não é possivel criar um arquivo dentro da 
+#    pasta de usuário, se estamos numa etapa em que não
+#    existem usuários, nem mesmo o default.
 # =========================================================
+
+
 Param(
   [string]$is_test
 )
