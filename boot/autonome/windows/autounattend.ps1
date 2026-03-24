@@ -73,6 +73,8 @@
 # minimas objetivando um fácil rastreo git, mas com bom 
 # senso, afim de obter eficiência e gestão de código.
 #
+# >> [implementação pendente de validação/testes]
+#
 # TO-DO[1]: Implementar/atualizar instalação de drivers, agora
 # compactados.
 #
@@ -91,6 +93,8 @@
 # Importante, apenas hardware não reconhecido deve ser
 # atualizado, ou aqueles que o Windows identifique como
 # com mau funcionamento.
+#
+# >> [implementação pendente de validação/testes]
 #
 # TO-DO[2]: Ajuste de $in_system_context aliado a
 #           $Env:LOCAL_EXEC
@@ -132,6 +136,8 @@
 #
 # O arquivo de check list global deveria estar localizado
 # na raiz de $path_log\ mas ele não tem ficado lá.
+#
+# >> [implementação pendente de validação/testes]
 # =========================================================
 Param(
   [string]$is_test
@@ -207,7 +213,12 @@ if (-Not (Test-Path -Path $path_log)) {
 }
 
 # CONTEXTO
-$mode = if ($in_system_context) { "SYSTEM" } else { "USER" }
+$local_exec = ($Env:LOCAL_EXEC | ForEach-Object { $_.ToLower() })
+if ([string]::IsNullOrEmpty($local_exec)) {
+  $local_exec = if ($in_system_context) { "system" } else { "useronce" }
+}
+
+$mode = $local_exec.ToUpper()
 
 # ID incremental baseado em diretórios existentes
 $dirs = Get-ChildItem -Path $path_log -Directory -ErrorAction SilentlyContinue
@@ -435,6 +446,73 @@ function sha256 {
   $hashString = [System.BitConverter]::ToString($hash)
   return $hashString.trim().Replace('-', '')
 }
+function Invoke-AutonomeFinalTriggers {
+
+  show_log_title "Executando gatilhos finais (scripts externos)"
+
+  try {
+    if ([string]::IsNullOrEmpty($script:appsinstall_folder)) {
+      show_log "Pasta base não definida."
+      return
+    }
+
+    $scriptsPath = Join-Path $appsinstall_folder "scripts"
+
+    if (-not (Test-Path $scriptsPath)) {
+      show_log "Pasta de scripts não encontrada."
+      return
+    }
+
+    $baseName = "in.$local_exec"
+
+    $orderedExt = @("reg", "ps1", "cmd", "bat")
+
+    foreach ($ext in $orderedExt) {
+
+      $file = Join-Path $scriptsPath "$baseName.$ext"
+
+      if (-not (Test-Path $file)) {
+        continue
+      }
+
+      try {
+        $content = Get-Content $file -Raw -ErrorAction SilentlyContinue
+        if ([string]::IsNullOrWhiteSpace($content)) {
+          show_log "Ignorado (vazio): $file"
+          continue
+        }
+      }
+      catch {
+        show_warn "Falha ao ler conteúdo de $file"
+        continue
+      }
+
+      show_log "Executando gatilho: $file"
+
+      switch ($ext) {
+
+        "reg" {
+          run_command "reg.exe import `"$file`""
+        }
+
+        "ps1" {
+          run_command "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$file`""
+        }
+
+        "cmd" {
+          run_command "cmd.exe /c `"$file`""
+        }
+
+        "bat" {
+          run_command "cmd.exe /c `"$file`""
+        }
+      }
+    }
+  }
+  catch {
+    show_warn "Falha ao executar gatilhos finais"
+  }
+}
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function download_save() {
   param(
@@ -528,10 +606,7 @@ function download_save() {
       }
       else {
         show_error "Falha ao baixar após $max tentativas"
-      }
-      else {
-        show_error "Falha ao baixar após $max tentativas"
-      }
+      }      
     }
     catch {
       show_error "Falha ao baixar arquivo"
@@ -545,6 +620,16 @@ function download_save() {
     return $dest
   }
   return ""
+}
+function write_driver_log {
+  param([string]$msg)
+
+  try {
+    $log = Join-Path $path_log "drivers.log"
+    $ts = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+    Add-Content -Path $log -Value "[$ts] $msg"
+  }
+  catch {}
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function download_to_string() {
@@ -1044,7 +1129,8 @@ function Save-Checklist {
   param($data)
   $file = Get-GlobalChecklistPath
   try {
-    $data | ConvertTo-Json -Depth 5 | Set-Content $file
+    $json = $data | ConvertTo-Json -Depth 5
+    [System.IO.File]::WriteAllText($file, $json, [System.Text.Encoding]::UTF8)
   }
   catch {}
 }
@@ -1230,60 +1316,158 @@ function download_msi_install {
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function install_offline_drivers_async {
   <#
-    EXECUÇÃO ASSÍNCRONA (INTENCIONAL)
+    EXECUÇÃO ASSÍNCRONA E SILENCIOSA
 
-    Esta é a ÚNICA parte do script que roda de forma assíncrona.
-    Motivo:
-      - instalação de drivers pode ser demorada
-      - não deve bloquear o fluxo principal
-      - não deve impedir conclusão do setup
-
-    Comportamento:
-      - varre pasta "Drivers" na raiz do pendrive
-      - instala todos os .inf (subpastas incluídas)
-      - executa em background
-      - não gera erro fatal
-
-    Observação:
-      - falhas aqui NÃO devem interromper o script principal
-      - não depende de rede
+    - Nenhum log em tela
+    - Nenhum log no transcript principal
+    - Log exclusivo: $path_log\drivers.log
   #>
 
-  show_log_title "Instalando drivers offline (modo assíncrono)"
-
   try {
+
     if ([string]::IsNullOrEmpty($script:appsinstall_folder)) {
-      show_log "Pasta base do pendrive não definida."
       return
     }
 
-    $drive_root = (Get-Item $script:appsinstall_folder).PSDrive.Root
-    $drivers_path = Join-Path $drive_root "Drivers"
+    $drivers_zip = Join-Path $script:appsinstall_folder "Drivers.zip"
+    $drivers_7z = Join-Path $script:appsinstall_folder "Drivers.7z"
+    $drivers_path = Join-Path $script:appsinstall_folder "Drivers"
 
-    if (-Not (Test-Path $drivers_path)) {
-      show_log "Nenhuma pasta 'Drivers' encontrada."
+    # LOG dedicado
+    $drivers_log = Join-Path $path_log "drivers.log"
+
+    # garante diretório
+    if (-not (Test-Path $path_log)) {
+      New-Item -Path $path_log -ItemType Directory -Force | Out-Null
+    }
+
+    # função interna de log isolado
+    function __drvlog {
+      param([string]$msg)
+      try {
+        $ts = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+        Add-Content -Path $drivers_log -Value "[$ts] $msg"
+      }
+      catch {}
+    }
+
+    __drvlog "=== START drivers async ==="
+
+    # --- EXTRAÇÃO (IDEMPOTENTE) ---
+    $needs_extract = $true
+
+    if (Test-Path $drivers_path) {
+      $existing = Get-ChildItem -Path $drivers_path -Recurse -Include *.inf -ErrorAction SilentlyContinue
+
+      if ($existing -and $existing.Count -gt 5) {
+        $needs_extract = $false
+        __drvlog "Drivers já extraídos previamente (INF suficiente)."
+      }
+      else {
+        __drvlog "Extração anterior insuficiente → reextraindo."
+        try {
+          Remove-Item $drivers_path -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        catch {}
+        $needs_extract = $true
+      }
+    }
+
+    if ($needs_extract) {
+
+      if (-not (Test-Path $drivers_path)) {
+        New-Item -ItemType Directory -Path $drivers_path -Force | Out-Null
+      }
+
+      if (Test-Path $drivers_zip) {
+        __drvlog "Extraindo Drivers.zip..."
+
+        try {
+          Expand-Archive -Path $drivers_zip -DestinationPath $drivers_path -Force
+        }
+        catch {
+          __drvlog "ERRO: falha ao extrair Drivers.zip"
+          return
+        }
+      }
+      elseif (Test-Path $drivers_7z) {
+
+        __drvlog "Extraindo Drivers.7z..."
+
+        $sevenZip = findExeMsiOnFolders "7zip"
+
+        if (-not $sevenZip) {
+          __drvlog "ERRO: 7zip não encontrado"
+          return
+        }
+
+        $cmd7z = "`"$sevenZip`" x `"$drivers_7z`" -o`"$drivers_path`" -y"
+
+        Start-Process -FilePath "cmd.exe" `
+          -ArgumentList "/c $cmd7z >> `"$drivers_log`" 2>&1" `
+          -WindowStyle Hidden -Wait
+      }
+      else {
+        __drvlog "Nenhum pacote de drivers encontrado."
+        return
+      }
+    }
+
+    # valida INF
+    $infFiles = Get-ChildItem -Path $drivers_path -Recurse -Include *.inf -ErrorAction SilentlyContinue
+    if (-not $infFiles -or $infFiles.Count -eq 0) {
+      __drvlog "Nenhum .inf encontrado."
       return
     }
 
-    show_log "Disparando instalação assíncrona de drivers em '$drivers_path'"
+    # dispositivos com problema
+    $problemDevices = @()
+
+    try {
+      $problemDevices = Get-PnpDevice -PresentOnly | Where-Object {
+        $_.Status -ne "OK"
+      }
+    }
+    catch {
+      __drvlog "ERRO: falha ao consultar PnP"
+      return
+    }
+
+    if (-not $problemDevices -or $problemDevices.Count -eq 0) {
+      __drvlog "Nenhum dispositivo com problema."
+      return
+    }
+
+    foreach ($dev in $problemDevices) {
+      __drvlog "PENDENTE: $($dev.FriendlyName) [$($dev.InstanceId)] ($($dev.Status))"
+    }
 
     if ($script:is_test_mode) {
-      show_log "TEST MODE: staging de drivers (sem instalar no sistema ativo)"
-      $cmd = "pnputil.exe /add-driver `"$drivers_path\*.inf`" /subdirs"
+      __drvlog "TEST MODE - abortado"
+      return
     }
-    else {
-      $cmd = "pnputil.exe /add-driver `"$drivers_path\*.inf`" /subdirs /install & pnputil.exe /scan-devices"
-    }
+
+    __drvlog "Disparando pnputil async..."
+
+    # execução assíncrona real (sem bloquear)
+    $cmd = "pnputil.exe /add-driver `"$drivers_path\*.inf`" /subdirs /install"
 
     Start-Process -FilePath "cmd.exe" `
-      -ArgumentList "/c $cmd" `
-      -WindowStyle Hidden
+      -ArgumentList "/c $cmd >> `"$drivers_log`" 2>&1" `
+      -WindowStyle Hidden `
+      -PassThru | ForEach-Object {
+      __drvlog "PID pnputil: $($_.Id)"
+    }
 
-    show_log "Instalação de drivers iniciada em background."
+    __drvlog "Processo iniciado (background)."
 
   }
   catch {
-    show_error "Falha ao iniciar instalação assíncrona de drivers."
+    try {
+      Add-Content -Path (Join-Path $path_log "drivers.log") `
+        -Value "ERRO FATAL: $($_.Exception.Message)"
+    }
+    catch {}
   }
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -1689,6 +1873,7 @@ if (-not $in_system_context) {
     }
   }
 }
+Invoke-AutonomeFinalTriggers
 write-host ""
 write-host "CONCLUIDO"
 write-host ""
