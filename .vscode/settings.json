@@ -1,0 +1,58 @@
+{
+	"editor.quickSuggestions": {
+		"strings": true
+	},
+	"editor.maxTokenizationLineLength": 92510241024,
+	"editor.tabSize": 2,
+	"trimTrailingWhitespace": true,
+	"editor.insertSpaces": true,
+	"todo-tree.regex.regex": "(//|#|<!--|/\\*|^\\s*\\*)\\s*($TAGS)",
+	"editor.defaultFormatter": "esbenp.prettier-vscode",
+	"editor.formatOnSave": true,
+	// Configurações por linguagem (adicione conforme necessário)
+	"[javascript]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[typescript]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[javascriptreact]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[typescriptreact]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[json]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[html]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[xml]": {
+		"editor.defaultFormatter": "PrateekMahendrakar.prettyxml"
+	},
+	"[css]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[scss]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[less]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[markdown]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[vue]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[svelte]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[yaml]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+	"[graphql]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	}
+}
