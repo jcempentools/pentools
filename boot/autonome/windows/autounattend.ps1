@@ -44,7 +44,7 @@
 #
 # Cache:
 # - %SystemRoot%\Temp\<ID_RANDOM>
-# - Controlado via HKLM:\SOFTWARE\Autonome
+# - Controlado via HKLM:\SOFTWARE\AutonomeInstall
 # - Sincronização incremental via robocopy
 #
 # Execução:
@@ -1111,7 +1111,7 @@ function Ensure-PS7 {
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function Initialize-AutonomeCache {
 
-  $regPath = "HKLM:\SOFTWARE\Autonome"
+  $regPath = "HKLM:\SOFTWARE\AutonomeInstall"
   $regName = "TempRoot"
 
   try {
