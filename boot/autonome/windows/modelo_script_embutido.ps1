@@ -1,3 +1,42 @@
+# =============================================================
+# AUTOUNATTEND Bootstrap Loader
+# -------------------------------------------------------------
+# Objetivo:
+#   Localizar e executar automaticamente o script principal
+#   "autounattend.ps1" durante a instalação do Windows.
+#
+# Cenário:
+#   - Execução em WinPE / Setup / SYSTEM / FirstLogon
+#   - Ambiente possivelmente incompleto ou restrito
+#   - Pendrive de instalação pode não ter letra atribuída
+#
+# Comportamento:
+#   1. Detecta automaticamente SYSTEM vs FirstLogon
+#   2. Prioriza execução offline via pendrive
+#   3. Tenta montar volumes (mountvol) se necessário
+#   4. Retry resiliente de localização e cópia
+#   5. Fallback para download online
+#   6. Execução silenciosa e tolerante a falhas
+#
+# Diretrizes:
+#   - Não falhar de forma catastrófica
+#   - Manter compatibilidade PowerShell 2 / 5 / 7
+#   - Evitar dependências externas ou módulos
+#   - Priorizar minimalismo e robustez
+#   - Executar com privilégios SYSTEM quando possível
+#
+# Padrões:
+#   - Offline-first
+#   - Try/catch defensivo
+#   - Sem logging obrigatório
+#   - Sem interação com usuário
+#   - Compatível com WinPE e OOBE
+#
+# Observação:
+#   Este script é apenas um bootstrapper resiliente e deve
+#   permanecer pequeno, simples e independente.
+# =============================================================
+
 $Env:install_cru = "cru"
 
 # =========================================================
