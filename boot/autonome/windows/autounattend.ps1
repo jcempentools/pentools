@@ -77,6 +77,8 @@ $pendrive_autonome_path = "$pendrive_autonome_root\windows"
 $image_folder = "$env:SystemDrive\Users\Default\Pictures"
 $pendrive_script_name = "run.ps1"
 $url_pwsh = "github.com/PowerShell/PowerShell/releases/download/v7.6.0/PowerShell-7.6.0-win-x64.msi"
+$url_params_map = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/$pendrive_autonome_root/params"
+$path_params_map = "params"
 $url_WallPapers_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/$pendrive_autonome_root/WallPapers/WallPaper.lst"
 $url_apps_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/$pendrive_autonome_root/windows"
 $url_lockscreen = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/$pendrive_autonome_root/WallPapers/lockscreen.lst"
@@ -259,6 +261,85 @@ function rand_name {
   }
   return -join ((65..90) + (97..122) | Get-Random -Count $num | ForEach-Object { [char]$_ })
 }
+function Resolve-InstallerArgs {
+  param(
+    [string]$filePath,
+    [string]$type # exe | msi
+  )
+
+  $fileName = [System.IO.Path]::GetFileName($filePath).ToLower()
+  $mapFileName = "$fileName.json"
+
+  # caminhos locais (PRIORIDADE MÁXIMA)
+  $local_paths = @(
+    (Join-Path $script:appsinstall_folder "$path_params_map\$mapFileName"),
+    (Join-Path $script:run_log_dir "$path_params_map\$mapFileName"),
+    (Join-Path $script:run_log_dir "$mapFileName")
+  )
+
+  # 1. LOCAL FIRST
+  foreach ($p in $local_paths) {
+    if (Test-Path $p) {
+      try {
+        $json = Get-Content $p -Raw | ConvertFrom-Json
+        if ($json.args) {
+          show_log "Args via mapa LOCAL: $($json.args)"
+          return $json.args
+        }
+      }
+      catch {
+        show_warn "Falha ao ler mapa local '$p'"
+      }
+    }
+  }
+
+  # 2. ONLINE (fallback)
+  $remote = "$url_params_map/$mapFileName"
+  $tmp = Join-Path $script:run_log_dir "$mapFileName"
+
+  try {
+    $dl = download_save $remote $tmp
+    if (-not [string]::IsNullOrEmpty($dl) -and (Test-Path $tmp)) {
+      $json = Get-Content $tmp -Raw | ConvertFrom-Json
+      if ($json.args) {
+        show_log "Args via mapa ONLINE: $($json.args)"
+        return $json.args
+      }
+    }
+  }
+  catch {
+    show_warn "Falha ao obter mapa online"
+  }
+
+  # 3. HEURÍSTICA (último fallback)
+  if ($type -eq "exe") {
+    $candidates = @("/verysilent", "/silent", "/S", "/quiet", "/qn")
+
+    foreach ($arg in $candidates) {
+      try {
+        $proc = Start-Process -FilePath $filePath `
+          -ArgumentList "$arg" `
+          -PassThru `
+          -WindowStyle Hidden
+
+        Start-Sleep -Seconds 2
+
+        if (-not $proc.HasExited) {
+          try { $proc.Kill() } catch {}
+          show_log "Heurística detectou suporte a '$arg'"
+          return $arg
+        }
+      }
+      catch {}
+    }
+  }
+
+  if ($type -eq "msi") {
+    return "/qn"
+  }
+
+  return ""
+}
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function setrgkey() {
   Param(
@@ -350,16 +431,32 @@ function download_save() {
         }
       }
 
-      if ($ok) {
-        if (Test-Path "$dest") {
-          $size = (Get-Item "$dest").Length
-          if ($size -le 0) {
+      if ($ok -and (Test-Path "$dest")) {
+
+        $file = Get-Item "$dest"
+        $size = $file.Length
+
+        if ($size -le 0) {
+          Remove-Item "$dest" -Force -ErrorAction SilentlyContinue
+          show_error "Arquivo inválido (0 bytes)"
+          return ""
+        }
+
+        # valida HTML (erro comum de download)
+        try {
+          $head = Get-Content "$dest" -TotalCount 5 -ErrorAction SilentlyContinue | Out-String
+          if ($head -match '<html|<!DOCTYPE') {
             Remove-Item "$dest" -Force -ErrorAction SilentlyContinue
-            show_error "Arquivo inválido (tamanho zero), removido."
+            show_error "Download inválido (HTML retornado)"
             return ""
           }
         }
-        show_log "Baixado e salvo."
+        catch {}
+
+        show_log "Download válido ($size bytes)"
+      }
+      else {
+        show_error "Falha ao baixar após $max tentativas"
       }
       else {
         show_error "Falha ao baixar após $max tentativas"
@@ -538,56 +635,70 @@ function run_command {
   show_cmd "[$id_] $command_"
 
   $success = $false
+  $exitCode = -1
 
-  # 1. Tenta via PowerShell (mais compatível com pipes, Out-File, etc)
+  # Detecta se precisa de PowerShell (pipes, Out-File, etc)
+  $needsPS = ($command_ -match '\||Out-File|2>&1|>')
+
+  # 1. Execução direta
   try {
-    $ps_cmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command `"$command_`""
-    $p = Start-Process -FilePath "cmd.exe" `
-      -ArgumentList "/c $ps_cmd" `
-      -Wait -PassThru -WindowStyle Hidden
+    if ($needsPS) {
+      $p = Start-Process -FilePath "powershell.exe" `
+        -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"$command_`"" `
+        -Wait -PassThru -WindowStyle Hidden
+    }
+    else {
+      $p = Start-Process -FilePath "cmd.exe" `
+        -ArgumentList "/c $command_" `
+        -Wait -PassThru -WindowStyle Hidden
+    }
 
-    if ($p.ExitCode -eq 0) {
-      show_log "[$id_] Executado com sucesso (PowerShell)."
+    $exitCode = $p.ExitCode
+
+    if ($exitCode -eq 0) {
+      show_log "[$id_] OK (exit=0)"
       $success = $true
     }
     else {
-      show_warn "[$id_] ExitCode PowerShell: $($p.ExitCode)"
+      show_warn "[$id_] ExitCode: $exitCode"
     }
   }
   catch {
-    show_warn "[$id_] Falha via PowerShell."
+    show_warn "[$id_] Falha na execução direta"
   }
 
-  # 2. fallback para CMD puro
-  if (-not $success) {
+  # 2. fallback CMD puro (se começou em PS)
+  if (-not $success -and $needsPS) {
     try {
       $p = Start-Process -FilePath "cmd.exe" `
-        -ArgumentList "/c ""$command_""" `
+        -ArgumentList "/c $command_" `
         -Wait -PassThru -WindowStyle Hidden
 
-      if ($p.ExitCode -eq 0) {
-        show_log "[$id_] Executado com sucesso (CMD)."
+      $exitCode = $p.ExitCode
+
+      if ($exitCode -eq 0) {
+        show_log "[$id_] OK via CMD fallback"
         $success = $true
       }
       else {
-        show_warn "[$id_] ExitCode CMD: $($p.ExitCode)"
+        show_warn "[$id_] CMD ExitCode: $exitCode"
       }
     }
     catch {
-      show_warn "[$id_] Falha via CMD."
+      show_warn "[$id_] Falha CMD fallback"
     }
   }
 
-  # 3. fallback final PS7
+  # 3. fallback PS7
   if (-not $success) {
     if (-not $script:__ps7_fallback_used) {
       $script:__ps7_fallback_used = $true
-      show_error "[$id_] Falha geral. Tentando fallback PS7..."
+      show_error "[$id_] Falha geral → fallback PS7"
       runInPWSH7 "$command_"
       return
     }
     else {
-      show_error "[$id_] Falha definitiva (já tentou PS7)."
+      show_error "[$id_] Falha definitiva"
     }
   }
 }
@@ -965,52 +1076,34 @@ function isowin_install_app {
     $current_log = Join-Path $script:run_log_dir "apps\$id_only.log"
 
     if ("msi" -eq $extencao) {
-      $msi_args = "/i ""$nn"" /qn -Wait /L*V ""$current_log"" $override"
-      run_command "msiexec.exe $msi_args"
+      $resolved = Resolve-InstallerArgs $nn "msi"
+
+      $msi_args = "/i `"$nn`" $resolved /norestart /L*V `"$current_log`" $override"
+
+      $cmd = "msiexec.exe $msi_args"
+      run_command $cmd
     }
     elseif ("exe" -eq $extencao) {
       # CORREÇÃO: Agora o log do EXE funciona corretamente
       try {
-        show_cmd "& ""$nn"" /silent /install $override"
+        $resolved = Resolve-InstallerArgs $nn "exe"
 
-        # heurística simples baseada no nome
-        $exe_args = "/silent /install $override"
-        $lower = $nn.ToLower()
-
-        if ($lower -match '7z|7zip') { $exe_args = "/S" }
-        elseif ($lower -match 'chrome') { $exe_args = "/silent /install" }
-        elseif ($lower -match 'vscode') { $exe_args = "/verysilent /mergetasks=!runcode" }
+        $exe_args = $resolved
+        if (-not [string]::IsNullOrEmpty($override)) {
+          $exe_args = "$exe_args $override"
+        }
 
         $cmd_exec = "`"$nn`" $exe_args"
+        $p = Start-Process -FilePath $nn `
+          -ArgumentList $exe_args `
+          -Wait -PassThru `
+          -RedirectStandardOutput $current_log `
+          -RedirectStandardError $current_log `
+          -WindowStyle Hidden
 
-        # redireciona saída para log
-        $cmd_full = "$cmd_exec > `"$current_log`" 2>&1"
+        show_log "ExitCode EXE: $($p.ExitCode)"
 
-        run_command $cmd_full
-        if ($proc.ExitCode -ne 0) {
-          show_warn "Processo retornou código $($proc.ExitCode). Tentando fallback..."
-
-          try {
-            $proc2 = Start-Process -FilePath $nn `
-              -ArgumentList "/S" `
-              -Wait `
-              -PassThru `
-              -WindowStyle Hidden
-
-            if ($proc2.ExitCode -eq 0) {
-              show_log "Instalação concluída via fallback (/S)."
-            }
-            else {
-              show_error "Fallback também falhou (ExitCode $($proc2.ExitCode))"
-            }
-          }
-          catch {
-            show_error "Falha ao executar fallback EXE"
-          }
-        }
-        else {
-          show_log "Instalação concluída (EXE)."
-        }
+        show_log "Instalação EXE finalizada (verificar confirmação)."
       }
       catch {
         show_error "Falha ao executar '$nn'"
@@ -1273,7 +1366,7 @@ try {
       -WindowStyle Hidden
   }
   else {
-    Start-Job -ScriptBlock {
+    Start-Job -Name "autonome-anti-shutdown" -ScriptBlock {
       param($timeout)
       while ((Get-Date) -lt $timeout) {
         shutdown.exe /a 2>$null
