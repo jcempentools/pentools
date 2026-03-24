@@ -723,7 +723,7 @@ function Resolve-NameIdTokens {
     $tokens += (Split-Path $name_id -LeafBase)
   }
   else {
-    $tokens += ($name_id -split '[\.\-\_\s]')
+    $tokens += ($name_id -split '[\.\-_\s]')
   }
 
   # normalizar igual aos apps
@@ -1092,9 +1092,10 @@ function Ensure-PS7 {
 
       $argString = $argList -join " "
 
+      $env:AUTONOME_PS7 = "1"
+
       $proc = Start-Process -FilePath $pwshPath `
         -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $argString" `
-        -Environment @{ AUTONOME_PS7 = "1" } `
         -PassThru
 
       # ⚠️ IMPORTANTE: bloqueia até terminar (seu requisito)
