@@ -123,7 +123,7 @@ if ($found) {
 if (!(Test-Path $script)) {
   try {
     $wc = New-Object System.Net.WebClient
-    $wc.DownloadFile("https://abre.ai/o1q4", $script)
+    $wc.DownloadFile("https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/autonome/windows/autounattend.ps1", $script)
   }
   catch {}
 }
