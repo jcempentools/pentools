@@ -128,8 +128,6 @@
 #    pasta de usuário, se estamos numa etapa em que não
 #    existem usuários, nem mesmo o default.
 # =========================================================
-
-
 Param(
   [string]$is_test
 )
