@@ -72,6 +72,7 @@ $pwsh_msi_path = "$env:SystemDrive\pwsh_install.msi"
 $pendrive_autonome_checker = ".pentools"
 $pendrive_autonome_root = "boot\autonome"
 # instalações dentro da pasta /apps em windows:
+$TMP_DIR_NAME = "TMP_JCEM_AutonomeInstall_PS1"
 $pendrive_autonome_path = "$pendrive_autonome_root\windows"
 $image_folder = "$env:SystemDrive\Users\Default\Pictures"
 $pendrive_script_name = "run.ps1"
@@ -1128,10 +1129,13 @@ function Initialize-AutonomeCache {
   catch {}
 
   if ([string]::IsNullOrEmpty($temp_root) -or -not (Test-Path $temp_root) -or ((Test-Path $temp_root) -and ((Get-Item $temp_root).CreationTime -lt (Get-Date).AddDays(-7)))) {
-    $rand = rand_name 16
-    $temp_root = Join-Path "$env:SystemRoot\Temp" $rand
+    $temp_root = Join-Path "$env:SystemRoot\Temp" $TMP_DIR_NAME
 
     try {
+      if (Test-Path $temp_root) {
+        Remove-Item $temp_root -Recurse -Force -ErrorAction SilentlyContinue
+      }
+
       New-Item -Path $temp_root -ItemType Directory -Force | Out-Null
       Set-ItemProperty -Path $regPath -Name $regName -Value $temp_root -Force
     }
