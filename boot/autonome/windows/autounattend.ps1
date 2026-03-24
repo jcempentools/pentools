@@ -6,7 +6,7 @@
 # previsível e rastreável.
 #
 # Princípios:
-# - Idempotente: não reinstala o que já foi instalado
+# - Idempotente: não tenta instala o que já foi instalado
 #   (checklist global)
 # - Híbrido: prioriza offline (pendrive/cache), usa online
 #   como fallback
@@ -127,6 +127,11 @@
 #    Por exemplo: não é possivel criar um arquivo dentro da 
 #    pasta de usuário, se estamos numa etapa em que não
 #    existem usuários, nem mesmo o default.
+#
+# TO-DO[3]: Localização do check list global
+#
+# O arquivo de check list global deveria estar localizado
+# na raiz de $path_log\ mas ele não tem ficado lá.
 # =========================================================
 Param(
   [string]$is_test
