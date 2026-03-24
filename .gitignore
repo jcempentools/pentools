@@ -13,7 +13,7 @@
 *.tmp
 *.casper-rw
 /boot/ISOs/Installs/BB
-/boot/autonome/windows/apps
+/boot/autonome/windows/apps/*
 !/boot/autonome/windows/apps/Adobe/bloquear.ps1
 /CustomDrivers
 /Programs
