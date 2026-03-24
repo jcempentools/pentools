@@ -213,9 +213,11 @@ if (-Not (Test-Path -Path $path_log)) {
 }
 
 # CONTEXTO
-$local_exec = ($Env:LOCAL_EXEC | ForEach-Object { $_.ToLower() })
-if ([string]::IsNullOrEmpty($local_exec)) {
-  $local_exec = if ($in_system_context) { "system" } else { "useronce" }
+$local_exec = if (-not [string]::IsNullOrEmpty($Env:LOCAL_EXEC)) {
+  $Env:LOCAL_EXEC.ToLower()
+}
+else {
+  if ($in_system_context) { "system" } else { "useronce" }
 }
 
 $mode = $local_exec.ToUpper()
