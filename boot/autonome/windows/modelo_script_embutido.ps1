@@ -11,12 +11,11 @@
 #   - Pendrive de instalação pode não ter letra atribuída
 #
 # Comportamento:
-#   1. Detecta automaticamente SYSTEM vs FirstLogon
-#   2. Prioriza execução offline via pendrive
-#   3. Tenta montar volumes (mountvol) se necessário
-#   4. Retry resiliente de localização e cópia
-#   5. Fallback para download online
-#   6. Execução silenciosa e tolerante a falhas
+#   1. Prioriza execução offline via pendrive
+#   2. Tenta montar volumes (mountvol) se necessário
+#   3. Retry resiliente de localização e cópia
+#   4. Fallback para download online
+#   5. Execução silenciosa e tolerante a falhas
 #
 # Diretrizes:
 #   - Não falhar de forma catastrófica
@@ -38,24 +37,13 @@
 # =============================================================
 
 $Env:install_cru = "cru"
+$Env:LOCAL_EXEC = "DefaultUser".Trim().ToUpper()
 
-# =========================================================
-# Detecção automática de contexto (SYSTEM vs FirstLogon)
-# =========================================================
 try {
   $user = [Environment]::UserName
-  $domain = [Environment]::UserDomainName
-
-  if ($user -eq "SYSTEM" -or $domain -eq "NT AUTHORITY") {    
-    $Env:LOCAL_EXEC = "SYSTEM"
-  }
-  else {    
-    $Env:LOCAL_EXEC = "FirstLogon"
-  }
+  $domain = [Environment]::UserDomainName  
 }
-catch {
-  # fallback mais seguro durante instalação  
-  $Env:LOCAL_EXEC = "SYSTEM"
+catch {  
 }
 
 

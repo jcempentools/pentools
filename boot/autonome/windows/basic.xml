@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
-	<!--https://schneegans.de/windows/unattend-generator/?LanguageMode=Unattended&UILanguage=pt-BR&Locale=pt-BR&Keyboard=00010416&GeoLocation=32&ProcessorArchitecture=amd64&BypassRequirementsCheck=true&BypassNetworkCheck=true&HidePowerShellWindows=true&ComputerNameMode=Random&CompactOsMode=Default&TimeZoneMode=Explicit&TimeZone=E.+South+America+Standard+Time&PartitionMode=Interactive&DiskAssertionMode=Skip&WindowsEditionMode=Custom&ProductKey=VK7JG-NPHTM-C97JM-9MPGT-3V66T&InstallFromMode=Automatic&PEMode=Default&UserAccountMode=Unattended&AccountName0=admin&AccountDisplayName0=&AccountPassword0=12345678&AccountGroup0=Administrators&AutoLogonMode=Own&ObscurePasswords=true&PasswordExpirationMode=Unlimited&LockoutMode=Default&HideFiles=HiddenSystem&ShowFileExtensions=true&ClassicContextMenu=true&LaunchToThisPC=true&ShowEndTask=true&TaskbarSearch=Hide&TaskbarIconsMode=Empty&DisableWidgets=true&LeftTaskbar=true&HideTaskViewButton=true&DisableBingResults=true&StartTilesMode=Empty&StartPinsMode=Empty&DisableSystemRestore=true&EnableLongPaths=true&EnableRemoteDesktop=true&AllowPowerShellScripts=true&PreventAutomaticReboot=true&TurnOffSystemSounds=true&DisableAppSuggestions=true&PreventDeviceEncryption=true&HideEdgeFre=true&DisableEdgeStartupBoost=true&MakeEdgeUninstallable=true&DisablePointerPrecision=true&DisableCoreIsolation=true&DeleteWindowsOld=true&DisableAutomaticRestartSignOn=true&DisableWpbt=true&ProcessAudit=true&ProcessAuditCommandLine=true&EffectsMode=Custom&CursorShadow=true&ThumbnailsOrIcon=true&DropShadow=true&DeleteEdgeDesktopIcon=true&DesktopIconsMode=Custom&IconRecycleBin=true&StartFoldersMode=Custom&StartFolderDocuments=true&StartFolderDownloads=true&StartFolderFileExplorer=true&StartFolderNetwork=true&StartFolderSettings=true&WifiMode=Interactive&ExpressSettings=DisableAll&LockKeysMode=Configure&CapsLockInitial=Off&CapsLockBehavior=Toggle&NumLockInitial=On&NumLockBehavior=Toggle&ScrollLockInitial=Off&ScrollLockBehavior=Toggle&StickyKeysMode=Disabled&ColorMode=Custom&SystemColorTheme=Dark&AppsColorTheme=Dark&AccentColor=%23323232&AccentColorOnStart=true&AccentColorOnBorders=true&EnableTransparency=true&WallpaperMode=Script&WallpaperScript=%24url+%3D+%27https%3A%2F%2F4kwallpapers.com%2Fimages%2Fwallpapers%2Fmacro-surface-3d-background-sci-fi-purple-background-3840x2160-7863.png%27%3B%0D%0Areturn+%28+Invoke-WebRequest+-Uri+%24url+-UseBasicParsing+-TimeoutSec+30+%29.Content%3B&LockScreenMode=Default&RemoveBingSearch=true&RemoveCamera=true&RemoveClipchamp=true&RemoveCopilot=true&RemoveCortana=true&RemoveDevHome=true&RemoveWindowsHello=true&RemoveFamily=true&RemoveFeedbackHub=true&RemoveGameAssist=true&RemoveGetHelp=true&RemoveHandwriting=true&RemoveInternetExplorer=true&RemoveMailCalendar=true&RemoveMaps=true&RemoveMathInputPanel=true&RemoveMediaFeatures=true&RemoveMixedReality=true&RemoveZuneVideo=true&RemoveNews=true&RemoveOffice365=true&RemoveOneDrive=true&RemoveOneNote=true&RemoveOneSync=true&RemoveOpenSSHClient=true&RemoveOutlook=true&RemovePaint3D=true&RemovePeople=true&RemovePowerAutomate=true&RemoveQuickAssist=true&RemoveRecall=true&RemoveSkype=true&RemoveSolitaire=true&RemoveSpeech=true&RemoveStepsRecorder=true&RemoveTeams=true&RemoveGetStarted=true&RemoveToDo=true&RemoveVoiceRecorder=true&RemoveWallet=true&RemoveWeather=true&RemoveFaxAndScan=true&RemoveWindowsMediaPlayer=true&RemoveZuneMusic=true&RemoveWordPad=true&RemoveXboxApps=true&RemoveYourPhone=true&SystemScript0=powercfg.exe+-h+off%0D%0A%0D%0A%24params+%3D+%40%7B%0D%0A++++Path+%3D+%27Registry%3A%3AHKLM%5CSOFTWARE%5CMicrosoft%5CWindows%5CCurrentVersion%5CPolicies%5CExplorer%27%3B%0D%0A%7D%3B%0D%0ANew-Item+%40params+-ErrorAction+%27SilentlyContinue%27%3B%0D%0ASet-ItemProperty+%40params+-Name+%27NoDriveAutoRun%27+-Type+%27DWord%27+-Value+%24%28%0D%0A++++%28+1+-shl+26+%29+-+1%3B+%23+0x3FFFFFF%0D%0A%29%3B%0D%0ASet-ItemProperty+%40params+-Name+%27NoDriveTypeAutoRun%27+-Type+%27DWord%27+-Value+%24%28%0D%0A++++%28+1+-shl+8+%29+-+1%3B+%23+0xFF%0D%0A%29%3B&SystemScriptType0=Ps1&SystemScript1=Set-MpPreference+-DisableRealtimeMonitoring+%24true%3B&SystemScriptType1=Ps1&SystemScript2=try+%7B%0D%0A++Set-Volume+-DriveLetter+C+-NewFileSystemLabel+%22SISTEMA%22%0D%0A%7D%0D%0Acatch+%7B+%0D%0A++write-host+%22%3F%3F%3F%3F%3F+falha+ao+renomear+disco+do+sistema%22%0D%0A%7D%0D%0A&SystemScriptType2=Ps1&SystemScript3=%24Env%3Ainstall_cru+%3D+%22%22%0D%0A%24Env%3ALOCAL_EXEC+%3D+%22SISTEMA%22%0D%0A%0D%0A%24script+%3D+%22c%3A%5Cautonomo-install.ps1%22%0D%0A%23+Removida+a+barra+inicial+de+%27boot%27+para+o+Join-Path+funcionar+corretamente+em+todas+as+unidades%0D%0A%24relPath+%3D+%22boot%5Cautonome%5Cwindows%5C%24%28Split-Path+%24script+-Leaf%29%22%0D%0A%0D%0A%23+Limpa+resqu%C3%ADcios+antes+de+come%C3%A7ar%0D%0ARemove-Item+%22%24script%22+-Force+-ErrorAction+SilentlyContinue%0D%0A%0D%0Atry+%7B%0D%0A++++%23+Download+do+script+usando+o+link+direto%0D%0A++++Invoke-WebRequest+%22https%3A%2F%2Fabre.ai%2Fo1q4%22+-OutFile+%22%24script%22+-ErrorAction+Stop%0D%0A%7D%0D%0Acatch+%7B%0D%0A++++%23+Busca+o+arquivo+localmente+em+HDDs+ou+Pendrives+caso+o+download+falhe%0D%0A++++%24found+%3D+Get-PSDrive+-PSProvider+FileSystem+%7C+ForEach-Object+%7B%0D%0A++++++++%24testPath+%3D+Join-Path+%24_.Root+%24relPath%0D%0A++++++++if+%28Test-Path+%24testPath%29+%7B+%24testPath+%7D%0D%0A++++%7D+%7C+Select-Object+-First+1%0D%0A%0D%0A++++if+%28%24found%29+%7B%0D%0A++++++++Copy-Item+%24found+-Destination+%24script+-Force%0D%0A++++%7D%0D%0A%7D%0D%0A%0D%0A%23+Execu%C3%A7%C3%A3o+e+limpeza%0D%0Aif+%28Test-Path+%24script%29+%7B%0D%0A++++%23+Adicionado+ExecutionPolicy+Bypass+para+evitar+bloqueios+do+Windows%0D%0A++++powershell.exe+-NoProfile+-ExecutionPolicy+Bypass+-File+%22%24script%22+-Param1+%22Valor1%22+-Param2+%22Valor2%22%0D%0A++++%0D%0A++++%23+Remove+o+script+tempor%C3%A1rio+ap%C3%B3s+a+execu%C3%A7%C3%A3o%0D%0A++++Remove-Item+%22%24script%22+-Force+-ErrorAction+SilentlyContinue%0D%0A%7D%0D%0A&SystemScriptType3=Ps1&FirstLogonScript0=%24Env%3Ainstall_cru+%3D+%22%22%0D%0A%24Env%3ALOCAL_EXEC+%3D+%22FirstLogon%22%0D%0A%0D%0A%24script+%3D+%22c%3A%5Cautonomo-install.ps1%22%0D%0A%23+Removida+a+barra+inicial+de+%27boot%27+para+o+Join-Path+funcionar+corretamente+em+todas+as+unidades%0D%0A%24relPath+%3D+%22boot%5Cautonome%5Cwindows%5C%24%28Split-Path+%24script+-Leaf%29%22%0D%0A%0D%0A%23+Limpa+resqu%C3%ADcios+antes+de+come%C3%A7ar%0D%0ARemove-Item+%22%24script%22+-Force+-ErrorAction+SilentlyContinue%0D%0A%0D%0Atry+%7B%0D%0A++++%23+Download+do+script+usando+o+link+direto%0D%0A++++Invoke-WebRequest+%22https%3A%2F%2Fabre.ai%2Fo1q4%22+-OutFile+%22%24script%22+-ErrorAction+Stop%0D%0A%7D%0D%0Acatch+%7B%0D%0A++++%23+Busca+o+arquivo+localmente+em+HDDs+ou+Pendrives+caso+o+download+falhe%0D%0A++++%24found+%3D+Get-PSDrive+-PSProvider+FileSystem+%7C+ForEach-Object+%7B%0D%0A++++++++%24testPath+%3D+Join-Path+%24_.Root+%24relPath%0D%0A++++++++if+%28Test-Path+%24testPath%29+%7B+%24testPath+%7D%0D%0A++++%7D+%7C+Select-Object+-First+1%0D%0A%0D%0A++++if+%28%24found%29+%7B%0D%0A++++++++Copy-Item+%24found+-Destination+%24script+-Force%0D%0A++++%7D%0D%0A%7D%0D%0A%0D%0A%23+Execu%C3%A7%C3%A3o+e+limpeza%0D%0Aif+%28Test-Path+%24script%29+%7B%0D%0A++++%23+Adicionado+ExecutionPolicy+Bypass+para+evitar+bloqueios+do+Windows%0D%0A++++powershell.exe+-NoProfile+-ExecutionPolicy+Bypass+-File+%22%24script%22+-Param1+%22Valor1%22+-Param2+%22Valor2%22%0D%0A++++%0D%0A++++%23+Remove+o+script+tempor%C3%A1rio+ap%C3%B3s+a+execu%C3%A7%C3%A3o%0D%0A++++Remove-Item+%22%24script%22+-Force+-ErrorAction+SilentlyContinue%0D%0A%7D%0D%0A&FirstLogonScriptType0=Ps1&UserOnceScript0=REG+ADD+%22HKEY_CURRENT_USER%5CControl+Panel%5CDesktop%5CWindowMetrics%22+%2Fv+MinAnimate+%2Ft+REG_SZ+%2Fd+0+%2Ff&UserOnceScriptType0=Cmd&UserOnceScript1=Windows+Registry+Editor+Version+5.00%0D%0A%0D%0A%3BApply+the+following+registry+values+to+disable+the+settings%0D%0A%0D%0A%3BThis+is+a+must+-+set+appearance+options+to+%22custom%22%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CCurrentVersion%5CExplorer%5CVisualEffects%5D%0D%0A%22VisualFXSetting%22%3Ddword%3A2%0D%0A%0D%0A%3BThis+disables+the+following+8+settings%3A%0D%0A%3BAnimate+controls+and+elements+inside+windows%0D%0A%3BFade+or+slide+menus+into+view%0D%0A%3BFade+or+slide+ToolTips+into+view%0D%0A%3BFade+out+menu+items+after+clicking%0D%0A%3BShow+shadows+under+mouse+pointer%0D%0A%3BShow+shadows+under+windows%0D%0A%3BSlide+open+combo+boxes%0D%0A%3BSmooth-scroll+list+boxes%0D%0A%5BHKEY_CURRENT_USER%5CControl+Panel%5CDesktop%5D%0D%0A%22UserPreferencesMask%22%3Dhex%282%29%3A90%2C12%2C03%2C80%2C10%2C00%2C00%2C00%0D%0A%0D%0A%3BAnimate+windows+when+minimizing+and+maximizing%0D%0A%5BHKEY_CURRENT_USER%5CControl+Panel%5CDesktop%5CWindowMetrics%5D%0D%0A%22MinAnimate%22%3D%220%22%0D%0A%0D%0A%0D%0A%3BAnimations+in+the+taskbar%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CCurrentVersion%5CExplorer%5CAdvanced%5D%0D%0A%22TaskbarAnimations%22%3Ddword%3A0%0D%0A%0D%0A%0D%0A%3BEnable+Peek%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CDWM%5D%0D%0A%22EnableAeroPeek%22%3Ddword%3A0%0D%0A%0D%0A%0D%0A%3BSave+taskbar+thumbnail+previews%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CDWM%5D%0D%0A%22AlwaysHibernateThumbnails%22%3Ddword%3A0%0D%0A%0D%0A%3BShow+thumbnails+instead+of+icons%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CCurrentVersion%5CExplorer%5CAdvanced%5D%0D%0A%22IconsOnly%22%3Ddword%3A1%0D%0A%0D%0A%3BShow+translucent+selection+rectangle%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CCurrentVersion%5CExplorer%5CAdvanced%5D%0D%0A%22ListviewAlphaSelect%22%3Ddword%3A0%0D%0A%0D%0A%3BShow+window+contents+while+dragging%0D%0A%5BHKEY_CURRENT_USER%5CControl+Panel%5CDesktop%5D%0D%0A%22DragFullWindows%22%3D%220%22%0D%0A%0D%0A%3BSmooth+edges+of+screen+fonts%0D%0A%5BHKEY_CURRENT_USER%5CControl+Panel%5CDesktop%5D%0D%0A%22FontSmoothing%22%3D%220%22%0D%0A%0D%0A%3BUse+drop+shadows+for+icon+labels+on+the+desktop%0D%0A%5BHKEY_CURRENT_USER%5CSoftware%5CMicrosoft%5CWindows%5CCurrentVersion%5CExplorer%5CAdvanced%5D%0D%0A%22ListviewShadow%22%3Ddword%3A0%0D%0A%0D%0A%3B+end&UserOnceScriptType1=Reg&RestartExplorer=true&WdacMode=Skip&AppLockerMode=Skip-->
+	<!--https://schneegans.de/windows/unattend-generator/?LanguageMode=Unattended&UILanguage=pt-BR&Locale=pt-BR&Keyboard=00010416&GeoLocation=32&ProcessorArchitecture=amd64&BypassRequirementsCheck=true&BypassNetworkCheck=true&HidePowerShellWindows=true&ComputerNameMode=Random&CompactOsMode=Default&TimeZoneMode=Explicit&TimeZone=E.+South+America+Standard+Time&PartitionMode=Interactive&DiskAssertionMode=Skip&WindowsEditionMode=Custom&ProductKey=VK7JG-NPHTM-C97JM-9MPGT-3V66T&InstallFromMode=Automatic&PEMode=Default&UserAccountMode=Unattended&AccountName0=admin&AccountDisplayName0=&AccountPassword0=12345678&AccountGroup0=Administrators&AutoLogonMode=Own&ObscurePasswords=true&PasswordExpirationMode=Unlimited&LockoutMode=Default&HideFiles=HiddenSystem&ShowFileExtensions=true&ClassicContextMenu=true&HideInfoTip=true&LaunchToThisPC=true&ShowEndTask=true&TaskbarSearch=Hide&TaskbarIconsMode=Empty&DisableWidgets=true&LeftTaskbar=true&HideTaskViewButton=true&DisableBingResults=true&StartTilesMode=Empty&StartPinsMode=Empty&DisableSystemRestore=true&EnableLongPaths=true&EnableRemoteDesktop=true&AllowPowerShellScripts=true&PreventAutomaticReboot=true&TurnOffSystemSounds=true&DisableAppSuggestions=true&PreventDeviceEncryption=true&HideEdgeFre=true&DisableEdgeStartupBoost=true&MakeEdgeUninstallable=true&DisablePointerPrecision=true&DisableCoreIsolation=true&DeleteWindowsOld=true&DisableAutomaticRestartSignOn=true&DisableWpbt=true&ProcessAudit=true&ProcessAuditCommandLine=true&EffectsMode=Custom&CursorShadow=true&ThumbnailsOrIcon=true&DropShadow=true&DeleteEdgeDesktopIcon=true&DesktopIconsMode=Custom&IconRecycleBin=true&StartFoldersMode=Custom&StartFolderFileExplorer=true&StartFolderNetwork=true&StartFolderSettings=true&WifiMode=Interactive&ExpressSettings=DisableAll&LockKeysMode=Configure&CapsLockInitial=Off&CapsLockBehavior=Toggle&NumLockInitial=On&NumLockBehavior=Toggle&ScrollLockInitial=Off&ScrollLockBehavior=Toggle&StickyKeysMode=Disabled&ColorMode=Custom&SystemColorTheme=Dark&AppsColorTheme=Dark&AccentColor=%23323232&AccentColorOnStart=true&AccentColorOnBorders=true&EnableTransparency=true&WallpaperMode=Script&WallpaperScript=%24url+%3D+%27https%3A%2F%2F4kwallpapers.com%2Fimages%2Fwallpapers%2Fmacro-surface-3d-background-sci-fi-purple-background-3840x2160-7863.png%27%3B%0D%0Areturn+%28+Invoke-WebRequest+-Uri+%24url+-UseBasicParsing+-TimeoutSec+30+%29.Content%3B&LockScreenMode=Default&Remove3DViewer=true&RemoveBingSearch=true&RemoveCamera=true&RemoveClipchamp=true&RemoveCopilot=true&RemoveCortana=true&RemoveDevHome=true&RemoveWindowsHello=true&RemoveFamily=true&RemoveFeedbackHub=true&RemoveGameAssist=true&RemoveGetHelp=true&RemoveHandwriting=true&RemoveInternetExplorer=true&RemoveMailCalendar=true&RemoveMaps=true&RemoveMathInputPanel=true&RemoveMediaFeatures=true&RemoveMixedReality=true&RemoveZuneVideo=true&RemoveNews=true&RemoveOffice365=true&RemoveOneDrive=true&RemoveOneNote=true&RemoveOneSync=true&RemoveOpenSSHClient=true&RemoveOutlook=true&RemovePaint3D=true&RemovePeople=true&RemovePowerAutomate=true&RemovePowerShell2=true&RemoveQuickAssist=true&RemoveRecall=true&RemoveSkype=true&RemoveSolitaire=true&RemoveSpeech=true&RemoveStepsRecorder=true&RemoveTeams=true&RemoveGetStarted=true&RemoveToDo=true&RemoveVoiceRecorder=true&RemoveWallet=true&RemoveWeather=true&RemoveFaxAndScan=true&RemoveWindowsMediaPlayer=true&RemoveZuneMusic=true&RemoveWordPad=true&RemoveXboxApps=true&RemoveYourPhone=true&SystemScript0=%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+AUTOUNATTEND+Bootstrap+Loader%0D%0A%23+%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D-%0D%0A%23+Objetivo%3A%0D%0A%23+++Localizar+e+executar+automaticamente+o+script+principal%0D%0A%23+++%22autounattend.ps1%22+durante+a+instala%C3%A7%C3%A3o+do+Windows.%0D%0A%23%0D%0A%23+Cen%C3%A1rio%3A%0D%0A%23+++-+Execu%C3%A7%C3%A3o+em+WinPE+%2F+Setup+%2F+SYSTEM+%2F+FirstLogon%0D%0A%23+++-+Ambiente+possivelmente+incompleto+ou+restrito%0D%0A%23+++-+Pendrive+de+instala%C3%A7%C3%A3o+pode+n%C3%A3o+ter+letra+atribu%C3%ADda%0D%0A%23%0D%0A%23+Comportamento%3A%0D%0A%23+++1.+Prioriza+execu%C3%A7%C3%A3o+offline+via+pendrive%0D%0A%23+++2.+Tenta+montar+volumes+%28mountvol%29+se+necess%C3%A1rio%0D%0A%23+++3.+Retry+resiliente+de+localiza%C3%A7%C3%A3o+e+c%C3%B3pia%0D%0A%23+++4.+Fallback+para+download+online%0D%0A%23+++5.+Execu%C3%A7%C3%A3o+silenciosa+e+tolerante+a+falhas%0D%0A%23%0D%0A%23+Diretrizes%3A%0D%0A%23+++-+N%C3%A3o+falhar+de+forma+catastr%C3%B3fica%0D%0A%23+++-+Manter+compatibilidade+PowerShell+2+%2F+5+%2F+7%0D%0A%23+++-+Evitar+depend%C3%AAncias+externas+ou+m%C3%B3dulos%0D%0A%23+++-+Priorizar+minimalismo+e+robustez%0D%0A%23+++-+Executar+com+privil%C3%A9gios+SYSTEM+quando+poss%C3%ADvel%0D%0A%23%0D%0A%23+Padr%C3%B5es%3A%0D%0A%23+++-+Offline-first%0D%0A%23+++-+Try%2Fcatch+defensivo%0D%0A%23+++-+Sem+logging+obrigat%C3%B3rio%0D%0A%23+++-+Sem+intera%C3%A7%C3%A3o+com+usu%C3%A1rio%0D%0A%23+++-+Compat%C3%ADvel+com+WinPE+e+OOBE%0D%0A%23%0D%0A%23+Observa%C3%A7%C3%A3o%3A%0D%0A%23+++Este+script+%C3%A9+apenas+um+bootstrapper+resiliente+e+deve%0D%0A%23+++permanecer+pequeno%2C+simples+e+independente.%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%0D%0A%24Env%3Ainstall_cru+%3D+%22%22%0D%0A%24Env%3ALOCAL_EXEC+%3D+%22SYSTEM%22.Trim%28%29.ToUpper%28%29%0D%0A%0D%0Atry+%7B%0D%0A++%24user+%3D+%5BEnvironment%5D%3A%3AUserName%0D%0A++%24domain+%3D+%5BEnvironment%5D%3A%3AUserDomainName++%0D%0A%7D%0D%0Acatch+%7B++%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+Configura%C3%A7%C3%A3o%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%24script+%3D+%22C%3A%5Cautounattend.ps1%22%0D%0A%24relPath+%3D+%22boot%5Cautonome%5Cwindows%5Cautounattend.ps1%22%0D%0A%0D%0ARemove-Item+%24script+-Force+-ErrorAction+SilentlyContinue%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+Fun%C3%A7%C3%A3o%3A+localizar+script+offline%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Afunction+Find-OfflineScript+%7B%0D%0A++%24found+%3D+%24null%0D%0A%0D%0A++foreach+%28%24letter+in+65..90%29+%7B%0D%0A++++try+%7B%0D%0A++++++%24drive+%3D+%5Bchar%5D%24letter+%2B+%22%3A%5C%22%0D%0A++++++%24test+%3D+%24drive+%2B+%24relPath%0D%0A++++++if+%28Test-Path+%24test%29+%7B%0D%0A++++++++%24found+%3D+%24test%0D%0A++++++++break%0D%0A++++++%7D%0D%0A++++%7D%0D%0A++++catch+%7B%7D%0D%0A++%7D%0D%0A%0D%0A++return+%24found%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+1.+Tentar+localizar+offline%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%24found+%3D+Find-OfflineScript%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+2.+Tentar+montar+volumes+se+n%C3%A3o+encontrou%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Aif+%28-not+%24found%29+%7B%0D%0A++try+%7B+mountvol+%2FE+%3E+%24null+2%3E%261+%7D+catch+%7B%7D%0D%0A++Start-Sleep+-Seconds+2%0D%0A++%24found+%3D+Find-OfflineScript%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+3.+Copiar+se+encontrado%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Aif+%28%24found%29+%7B%0D%0A++try+%7B%0D%0A++++Copy-Item+%24found+%24script+-Force+-ErrorAction+SilentlyContinue%0D%0A++%7D%0D%0A++catch+%7B%7D%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+4.+Fallback+internet%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Aif+%28%21%28Test-Path+%24script%29%29+%7B%0D%0A++try+%7B%0D%0A++++%24wc+%3D+New-Object+System.Net.WebClient%0D%0A++++%24wc.DownloadFile%28%22https%3A%2F%2Fraw.githubusercontent.com%2Fjcempentools%2Fpentools%2Frefs%2Fheads%2Fmaster%2Fboot%2Fautonome%2Fwindows%2Fautounattend.ps1%22%2C+%24script%29%0D%0A++%7D%0D%0A++catch+%7B%7D%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+5.+Executar+com+resili%C3%AAncia%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Aif+%28Test-Path+%24script%29+%7B%0D%0A++try+%7B%0D%0A++++powershell.exe+-NoProfile+-ExecutionPolicy+Bypass+-File+%24script%0D%0A++%7D%0D%0A++catch+%7B%7D%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+limpeza+silenciosa%0D%0Atry+%7B%0D%0A++Remove-Item+%24script+-Force+-ErrorAction+SilentlyContinue%0D%0A%7D%0D%0Acatch+%7B%7D&SystemScriptType0=Ps1&DefaultUserScript0=%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+AUTOUNATTEND+Bootstrap+Loader%0D%0A%23+%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D-%0D%0A%23+Objetivo%3A%0D%0A%23+++Localizar+e+executar+automaticamente+o+script+principal%0D%0A%23+++%22autounattend.ps1%22+durante+a+instala%C3%A7%C3%A3o+do+Windows.%0D%0A%23%0D%0A%23+Cen%C3%A1rio%3A%0D%0A%23+++-+Execu%C3%A7%C3%A3o+em+WinPE+%2F+Setup+%2F+SYSTEM+%2F+FirstLogon%0D%0A%23+++-+Ambiente+possivelmente+incompleto+ou+restrito%0D%0A%23+++-+Pendrive+de+instala%C3%A7%C3%A3o+pode+n%C3%A3o+ter+letra+atribu%C3%ADda%0D%0A%23%0D%0A%23+Comportamento%3A%0D%0A%23+++1.+Prioriza+execu%C3%A7%C3%A3o+offline+via+pendrive%0D%0A%23+++2.+Tenta+montar+volumes+%28mountvol%29+se+necess%C3%A1rio%0D%0A%23+++3.+Retry+resiliente+de+localiza%C3%A7%C3%A3o+e+c%C3%B3pia%0D%0A%23+++4.+Fallback+para+download+online%0D%0A%23+++5.+Execu%C3%A7%C3%A3o+silenciosa+e+tolerante+a+falhas%0D%0A%23%0D%0A%23+Diretrizes%3A%0D%0A%23+++-+N%C3%A3o+falhar+de+forma+catastr%C3%B3fica%0D%0A%23+++-+Manter+compatibilidade+PowerShell+2+%2F+5+%2F+7%0D%0A%23+++-+Evitar+depend%C3%AAncias+externas+ou+m%C3%B3dulos%0D%0A%23+++-+Priorizar+minimalismo+e+robustez%0D%0A%23+++-+Executar+com+privil%C3%A9gios+SYSTEM+quando+poss%C3%ADvel%0D%0A%23%0D%0A%23+Padr%C3%B5es%3A%0D%0A%23+++-+Offline-first%0D%0A%23+++-+Try%2Fcatch+defensivo%0D%0A%23+++-+Sem+logging+obrigat%C3%B3rio%0D%0A%23+++-+Sem+intera%C3%A7%C3%A3o+com+usu%C3%A1rio%0D%0A%23+++-+Compat%C3%ADvel+com+WinPE+e+OOBE%0D%0A%23%0D%0A%23+Observa%C3%A7%C3%A3o%3A%0D%0A%23+++Este+script+%C3%A9+apenas+um+bootstrapper+resiliente+e+deve%0D%0A%23+++permanecer+pequeno%2C+simples+e+independente.%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%0D%0A%24Env%3Ainstall_cru+%3D+%22%22%0D%0A%24Env%3ALOCAL_EXEC+%3D+%22DefaultUser%22.Trim%28%29.ToUpper%28%29%0D%0A%0D%0A%0D%0Atry+%7B%0D%0A++%24user+%3D+%5BEnvironment%5D%3A%3AUserName%0D%0A++%24domain+%3D+%5BEnvironment%5D%3A%3AUserDomainName++%0D%0A%7D%0D%0Acatch+%7B++%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+Configura%C3%A7%C3%A3o%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%24script+%3D+%22C%3A%5Cautounattend.ps1%22%0D%0A%24relPath+%3D+%22boot%5Cautonome%5Cwindows%5Cautounattend.ps1%22%0D%0A%0D%0ARemove-Item+%24script+-Force+-ErrorAction+SilentlyContinue%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+Fun%C3%A7%C3%A3o%3A+localizar+script+offline%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Afunction+Find-OfflineScript+%7B%0D%0A++%24found+%3D+%24null%0D%0A%0D%0A++foreach+%28%24letter+in+65..90%29+%7B%0D%0A++++try+%7B%0D%0A++++++%24drive+%3D+%5Bchar%5D%24letter+%2B+%22%3A%5C%22%0D%0A++++++%24test+%3D+%24drive+%2B+%24relPath%0D%0A++++++if+%28Test-Path+%24test%29+%7B%0D%0A++++++++%24found+%3D+%24test%0D%0A++++++++break%0D%0A++++++%7D%0D%0A++++%7D%0D%0A++++catch+%7B%7D%0D%0A++%7D%0D%0A%0D%0A++return+%24found%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+1.+Tentar+localizar+offline%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%24found+%3D+Find-OfflineScript%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+2.+Tentar+montar+volumes+se+n%C3%A3o+encontrou%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Aif+%28-not+%24found%29+%7B%0D%0A++try+%7B+mountvol+%2FE+%3E+%24null+2%3E%261+%7D+catch+%7B%7D%0D%0A++Start-Sleep+-Seconds+2%0D%0A++%24found+%3D+Find-OfflineScript%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+3.+Copiar+se+encontrado%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Aif+%28%24found%29+%7B%0D%0A++try+%7B%0D%0A++++Copy-Item+%24found+%24script+-Force+-ErrorAction+SilentlyContinue%0D%0A++%7D%0D%0A++catch+%7B%7D%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+4.+Fallback+internet%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Aif+%28%21%28Test-Path+%24script%29%29+%7B%0D%0A++try+%7B%0D%0A++++%24wc+%3D+New-Object+System.Net.WebClient%0D%0A++++%24wc.DownloadFile%28%22https%3A%2F%2Fraw.githubusercontent.com%2Fjcempentools%2Fpentools%2Frefs%2Fheads%2Fmaster%2Fboot%2Fautonome%2Fwindows%2Fautounattend.ps1%22%2C+%24script%29%0D%0A++%7D%0D%0A++catch+%7B%7D%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+5.+Executar+com+resili%C3%AAncia%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Aif+%28Test-Path+%24script%29+%7B%0D%0A++try+%7B%0D%0A++++powershell.exe+-NoProfile+-ExecutionPolicy+Bypass+-File+%24script%0D%0A++%7D%0D%0A++catch+%7B%7D%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+limpeza+silenciosa%0D%0Atry+%7B%0D%0A++Remove-Item+%24script+-Force+-ErrorAction+SilentlyContinue%0D%0A%7D%0D%0Acatch+%7B%7D&DefaultUserScriptType0=Ps1&FirstLogonScript0=%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+AUTOUNATTEND+Bootstrap+Loader%0D%0A%23+%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D-%0D%0A%23+Objetivo%3A%0D%0A%23+++Localizar+e+executar+automaticamente+o+script+principal%0D%0A%23+++%22autounattend.ps1%22+durante+a+instala%C3%A7%C3%A3o+do+Windows.%0D%0A%23%0D%0A%23+Cen%C3%A1rio%3A%0D%0A%23+++-+Execu%C3%A7%C3%A3o+em+WinPE+%2F+Setup+%2F+SYSTEM+%2F+FirstLogon%0D%0A%23+++-+Ambiente+possivelmente+incompleto+ou+restrito%0D%0A%23+++-+Pendrive+de+instala%C3%A7%C3%A3o+pode+n%C3%A3o+ter+letra+atribu%C3%ADda%0D%0A%23%0D%0A%23+Comportamento%3A%0D%0A%23+++1.+Prioriza+execu%C3%A7%C3%A3o+offline+via+pendrive%0D%0A%23+++2.+Tenta+montar+volumes+%28mountvol%29+se+necess%C3%A1rio%0D%0A%23+++3.+Retry+resiliente+de+localiza%C3%A7%C3%A3o+e+c%C3%B3pia%0D%0A%23+++4.+Fallback+para+download+online%0D%0A%23+++5.+Execu%C3%A7%C3%A3o+silenciosa+e+tolerante+a+falhas%0D%0A%23%0D%0A%23+Diretrizes%3A%0D%0A%23+++-+N%C3%A3o+falhar+de+forma+catastr%C3%B3fica%0D%0A%23+++-+Manter+compatibilidade+PowerShell+2+%2F+5+%2F+7%0D%0A%23+++-+Evitar+depend%C3%AAncias+externas+ou+m%C3%B3dulos%0D%0A%23+++-+Priorizar+minimalismo+e+robustez%0D%0A%23+++-+Executar+com+privil%C3%A9gios+SYSTEM+quando+poss%C3%ADvel%0D%0A%23%0D%0A%23+Padr%C3%B5es%3A%0D%0A%23+++-+Offline-first%0D%0A%23+++-+Try%2Fcatch+defensivo%0D%0A%23+++-+Sem+logging+obrigat%C3%B3rio%0D%0A%23+++-+Sem+intera%C3%A7%C3%A3o+com+usu%C3%A1rio%0D%0A%23+++-+Compat%C3%ADvel+com+WinPE+e+OOBE%0D%0A%23%0D%0A%23+Observa%C3%A7%C3%A3o%3A%0D%0A%23+++Este+script+%C3%A9+apenas+um+bootstrapper+resiliente+e+deve%0D%0A%23+++permanecer+pequeno%2C+simples+e+independente.%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%0D%0A%24Env%3Ainstall_cru+%3D+%22%22%0D%0A%24Env%3ALOCAL_EXEC+%3D+%22FirstLogon%22.Trim%28%29.ToUpper%28%29%0D%0A%0D%0Atry+%7B%0D%0A++%24user+%3D+%5BEnvironment%5D%3A%3AUserName%0D%0A++%24domain+%3D+%5BEnvironment%5D%3A%3AUserDomainName++%0D%0A%7D%0D%0Acatch+%7B++%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+Configura%C3%A7%C3%A3o%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%24script+%3D+%22C%3A%5Cautounattend.ps1%22%0D%0A%24relPath+%3D+%22boot%5Cautonome%5Cwindows%5Cautounattend.ps1%22%0D%0A%0D%0ARemove-Item+%24script+-Force+-ErrorAction+SilentlyContinue%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+Fun%C3%A7%C3%A3o%3A+localizar+script+offline%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Afunction+Find-OfflineScript+%7B%0D%0A++%24found+%3D+%24null%0D%0A%0D%0A++foreach+%28%24letter+in+65..90%29+%7B%0D%0A++++try+%7B%0D%0A++++++%24drive+%3D+%5Bchar%5D%24letter+%2B+%22%3A%5C%22%0D%0A++++++%24test+%3D+%24drive+%2B+%24relPath%0D%0A++++++if+%28Test-Path+%24test%29+%7B%0D%0A++++++++%24found+%3D+%24test%0D%0A++++++++break%0D%0A++++++%7D%0D%0A++++%7D%0D%0A++++catch+%7B%7D%0D%0A++%7D%0D%0A%0D%0A++return+%24found%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+1.+Tentar+localizar+offline%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%24found+%3D+Find-OfflineScript%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+2.+Tentar+montar+volumes+se+n%C3%A3o+encontrou%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Aif+%28-not+%24found%29+%7B%0D%0A++try+%7B+mountvol+%2FE+%3E+%24null+2%3E%261+%7D+catch+%7B%7D%0D%0A++Start-Sleep+-Seconds+2%0D%0A++%24found+%3D+Find-OfflineScript%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+3.+Copiar+se+encontrado%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Aif+%28%24found%29+%7B%0D%0A++try+%7B%0D%0A++++Copy-Item+%24found+%24script+-Force+-ErrorAction+SilentlyContinue%0D%0A++%7D%0D%0A++catch+%7B%7D%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+4.+Fallback+internet%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Aif+%28%21%28Test-Path+%24script%29%29+%7B%0D%0A++try+%7B%0D%0A++++%24wc+%3D+New-Object+System.Net.WebClient%0D%0A++++%24wc.DownloadFile%28%22https%3A%2F%2Fraw.githubusercontent.com%2Fjcempentools%2Fpentools%2Frefs%2Fheads%2Fmaster%2Fboot%2Fautonome%2Fwindows%2Fautounattend.ps1%22%2C+%24script%29%0D%0A++%7D%0D%0A++catch+%7B%7D%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+5.+Executar+com+resili%C3%AAncia%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Aif+%28Test-Path+%24script%29+%7B%0D%0A++try+%7B%0D%0A++++powershell.exe+-NoProfile+-ExecutionPolicy+Bypass+-File+%24script%0D%0A++%7D%0D%0A++catch+%7B%7D%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+limpeza+silenciosa%0D%0Atry+%7B%0D%0A++Remove-Item+%24script+-Force+-ErrorAction+SilentlyContinue%0D%0A%7D%0D%0Acatch+%7B%7D&FirstLogonScriptType0=Ps1&UserOnceScript0=%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+AUTOUNATTEND+Bootstrap+Loader%0D%0A%23+%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D%2D-%0D%0A%23+Objetivo%3A%0D%0A%23+++Localizar+e+executar+automaticamente+o+script+principal%0D%0A%23+++%22autounattend.ps1%22+durante+a+instala%C3%A7%C3%A3o+do+Windows.%0D%0A%23%0D%0A%23+Cen%C3%A1rio%3A%0D%0A%23+++-+Execu%C3%A7%C3%A3o+em+WinPE+%2F+Setup+%2F+SYSTEM+%2F+FirstLogon%0D%0A%23+++-+Ambiente+possivelmente+incompleto+ou+restrito%0D%0A%23+++-+Pendrive+de+instala%C3%A7%C3%A3o+pode+n%C3%A3o+ter+letra+atribu%C3%ADda%0D%0A%23%0D%0A%23+Comportamento%3A%0D%0A%23+++1.+Prioriza+execu%C3%A7%C3%A3o+offline+via+pendrive%0D%0A%23+++2.+Tenta+montar+volumes+%28mountvol%29+se+necess%C3%A1rio%0D%0A%23+++3.+Retry+resiliente+de+localiza%C3%A7%C3%A3o+e+c%C3%B3pia%0D%0A%23+++4.+Fallback+para+download+online%0D%0A%23+++5.+Execu%C3%A7%C3%A3o+silenciosa+e+tolerante+a+falhas%0D%0A%23%0D%0A%23+Diretrizes%3A%0D%0A%23+++-+N%C3%A3o+falhar+de+forma+catastr%C3%B3fica%0D%0A%23+++-+Manter+compatibilidade+PowerShell+2+%2F+5+%2F+7%0D%0A%23+++-+Evitar+depend%C3%AAncias+externas+ou+m%C3%B3dulos%0D%0A%23+++-+Priorizar+minimalismo+e+robustez%0D%0A%23+++-+Executar+com+privil%C3%A9gios+SYSTEM+quando+poss%C3%ADvel%0D%0A%23%0D%0A%23+Padr%C3%B5es%3A%0D%0A%23+++-+Offline-first%0D%0A%23+++-+Try%2Fcatch+defensivo%0D%0A%23+++-+Sem+logging+obrigat%C3%B3rio%0D%0A%23+++-+Sem+intera%C3%A7%C3%A3o+com+usu%C3%A1rio%0D%0A%23+++-+Compat%C3%ADvel+com+WinPE+e+OOBE%0D%0A%23%0D%0A%23+Observa%C3%A7%C3%A3o%3A%0D%0A%23+++Este+script+%C3%A9+apenas+um+bootstrapper+resiliente+e+deve%0D%0A%23+++permanecer+pequeno%2C+simples+e+independente.%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%0D%0A%24Env%3Ainstall_cru+%3D+%22%22%0D%0A%24Env%3ALOCAL_EXEC+%3D+%22UserOnce%22.Trim%28%29.ToUpper%28%29%0D%0A%0D%0Atry+%7B%0D%0A++%24user+%3D+%5BEnvironment%5D%3A%3AUserName%0D%0A++%24domain+%3D+%5BEnvironment%5D%3A%3AUserDomainName++%0D%0A%7D%0D%0Acatch+%7B++%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+Configura%C3%A7%C3%A3o%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%24script+%3D+%22C%3A%5Cautounattend.ps1%22%0D%0A%24relPath+%3D+%22boot%5Cautonome%5Cwindows%5Cautounattend.ps1%22%0D%0A%0D%0ARemove-Item+%24script+-Force+-ErrorAction+SilentlyContinue%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+Fun%C3%A7%C3%A3o%3A+localizar+script+offline%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Afunction+Find-OfflineScript+%7B%0D%0A++%24found+%3D+%24null%0D%0A%0D%0A++foreach+%28%24letter+in+65..90%29+%7B%0D%0A++++try+%7B%0D%0A++++++%24drive+%3D+%5Bchar%5D%24letter+%2B+%22%3A%5C%22%0D%0A++++++%24test+%3D+%24drive+%2B+%24relPath%0D%0A++++++if+%28Test-Path+%24test%29+%7B%0D%0A++++++++%24found+%3D+%24test%0D%0A++++++++break%0D%0A++++++%7D%0D%0A++++%7D%0D%0A++++catch+%7B%7D%0D%0A++%7D%0D%0A%0D%0A++return+%24found%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+1.+Tentar+localizar+offline%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%24found+%3D+Find-OfflineScript%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+2.+Tentar+montar+volumes+se+n%C3%A3o+encontrou%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Aif+%28-not+%24found%29+%7B%0D%0A++try+%7B+mountvol+%2FE+%3E+%24null+2%3E%261+%7D+catch+%7B%7D%0D%0A++Start-Sleep+-Seconds+2%0D%0A++%24found+%3D+Find-OfflineScript%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+3.+Copiar+se+encontrado%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Aif+%28%24found%29+%7B%0D%0A++try+%7B%0D%0A++++Copy-Item+%24found+%24script+-Force+-ErrorAction+SilentlyContinue%0D%0A++%7D%0D%0A++catch+%7B%7D%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+4.+Fallback+internet%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Aif+%28%21%28Test-Path+%24script%29%29+%7B%0D%0A++try+%7B%0D%0A++++%24wc+%3D+New-Object+System.Net.WebClient%0D%0A++++%24wc.DownloadFile%28%22https%3A%2F%2Fraw.githubusercontent.com%2Fjcempentools%2Fpentools%2Frefs%2Fheads%2Fmaster%2Fboot%2Fautonome%2Fwindows%2Fautounattend.ps1%22%2C+%24script%29%0D%0A++%7D%0D%0A++catch+%7B%7D%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0A%23+5.+Executar+com+resili%C3%AAncia%0D%0A%23+%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%3D%0D%0Aif+%28Test-Path+%24script%29+%7B%0D%0A++try+%7B%0D%0A++++powershell.exe+-NoProfile+-ExecutionPolicy+Bypass+-File+%24script%0D%0A++%7D%0D%0A++catch+%7B%7D%0D%0A%7D%0D%0A%0D%0A%0D%0A%23+limpeza+silenciosa%0D%0Atry+%7B%0D%0A++Remove-Item+%24script+-Force+-ErrorAction+SilentlyContinue%0D%0A%7D%0D%0Acatch+%7B%7D&UserOnceScriptType0=Ps1&RestartExplorer=true&WdacMode=Skip&AppLockerMode=Skip-->
 	<settings pass="offlineServicing"></settings>
 	<settings pass="windowsPE">
 		<component name="Microsoft-Windows-International-Core-WinPE" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
@@ -128,6 +128,7 @@ foreach( $file in $Document.unattend.Extensions.File ) {
 		</ExtractScript>
 		<File path="C:\Windows\Setup\Scripts\RemovePackages.ps1">
 $selectors = @(
+	'Microsoft.Microsoft3DViewer';
 	'Microsoft.BingSearch';
 	'Microsoft.WindowsCamera';
 	'Clipchamp.Clipchamp';
@@ -273,6 +274,7 @@ $logfile = 'C:\Windows\Setup\Scripts\RemoveCapabilities.log';
 		<File path="C:\Windows\Setup\Scripts\RemoveFeatures.ps1">
 $selectors = @(
 	'MediaPlayback';
+	'MicrosoftWindowsPowerShellV2Root';
 	'Recall';
 );
 $getCommand = {
@@ -604,166 +606,553 @@ function Set-WallpaperImage {
 Set-WallpaperImage -LiteralPath 'C:\Windows\Setup\Scripts\Wallpaper';
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-01.ps1">
-powercfg.exe -h off
+# =============================================================
+# AUTOUNATTEND Bootstrap Loader
+# -------------------------------------------------------------
+# Objetivo:
+#   Localizar e executar automaticamente o script principal
+#   "autounattend.ps1" durante a instala&#xE7;&#xE3;o do Windows.
+#
+# Cen&#xE1;rio:
+#   - Execu&#xE7;&#xE3;o em WinPE / Setup / SYSTEM / FirstLogon
+#   - Ambiente possivelmente incompleto ou restrito
+#   - Pendrive de instala&#xE7;&#xE3;o pode n&#xE3;o ter letra atribu&#xED;da
+#
+# Comportamento:
+#   1. Prioriza execu&#xE7;&#xE3;o offline via pendrive
+#   2. Tenta montar volumes (mountvol) se necess&#xE1;rio
+#   3. Retry resiliente de localiza&#xE7;&#xE3;o e c&#xF3;pia
+#   4. Fallback para download online
+#   5. Execu&#xE7;&#xE3;o silenciosa e tolerante a falhas
+#
+# Diretrizes:
+#   - N&#xE3;o falhar de forma catastr&#xF3;fica
+#   - Manter compatibilidade PowerShell 2 / 5 / 7
+#   - Evitar depend&#xEA;ncias externas ou m&#xF3;dulos
+#   - Priorizar minimalismo e robustez
+#   - Executar com privil&#xE9;gios SYSTEM quando poss&#xED;vel
+#
+# Padr&#xF5;es:
+#   - Offline-first
+#   - Try/catch defensivo
+#   - Sem logging obrigat&#xF3;rio
+#   - Sem intera&#xE7;&#xE3;o com usu&#xE1;rio
+#   - Compat&#xED;vel com WinPE e OOBE
+#
+# Observa&#xE7;&#xE3;o:
+#   Este script &#xE9; apenas um bootstrapper resiliente e deve
+#   permanecer pequeno, simples e independente.
+# =============================================================
 
-$params = @{
-    Path = 'Registry::HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer';
-};
-New-Item @params -ErrorAction 'SilentlyContinue';
-Set-ItemProperty @params -Name 'NoDriveAutoRun' -Type 'DWord' -Value $(
-    ( 1 -shl 26 ) - 1; # 0x3FFFFFF
-);
-Set-ItemProperty @params -Name 'NoDriveTypeAutoRun' -Type 'DWord' -Value $(
-    ( 1 -shl 8 ) - 1; # 0xFF
-);
+$Env:install_cru = ""
+$Env:LOCAL_EXEC = "SYSTEM".Trim().ToUpper()
+
+try {
+  $user = [Environment]::UserName
+  $domain = [Environment]::UserDomainName  
+}
+catch {  
+}
+
+
+# =========================================================
+# Configura&#xE7;&#xE3;o
+# =========================================================
+$script = "C:\autounattend.ps1"
+$relPath = "boot\autonome\windows\autounattend.ps1"
+
+Remove-Item $script -Force -ErrorAction SilentlyContinue
+
+
+# =========================================================
+# Fun&#xE7;&#xE3;o: localizar script offline
+# =========================================================
+function Find-OfflineScript {
+  $found = $null
+
+  foreach ($letter in 65..90) {
+    try {
+      $drive = [char]$letter + ":\"
+      $test = $drive + $relPath
+      if (Test-Path $test) {
+        $found = $test
+        break
+      }
+    }
+    catch {}
+  }
+
+  return $found
+}
+
+
+# =========================================================
+# 1. Tentar localizar offline
+# =========================================================
+$found = Find-OfflineScript
+
+
+# =========================================================
+# 2. Tentar montar volumes se n&#xE3;o encontrou
+# =========================================================
+if (-not $found) {
+  try { mountvol /E &gt; $null 2&gt;&amp;1 } catch {}
+  Start-Sleep -Seconds 2
+  $found = Find-OfflineScript
+}
+
+
+# =========================================================
+# 3. Copiar se encontrado
+# =========================================================
+if ($found) {
+  try {
+    Copy-Item $found $script -Force -ErrorAction SilentlyContinue
+  }
+  catch {}
+}
+
+
+# =========================================================
+# 4. Fallback internet
+# =========================================================
+if (!(Test-Path $script)) {
+  try {
+    $wc = New-Object System.Net.WebClient
+    $wc.DownloadFile("https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/autonome/windows/autounattend.ps1", $script)
+  }
+  catch {}
+}
+
+
+# =========================================================
+# 5. Executar com resili&#xEA;ncia
+# =========================================================
+if (Test-Path $script) {
+  try {
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script
+  }
+  catch {}
+}
+
+
+# limpeza silenciosa
+try {
+  Remove-Item $script -Force -ErrorAction SilentlyContinue
+}
+catch {}
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-02.ps1">
-Set-MpPreference -DisableRealtimeMonitoring $true;
+# =============================================================
+# AUTOUNATTEND Bootstrap Loader
+# -------------------------------------------------------------
+# Objetivo:
+#   Localizar e executar automaticamente o script principal
+#   "autounattend.ps1" durante a instala&#xE7;&#xE3;o do Windows.
+#
+# Cen&#xE1;rio:
+#   - Execu&#xE7;&#xE3;o em WinPE / Setup / SYSTEM / FirstLogon
+#   - Ambiente possivelmente incompleto ou restrito
+#   - Pendrive de instala&#xE7;&#xE3;o pode n&#xE3;o ter letra atribu&#xED;da
+#
+# Comportamento:
+#   1. Prioriza execu&#xE7;&#xE3;o offline via pendrive
+#   2. Tenta montar volumes (mountvol) se necess&#xE1;rio
+#   3. Retry resiliente de localiza&#xE7;&#xE3;o e c&#xF3;pia
+#   4. Fallback para download online
+#   5. Execu&#xE7;&#xE3;o silenciosa e tolerante a falhas
+#
+# Diretrizes:
+#   - N&#xE3;o falhar de forma catastr&#xF3;fica
+#   - Manter compatibilidade PowerShell 2 / 5 / 7
+#   - Evitar depend&#xEA;ncias externas ou m&#xF3;dulos
+#   - Priorizar minimalismo e robustez
+#   - Executar com privil&#xE9;gios SYSTEM quando poss&#xED;vel
+#
+# Padr&#xF5;es:
+#   - Offline-first
+#   - Try/catch defensivo
+#   - Sem logging obrigat&#xF3;rio
+#   - Sem intera&#xE7;&#xE3;o com usu&#xE1;rio
+#   - Compat&#xED;vel com WinPE e OOBE
+#
+# Observa&#xE7;&#xE3;o:
+#   Este script &#xE9; apenas um bootstrapper resiliente e deve
+#   permanecer pequeno, simples e independente.
+# =============================================================
+
+$Env:install_cru = ""
+$Env:LOCAL_EXEC = "FirstLogon".Trim().ToUpper()
+
+try {
+  $user = [Environment]::UserName
+  $domain = [Environment]::UserDomainName  
+}
+catch {  
+}
+
+
+# =========================================================
+# Configura&#xE7;&#xE3;o
+# =========================================================
+$script = "C:\autounattend.ps1"
+$relPath = "boot\autonome\windows\autounattend.ps1"
+
+Remove-Item $script -Force -ErrorAction SilentlyContinue
+
+
+# =========================================================
+# Fun&#xE7;&#xE3;o: localizar script offline
+# =========================================================
+function Find-OfflineScript {
+  $found = $null
+
+  foreach ($letter in 65..90) {
+    try {
+      $drive = [char]$letter + ":\"
+      $test = $drive + $relPath
+      if (Test-Path $test) {
+        $found = $test
+        break
+      }
+    }
+    catch {}
+  }
+
+  return $found
+}
+
+
+# =========================================================
+# 1. Tentar localizar offline
+# =========================================================
+$found = Find-OfflineScript
+
+
+# =========================================================
+# 2. Tentar montar volumes se n&#xE3;o encontrou
+# =========================================================
+if (-not $found) {
+  try { mountvol /E &gt; $null 2&gt;&amp;1 } catch {}
+  Start-Sleep -Seconds 2
+  $found = Find-OfflineScript
+}
+
+
+# =========================================================
+# 3. Copiar se encontrado
+# =========================================================
+if ($found) {
+  try {
+    Copy-Item $found $script -Force -ErrorAction SilentlyContinue
+  }
+  catch {}
+}
+
+
+# =========================================================
+# 4. Fallback internet
+# =========================================================
+if (!(Test-Path $script)) {
+  try {
+    $wc = New-Object System.Net.WebClient
+    $wc.DownloadFile("https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/autonome/windows/autounattend.ps1", $script)
+  }
+  catch {}
+}
+
+
+# =========================================================
+# 5. Executar com resili&#xEA;ncia
+# =========================================================
+if (Test-Path $script) {
+  try {
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script
+  }
+  catch {}
+}
+
+
+# limpeza silenciosa
+try {
+  Remove-Item $script -Force -ErrorAction SilentlyContinue
+}
+catch {}
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-03.ps1">
+# =============================================================
+# AUTOUNATTEND Bootstrap Loader
+# -------------------------------------------------------------
+# Objetivo:
+#   Localizar e executar automaticamente o script principal
+#   "autounattend.ps1" durante a instala&#xE7;&#xE3;o do Windows.
+#
+# Cen&#xE1;rio:
+#   - Execu&#xE7;&#xE3;o em WinPE / Setup / SYSTEM / FirstLogon
+#   - Ambiente possivelmente incompleto ou restrito
+#   - Pendrive de instala&#xE7;&#xE3;o pode n&#xE3;o ter letra atribu&#xED;da
+#
+# Comportamento:
+#   1. Prioriza execu&#xE7;&#xE3;o offline via pendrive
+#   2. Tenta montar volumes (mountvol) se necess&#xE1;rio
+#   3. Retry resiliente de localiza&#xE7;&#xE3;o e c&#xF3;pia
+#   4. Fallback para download online
+#   5. Execu&#xE7;&#xE3;o silenciosa e tolerante a falhas
+#
+# Diretrizes:
+#   - N&#xE3;o falhar de forma catastr&#xF3;fica
+#   - Manter compatibilidade PowerShell 2 / 5 / 7
+#   - Evitar depend&#xEA;ncias externas ou m&#xF3;dulos
+#   - Priorizar minimalismo e robustez
+#   - Executar com privil&#xE9;gios SYSTEM quando poss&#xED;vel
+#
+# Padr&#xF5;es:
+#   - Offline-first
+#   - Try/catch defensivo
+#   - Sem logging obrigat&#xF3;rio
+#   - Sem intera&#xE7;&#xE3;o com usu&#xE1;rio
+#   - Compat&#xED;vel com WinPE e OOBE
+#
+# Observa&#xE7;&#xE3;o:
+#   Este script &#xE9; apenas um bootstrapper resiliente e deve
+#   permanecer pequeno, simples e independente.
+# =============================================================
+
+$Env:install_cru = ""
+$Env:LOCAL_EXEC = "UserOnce".Trim().ToUpper()
+
 try {
-  Set-Volume -DriveLetter C -NewFileSystemLabel "SISTEMA"
+  $user = [Environment]::UserName
+  $domain = [Environment]::UserDomainName  
 }
-catch { 
-  write-host "????? falha ao renomear disco do sistema"
+catch {  
 }
+
+
+# =========================================================
+# Configura&#xE7;&#xE3;o
+# =========================================================
+$script = "C:\autounattend.ps1"
+$relPath = "boot\autonome\windows\autounattend.ps1"
+
+Remove-Item $script -Force -ErrorAction SilentlyContinue
+
+
+# =========================================================
+# Fun&#xE7;&#xE3;o: localizar script offline
+# =========================================================
+function Find-OfflineScript {
+  $found = $null
+
+  foreach ($letter in 65..90) {
+    try {
+      $drive = [char]$letter + ":\"
+      $test = $drive + $relPath
+      if (Test-Path $test) {
+        $found = $test
+        break
+      }
+    }
+    catch {}
+  }
+
+  return $found
+}
+
+
+# =========================================================
+# 1. Tentar localizar offline
+# =========================================================
+$found = Find-OfflineScript
+
+
+# =========================================================
+# 2. Tentar montar volumes se n&#xE3;o encontrou
+# =========================================================
+if (-not $found) {
+  try { mountvol /E &gt; $null 2&gt;&amp;1 } catch {}
+  Start-Sleep -Seconds 2
+  $found = Find-OfflineScript
+}
+
+
+# =========================================================
+# 3. Copiar se encontrado
+# =========================================================
+if ($found) {
+  try {
+    Copy-Item $found $script -Force -ErrorAction SilentlyContinue
+  }
+  catch {}
+}
+
+
+# =========================================================
+# 4. Fallback internet
+# =========================================================
+if (!(Test-Path $script)) {
+  try {
+    $wc = New-Object System.Net.WebClient
+    $wc.DownloadFile("https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/autonome/windows/autounattend.ps1", $script)
+  }
+  catch {}
+}
+
+
+# =========================================================
+# 5. Executar com resili&#xEA;ncia
+# =========================================================
+if (Test-Path $script) {
+  try {
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script
+  }
+  catch {}
+}
+
+
+# limpeza silenciosa
+try {
+  Remove-Item $script -Force -ErrorAction SilentlyContinue
+}
+catch {}
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-04.ps1">
+# =============================================================
+# AUTOUNATTEND Bootstrap Loader
+# -------------------------------------------------------------
+# Objetivo:
+#   Localizar e executar automaticamente o script principal
+#   "autounattend.ps1" durante a instala&#xE7;&#xE3;o do Windows.
+#
+# Cen&#xE1;rio:
+#   - Execu&#xE7;&#xE3;o em WinPE / Setup / SYSTEM / FirstLogon
+#   - Ambiente possivelmente incompleto ou restrito
+#   - Pendrive de instala&#xE7;&#xE3;o pode n&#xE3;o ter letra atribu&#xED;da
+#
+# Comportamento:
+#   1. Prioriza execu&#xE7;&#xE3;o offline via pendrive
+#   2. Tenta montar volumes (mountvol) se necess&#xE1;rio
+#   3. Retry resiliente de localiza&#xE7;&#xE3;o e c&#xF3;pia
+#   4. Fallback para download online
+#   5. Execu&#xE7;&#xE3;o silenciosa e tolerante a falhas
+#
+# Diretrizes:
+#   - N&#xE3;o falhar de forma catastr&#xF3;fica
+#   - Manter compatibilidade PowerShell 2 / 5 / 7
+#   - Evitar depend&#xEA;ncias externas ou m&#xF3;dulos
+#   - Priorizar minimalismo e robustez
+#   - Executar com privil&#xE9;gios SYSTEM quando poss&#xED;vel
+#
+# Padr&#xF5;es:
+#   - Offline-first
+#   - Try/catch defensivo
+#   - Sem logging obrigat&#xF3;rio
+#   - Sem intera&#xE7;&#xE3;o com usu&#xE1;rio
+#   - Compat&#xED;vel com WinPE e OOBE
+#
+# Observa&#xE7;&#xE3;o:
+#   Este script &#xE9; apenas um bootstrapper resiliente e deve
+#   permanecer pequeno, simples e independente.
+# =============================================================
+
 $Env:install_cru = ""
-$Env:LOCAL_EXEC = "SISTEMA"
+$Env:LOCAL_EXEC = "DefaultUser".Trim().ToUpper()
 
-$script = "c:\autonomo-install.ps1"
-# Removida a barra inicial de 'boot' para o Join-Path funcionar corretamente em todas as unidades
-$relPath = "boot\autonome\windows\$(Split-Path $script -Leaf)"
-
-# Limpa resqu&#xED;cios antes de come&#xE7;ar
-Remove-Item "$script" -Force -ErrorAction SilentlyContinue
 
 try {
-    # Download do script usando o link direto
-    Invoke-WebRequest "https://abre.ai/o1q4" -OutFile "$script" -ErrorAction Stop
+  $user = [Environment]::UserName
+  $domain = [Environment]::UserDomainName  
 }
-catch {
-    # Busca o arquivo localmente em HDDs ou Pendrives caso o download falhe
-    $found = Get-PSDrive -PSProvider FileSystem | ForEach-Object {
-        $testPath = Join-Path $_.Root $relPath
-        if (Test-Path $testPath) { $testPath }
-    } | Select-Object -First 1
+catch {  
+}
 
-    if ($found) {
-        Copy-Item $found -Destination $script -Force
+
+# =========================================================
+# Configura&#xE7;&#xE3;o
+# =========================================================
+$script = "C:\autounattend.ps1"
+$relPath = "boot\autonome\windows\autounattend.ps1"
+
+Remove-Item $script -Force -ErrorAction SilentlyContinue
+
+
+# =========================================================
+# Fun&#xE7;&#xE3;o: localizar script offline
+# =========================================================
+function Find-OfflineScript {
+  $found = $null
+
+  foreach ($letter in 65..90) {
+    try {
+      $drive = [char]$letter + ":\"
+      $test = $drive + $relPath
+      if (Test-Path $test) {
+        $found = $test
+        break
+      }
     }
+    catch {}
+  }
+
+  return $found
 }
 
-# Execu&#xE7;&#xE3;o e limpeza
+
+# =========================================================
+# 1. Tentar localizar offline
+# =========================================================
+$found = Find-OfflineScript
+
+
+# =========================================================
+# 2. Tentar montar volumes se n&#xE3;o encontrou
+# =========================================================
+if (-not $found) {
+  try { mountvol /E &gt; $null 2&gt;&amp;1 } catch {}
+  Start-Sleep -Seconds 2
+  $found = Find-OfflineScript
+}
+
+
+# =========================================================
+# 3. Copiar se encontrado
+# =========================================================
+if ($found) {
+  try {
+    Copy-Item $found $script -Force -ErrorAction SilentlyContinue
+  }
+  catch {}
+}
+
+
+# =========================================================
+# 4. Fallback internet
+# =========================================================
+if (!(Test-Path $script)) {
+  try {
+    $wc = New-Object System.Net.WebClient
+    $wc.DownloadFile("https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/autonome/windows/autounattend.ps1", $script)
+  }
+  catch {}
+}
+
+
+# =========================================================
+# 5. Executar com resili&#xEA;ncia
+# =========================================================
 if (Test-Path $script) {
-    # Adicionado ExecutionPolicy Bypass para evitar bloqueios do Windows
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$script" -Param1 "Valor1" -Param2 "Valor2"
-    
-    # Remove o script tempor&#xE1;rio ap&#xF3;s a execu&#xE7;&#xE3;o
-    Remove-Item "$script" -Force -ErrorAction SilentlyContinue
+  try {
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script
+  }
+  catch {}
 }
-		</File>
-		<File path="C:\Windows\Setup\Scripts\unattend-05.ps1">
-$Env:install_cru = ""
-$Env:LOCAL_EXEC = "FirstLogon"
 
-$script = "c:\autonomo-install.ps1"
-# Removida a barra inicial de 'boot' para o Join-Path funcionar corretamente em todas as unidades
-$relPath = "boot\autonome\windows\$(Split-Path $script -Leaf)"
 
-# Limpa resqu&#xED;cios antes de come&#xE7;ar
-Remove-Item "$script" -Force -ErrorAction SilentlyContinue
-
+# limpeza silenciosa
 try {
-    # Download do script usando o link direto
-    Invoke-WebRequest "https://abre.ai/o1q4" -OutFile "$script" -ErrorAction Stop
+  Remove-Item $script -Force -ErrorAction SilentlyContinue
 }
-catch {
-    # Busca o arquivo localmente em HDDs ou Pendrives caso o download falhe
-    $found = Get-PSDrive -PSProvider FileSystem | ForEach-Object {
-        $testPath = Join-Path $_.Root $relPath
-        if (Test-Path $testPath) { $testPath }
-    } | Select-Object -First 1
-
-    if ($found) {
-        Copy-Item $found -Destination $script -Force
-    }
-}
-
-# Execu&#xE7;&#xE3;o e limpeza
-if (Test-Path $script) {
-    # Adicionado ExecutionPolicy Bypass para evitar bloqueios do Windows
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$script" -Param1 "Valor1" -Param2 "Valor2"
-    
-    # Remove o script tempor&#xE1;rio ap&#xF3;s a execu&#xE7;&#xE3;o
-    Remove-Item "$script" -Force -ErrorAction SilentlyContinue
-}
-		</File>
-		<File path="C:\Windows\Setup\Scripts\unattend-06.cmd">
-REG ADD "HKEY_CURRENT_USER\Control Panel\Desktop\WindowMetrics" /v MinAnimate /t REG_SZ /d 0 /f
-		</File>
-		<File path="C:\Windows\Setup\Scripts\unattend-07.reg">
-Windows Registry Editor Version 5.00
-
-;Apply the following registry values to disable the settings
-
-;This is a must - set appearance options to "custom"
-[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects]
-"VisualFXSetting"=dword:2
-
-;This disables the following 8 settings:
-;Animate controls and elements inside windows
-;Fade or slide menus into view
-;Fade or slide ToolTips into view
-;Fade out menu items after clicking
-;Show shadows under mouse pointer
-;Show shadows under windows
-;Slide open combo boxes
-;Smooth-scroll list boxes
-[HKEY_CURRENT_USER\Control Panel\Desktop]
-"UserPreferencesMask"=hex(2):90,12,03,80,10,00,00,00
-
-;Animate windows when minimizing and maximizing
-[HKEY_CURRENT_USER\Control Panel\Desktop\WindowMetrics]
-"MinAnimate"="0"
-
-
-;Animations in the taskbar
-[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced]
-"TaskbarAnimations"=dword:0
-
-
-;Enable Peek
-[HKEY_CURRENT_USER\Software\Microsoft\Windows\DWM]
-"EnableAeroPeek"=dword:0
-
-
-;Save taskbar thumbnail previews
-[HKEY_CURRENT_USER\Software\Microsoft\Windows\DWM]
-"AlwaysHibernateThumbnails"=dword:0
-
-;Show thumbnails instead of icons
-[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced]
-"IconsOnly"=dword:1
-
-;Show translucent selection rectangle
-[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced]
-"ListviewAlphaSelect"=dword:0
-
-;Show window contents while dragging
-[HKEY_CURRENT_USER\Control Panel\Desktop]
-"DragFullWindows"="0"
-
-;Smooth edges of screen fonts
-[HKEY_CURRENT_USER\Control Panel\Desktop]
-"FontSmoothing"="0"
-
-;Use drop shadows for icon labels on the desktop
-[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced]
-"ListviewShadow"=dword:0
-
-; end
+catch {}
 		</File>
 		<File path="C:\Windows\Setup\Scripts\Specialize.ps1">
 $scripts = @(
@@ -901,15 +1290,6 @@ $scripts = @(
 	{
 		&amp; 'C:\Windows\Setup\Scripts\unattend-01.ps1';
 	};
-	{
-		&amp; 'C:\Windows\Setup\Scripts\unattend-02.ps1';
-	};
-	{
-		&amp; 'C:\Windows\Setup\Scripts\unattend-03.ps1';
-	};
-	{
-		&amp; 'C:\Windows\Setup\Scripts\unattend-04.ps1';
-	};
 );
 
 &amp; {
@@ -918,13 +1298,7 @@ $scripts = @(
   foreach( $script in $scripts ) {
     Write-Progress -Id 0 -Activity 'Running scripts to customize your Windows installation. Do not close this window.' -PercentComplete $complete;
     '*** Will now execute command &#xAB;{0}&#xBB;.' -f $(
-      $str = $script.ToString().Trim() -replace '\s+', ' ';
-      $max = 100;
-      if( $str.Length -le $max ) {
-        $str;
-      } else {
-        $str.Substring( 0, $max - 1 ) + '&#x2026;';
-      }
+      $script.ToString().Trim() -replace '\s+', ' ' -replace '^(.{99})(.+)$', '$1&#x2026;';
     );
     $start = [datetime]::Now;
     &amp; $script;
@@ -991,7 +1365,7 @@ $scripts = @(
 		Set-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' -Name '{a0953c92-50dc-43bf-be83-3742fed03c9c}' -Value 1 -Type 'DWord';
 	};
 	{
-		Set-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Start' -Name 'VisiblePlaces' -Value $( [convert]::FromBase64String('ztU0LVr6Q0WC8iLm6vd3PC+zZ+PeiVVDv85h83sYqTe8JIoUDNaJQqCAbtm7okiCRIF1/g0IrkKL2jTtl7ZjlIYIc1KqUUNCn3sndlhGWdQ=') ) -Type 'Binary';
+		Set-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Start' -Name 'VisiblePlaces' -Value $( [convert]::FromBase64String('vCSKFAzWiUKggG7Zu6JIgkSBdf4NCK5Ci9o07Ze2Y5SGCHNSqlFDQp97J3ZYRlnU') ) -Type 'Binary';
 	};
 	{
 		&amp; 'C:\Windows\Setup\Scripts\SetColorTheme.ps1';
@@ -1000,10 +1374,7 @@ $scripts = @(
 		&amp; 'C:\Windows\Setup\Scripts\SetWallpaper.ps1';
 	};
 	{
-		C:\Windows\Setup\Scripts\unattend-06.cmd;
-	};
-	{
-		reg.exe import "C:\Windows\Setup\Scripts\unattend-07.reg";
+		&amp; 'C:\Windows\Setup\Scripts\unattend-03.ps1';
 	};
 	{
 		Get-Process -Name 'explorer' -ErrorAction 'SilentlyContinue' | Where-Object -FilterScript {
@@ -1018,13 +1389,7 @@ $scripts = @(
   foreach( $script in $scripts ) {
     Write-Progress -Id 0 -Activity 'Running scripts to configure this user account. Do not close this window.' -PercentComplete $complete;
     '*** Will now execute command &#xAB;{0}&#xBB;.' -f $(
-      $str = $script.ToString().Trim() -replace '\s+', ' ';
-      $max = 100;
-      if( $str.Length -le $max ) {
-        $str;
-      } else {
-        $str.Substring( 0, $max - 1 ) + '&#x2026;';
-      }
+      $script.ToString().Trim() -replace '\s+', ' ' -replace '^(.{99})(.+)$', '$1&#x2026;';
     );
     $start = [datetime]::Now;
     &amp; $script;
@@ -1118,7 +1483,13 @@ $scripts = @(
 		reg.exe add "HKU\DefaultUser\Control Panel\Accessibility\StickyKeys" /v Flags /t REG_SZ /d 10 /f;
 	};
 	{
+		reg.exe add "HKU\DefaultUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v "ShowInfoTip" /d 0 /t REG_DWORD /f;
+	};
+	{
 		reg.exe add "HKU\DefaultUser\Software\Microsoft\Windows\DWM" /v ColorPrevalence /t REG_DWORD /d 1 /f;
+	};
+	{
+		&amp; 'C:\Windows\Setup\Scripts\unattend-04.ps1';
 	};
 	{
 		reg.exe add "HKU\DefaultUser\Software\Microsoft\Windows\CurrentVersion\RunOnce" /v "UnattendedSetup" /t REG_SZ /d "powershell.exe -WindowStyle \""Hidden\"" -ExecutionPolicy \""Unrestricted\"" -NoProfile -File \""C:\Windows\Setup\Scripts\UserOnce.ps1\""" /f;
@@ -1131,13 +1502,7 @@ $scripts = @(
   foreach( $script in $scripts ) {
     Write-Progress -Id 0 -Activity 'Running scripts to modify the default user&#x2019;&#x2019;s registry hive. Do not close this window.' -PercentComplete $complete;
     '*** Will now execute command &#xAB;{0}&#xBB;.' -f $(
-      $str = $script.ToString().Trim() -replace '\s+', ' ';
-      $max = 100;
-      if( $str.Length -le $max ) {
-        $str;
-      } else {
-        $str.Substring( 0, $max - 1 ) + '&#x2026;';
-      }
+      $script.ToString().Trim() -replace '\s+', ' ' -replace '^(.{99})(.+)$', '$1&#x2026;';
     );
     $start = [datetime]::Now;
     &amp; $script;
@@ -1159,7 +1524,7 @@ $scripts = @(
 		cmd.exe /c "rmdir C:\Windows.old";
 	};
 	{
-		&amp; 'C:\Windows\Setup\Scripts\unattend-05.ps1';
+		&amp; 'C:\Windows\Setup\Scripts\unattend-02.ps1';
 	};
 	{
 		Remove-Item -LiteralPath @(
@@ -1176,13 +1541,7 @@ $scripts = @(
   foreach( $script in $scripts ) {
     Write-Progress -Id 0 -Activity 'Running scripts to finalize your Windows installation. Do not close this window.' -PercentComplete $complete;
     '*** Will now execute command &#xAB;{0}&#xBB;.' -f $(
-      $str = $script.ToString().Trim() -replace '\s+', ' ';
-      $max = 100;
-      if( $str.Length -le $max ) {
-        $str;
-      } else {
-        $str.Substring( 0, $max - 1 ) + '&#x2026;';
-      }
+      $script.ToString().Trim() -replace '\s+', ' ' -replace '^(.{99})(.+)$', '$1&#x2026;';
     );
     $start = [datetime]::Now;
     &amp; $script;
