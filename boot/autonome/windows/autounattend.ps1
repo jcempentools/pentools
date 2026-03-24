@@ -22,6 +22,7 @@
 # - Arquivo global: installed_apps.json
 # - Evita reinstalações
 # - Persistente entre execuções
+# - Apenas uma versão do software, não deve-se controlar versõesv (Ex. Adobe Photoshop, ignore-se a versão)
 #
 # Fluxo:
 # 0. Totalmente síncrono, com apenas uma única excessão (drivers)
@@ -80,7 +81,7 @@ $url_apps_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/mast
 $url_lockscreen = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/$pendrive_autonome_root/WallPapers/lockscreen.lst"
 $url_defWallPaper = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/$pendrive_autonome_root/WallPapers/default.lst"
 $appsinstall_folder = "" # manter vazio
-$script:winget_timeout = "" # manter vazio
+$script:winget_timeout = "" # BUG: manter isso vazio
 Write-Host " "
 # modo full
 if ("$Env:install_mode" -eq "dev") {
@@ -96,7 +97,15 @@ elseif ("$Env:install_mode" -eq "basic") {
   $url_apps_lst = "$url_apps_lst/apps.basic.lst"
   # modo dev
 }
-$in_system_context = (("$env:USERNAME" -eq "$env:COMPUTERNAME") -Or ("$env:USERNAME" -eq "SYSTEM") -Or (("$env:COMPUTERNAME" -match '(?-i)^SYSTEM.*')))
+try {
+  $currentIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+  $principal = New-Object System.Security.Principal.WindowsPrincipal($currentIdentity)
+  $in_system_context = $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::System)
+}
+catch {
+  # fallback extremamente seguro
+  $in_system_context = ($env:USERNAME -eq "SYSTEM" -or $env:USERDOMAIN -eq "NT AUTHORITY")
+}
 if (-Not ([string]::IsNullOrEmpty($is_test))) {
   $Env:autonome_test = "1"
 }
@@ -105,10 +114,10 @@ if ("$in_system_context" -eq "$False") {
   $image_folder = "$env:SystemDrive\Users\${env:USERNAME}\Pictures"
 }
 try {
-  Set-ExecutionPolicy -ExecutionPolicy Bypass -Force  
+  Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction Stop
 }
 catch {
-  write-host "[ERROR]: falha ao setar política de execuçao."
+  show_warn "Falha ao setar ExecutionPolicy (GPO?). Continuando sem alteração."
 }
 
 try {
@@ -154,7 +163,7 @@ try {
   }
 
   $transcript_file = Join-Path $script:run_log_dir "auto-install.log"
-  Start-Transcript -Append $transcript_file
+  Start-Transcript -Append -Path $transcript_file
 }
 catch {}
 Write-Host "-------------------------------------------------" -BackgroundColor blue
@@ -244,7 +253,7 @@ function rand_name {
   param(
     [AllowNull()][int]$num
   )  
-  if (($args.Count -le 0) -Or ([string]::IsNullOrEmpty($num))) {
+  if (-not $num -or $num -le 0) {
     $num = 18
   }
   return -join ((65..90) + (97..122) | Get-Random -Count $num | ForEach-Object { [char]$_ })
@@ -260,7 +269,7 @@ function setrgkey() {
   if (!(Test-Path -Path $regKey)) {
     New-Item -Path $regKey
   }
-  Set-ItemProperty -Path $regKey -Name $keyName -value $value
+  Set-ItemProperty -Path $regKey -Name $keyName -Value $value -Force
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function sha256 {
@@ -303,13 +312,37 @@ function download_save() {
     show_log "Baixando URL..."
     show_cmd "Invoke-WebRequest '$url' -OutFile '$dest'"
     try {
-      Invoke-WebRequest "$url" -OutFile "$dest"
-      show_log "Pronto."
-      if (Test-path "$dest") {
+      $max = 3
+      $ok = $false
+
+      for ($i = 1; $i -le $max; $i++) {
+        try {
+          Invoke-WebRequest "$url" -OutFile "$dest" -TimeoutSec 30 -ErrorAction Stop
+
+          if (Test-Path "$dest") {
+            $ok = $true
+            break
+          }
+        }
+        catch {
+          show_warn "Tentativa $i falhou para '$url'"
+          Start-Sleep -Seconds 2
+        }
+      }
+
+      if ($ok) {
+        if (Test-Path "$dest") {
+          $size = (Get-Item "$dest").Length
+          if ($size -lt 10240) {
+            Remove-Item "$dest" -Force -ErrorAction SilentlyContinue
+            show_error "Arquivo inválido (muito pequeno), removido."
+            return ""
+          }
+        }
         show_log "Baixado e salvo."
       }
       else {
-        show_warn "Baixado, mas NÃO foi salvo no destino."
+        show_error "Falha ao baixar após $max tentativas"
       }
     }
     catch {
@@ -319,6 +352,8 @@ function download_save() {
   else {
     show_log "Arquivo já existente '$dest'"
   }
+
+  return (Test-Path "$dest")
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function download_to_string() {
@@ -332,13 +367,25 @@ function download_to_string() {
       return ""
     }
 
-    $resp = Invoke-WebRequest $url -ErrorAction Stop
+    $max = 3
 
-    if ($null -eq $resp -or [string]::IsNullOrEmpty($resp.Content)) {
-      return ""
+    for ($i = 1; $i -le $max; $i++) {
+      try {
+        if ($url -notmatch '^http') { $url = "https://$url" }
+        $resp = Invoke-WebRequest $url -TimeoutSec 30 -ErrorAction Stop
+
+        if ($resp -and $resp.Content) {
+          return $resp.Content.ToString().Trim()
+        }
+      }
+      catch {
+        show_warn "Tentativa $i falhou ao baixar conteúdo"
+        Start-Sleep -Seconds 2
+      }
     }
 
-    return $resp.Content.ToString().Trim()
+    show_error "Falha ao baixar conteúdo após $max tentativas"
+    return ""
   }
   catch {
     show_error "Falha ao baixar conteúdo de '$url'"
@@ -346,11 +393,34 @@ function download_to_string() {
   }
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function prevent_sleep {
+  try {
+    $ES_CONTINUOUS = 0x80000000
+    $ES_SYSTEM_REQUIRED = 0x00000001
+    $ES_AWAYMODE_REQUIRED = 0x00000040
+
+    Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class Power {
+  [DllImport("kernel32.dll")]
+  public static extern uint SetThreadExecutionState(uint esFlags);
+}
+"@
+
+    [Power]::SetThreadExecutionState($ES_CONTINUOUS -bor $ES_SYSTEM_REQUIRED -bor $ES_AWAYMODE_REQUIRED) | Out-Null
+    show_log "Sistema protegido contra sleep/reboot."
+  }
+  catch {
+    show_warn "Falha ao aplicar prevenção de sleep."
+  }
+}
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function fixWingetLocation {
   $winget = $null
   try {
     $DesktopAppInstaller = "$env:SystemDrive\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe"
-    $paths = Get-ChildItem "$env:SystemDrive\Program Files\WindowsApps" -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe" } | Sort-Object Name -Descending
+    $paths = Get-ChildItem "$env:SystemDrive\Program Files\WindowsApps" -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "Microsoft.DesktopAppInstaller_*__8wekyb3d8bbwe" } | Sort-Object Name -Descending
     if ($paths) {
       $SystemContext = $paths[0].FullName
     }
@@ -384,7 +454,7 @@ function isowin_winget_update {
   $i = 0
   for (; Test-Path "$script:run_log_dir\apps\winget.update.$i.log"; $i = $i + 1) {}
   $path_log_full = "$script:run_log_dir\apps\winget.update.$i.log"
-  winget_run_command "upgrade --all --silent --disable-interactivity --accept-package-agreements --accept-source-agreements | Out-File -FilePath '$path_log_full'"
+  winget_run_command "upgrade --all --silent --disable-interactivity --accept-package-agreements --accept-source-agreements 2>&1 | Out-File -FilePath '$path_log_full'"
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function runInPWSH7() {
@@ -446,6 +516,7 @@ function run_command {
       $script:__ps7_fallback_used = $true
       show_error "[$id_] Falha ao executar comando. Tentando com PWSH 7..."
       runInPWSH7 "$command_"
+      return
     }
     else {
       show_error "[$id_] Falha definitiva (já tentou PS7)."
@@ -462,7 +533,12 @@ function winget_run_command {
   if (-not ($script:winget_timeout -is [datetime])) {
     $script:winget_timeout = [datetime]::Now.AddMinutes(5)
   }
+  $attempt = 0
   while ($true) {
+    $attempt++
+    if ($attempt % 5 -eq 0) {
+      show_log "Aguardando winget ficar disponível..."
+    }
     if (Test-Path $winget) {
       run_command "$winget $command_"
       return ;
@@ -489,7 +565,7 @@ function isowin_winget_install {
     $override = "--override `"$override`""
   }
   $defaut_parameters = "--verbose --scope machine --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements $override"
-  winget_run_command "install --id '$name_id' $defaut_parameters | Out-File -FilePath '$path_log_full'"
+  winget_run_command "install --id '$name_id' $defaut_parameters 2>&1 | Out-File -FilePath '$path_log_full'"
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function Normalize-AppName {
@@ -523,7 +599,7 @@ function Normalize-AppName {
 function appinstall_find_path {
   if (([string]::IsNullOrEmpty($script:appsinstall_folder)) -or (-not (Test-Path $script:appsinstall_folder))) {
     try {
-      foreach ($Drive in (Get-PSDrive -PSProvider 'FileSystem')) {
+      foreach ($Drive in (Get-PSDrive -PSProvider 'FileSystem' | Where-Object { $_.Root -match '^[A-Z]:\\$' })) {
         $root = "${Drive.Root}"
         # CORREÇÃO: Removido o "Path" solto e a redundância da pasta .pentools
         if ((Test-Path -Path (Join-Path $root $pendrive_autonome_checker)) -and (Test-Path -Path (Join-Path $root $pendrive_autonome_path))) {
@@ -557,7 +633,7 @@ function Initialize-AppFileCache {
     $root = if ($f) { Join-Path $path $f } else { $path }
     if (-not (Test-Path $root)) { continue }
         
-    $files += Get-ChildItem -Path $root -Recurse -Include *.exe, *.msi -File -ErrorAction SilentlyContinue
+    $files += Get-ChildItem -Path $root -Recurse -Include *.exe, *.msi -ErrorAction SilentlyContinue | Where-Object { -not $_.PSIsContainer }
   }
 
   $script:AppFileCache = $files | ForEach-Object {
@@ -607,6 +683,10 @@ function Find-BestMatch {
     # penalização: nenhum match forte
     if ($score -lt 3) {
       continue
+    }
+
+    if ($app.FullName -like "*.msi") {
+      $score += 2
     }
 
     if ($score -gt $bestScore) {
@@ -725,7 +805,10 @@ function Test-AppInstalled {
 
   # 1. winget
   try {
-    $res = winget list --id "$name" 2>$null
+    $winget = fixWingetLocation
+    if (Test-Path $winget) {
+      $res = & $winget list --id "$name" 2>$null
+    }
     if ($res -and $res -notmatch "No installed package") {
       return $true
     }
@@ -743,8 +826,12 @@ function Test-AppInstalled {
       $items = Get-ChildItem $p -ErrorAction SilentlyContinue
       foreach ($i in $items) {
         $dn = (Get-ItemProperty $i.PSPath -ErrorAction SilentlyContinue).DisplayName
-        if ($dn -and $dn -match $name) {
-          return $true
+        if ($dn) {
+          $dn_norm = ($dn.ToLower() -replace '[^a-z0-9]', '')
+          $name_norm = ($name.ToLower() -replace '[^a-z0-9]', '')
+          if ($dn_norm -like "*$name_norm*") {
+            return $true
+          }
         }
       }
     }
@@ -774,17 +861,21 @@ function isowin_install_app {
   $checklist = Load-Checklist
 
   if ($checklist.ContainsKey($name_id) -and $checklist[$name_id] -eq $true) {
-    show_log "Ignorado (já instalado - checklist): $name_id"
+
     if (Test-AppInstalled $name_id) {
+      show_log "Ignorado (já instalado - checklist confirmado): $name_id"
+    
+      # reforça consistência
       $checklist = Load-Checklist
       $checklist[$name_id] = $true
       Save-Checklist $checklist
-      show_log "Confirmado instalado: $name_id"
+
+      return
     }
     else {
-      show_warn "Instalação não confirmada: $name_id"
+      show_warn "Checklist inconsistente, reinstalando: $name_id"
+      # NÃO retorna → continua fluxo de instalação normalmente
     }
-    return
   }
     
   # Separa ID e URL se existirem
@@ -814,18 +905,44 @@ function isowin_install_app {
       try {
         show_cmd "& ""$nn"" /silent /install $override"
 
+        # heurística simples baseada no nome
+        $exe_args = "/silent /install $override"
+        $lower = $nn.ToLower()
+
+        if ($lower -match '7z|7zip') { $exe_args = "/S" }
+        elseif ($lower -match 'chrome') { $exe_args = "/silent /install" }
+        elseif ($lower -match 'vscode') { $exe_args = "/verysilent /mergetasks=!runcode" }
+
         $proc = Start-Process -FilePath $nn `
-          -ArgumentList "/silent /install $override" `
-          -RedirectStandardOutput "$current_log" `
-          -RedirectStandardError "$current_log" `
-          -NoNewWindow `
-          -PassThru
+          -ArgumentList "$exe_args" `
+          -Wait `
+          -PassThru `
+          -WindowStyle Hidden
 
-        while (-not $proc.HasExited) {
-          Start-Sleep -Seconds 1
+        if ($proc.ExitCode -ne 0) {
+          show_warn "Processo retornou código $($proc.ExitCode). Tentando fallback..."
+
+          try {
+            $proc2 = Start-Process -FilePath $nn `
+              -ArgumentList "/S" `
+              -Wait `
+              -PassThru `
+              -WindowStyle Hidden
+
+            if ($proc2.ExitCode -eq 0) {
+              show_log "Instalação concluída via fallback (/S)."
+            }
+            else {
+              show_error "Fallback também falhou (ExitCode $($proc2.ExitCode))"
+            }
+          }
+          catch {
+            show_error "Falha ao executar fallback EXE"
+          }
         }
-
-        show_log "Instalação concluída (EXE)."
+        else {
+          show_log "Instalação concluída (EXE)."
+        }
       }
       catch {
         show_error "Falha ao executar '$nn'"
@@ -857,7 +974,7 @@ function download_msi_install {
   Param(
     [string]$url,
     [string]$op,
-    [string]$to
+    [string]$to = $null
   )
   $url = $url.trim()
   if (-Not ("$url" -match "^http.*")) {
@@ -926,7 +1043,9 @@ function install_offline_drivers_async {
       $cmd = "pnputil.exe /add-driver `"$drivers_path\*.inf`" /subdirs /install & pnputil.exe /scan-devices"
     }
 
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c $cmd" -WindowStyle Hidden
+    Start-Process -FilePath "cmd.exe" `
+      -ArgumentList "/c $cmd" `
+      -WindowStyle Hidden
 
     show_log "Instalação de drivers iniciada em background."
 
@@ -943,6 +1062,12 @@ function Ensure-PS7 {
   # Já estamos no PS7? então NÃO faz nada
   if ($PSVersionTable.PSVersion.Major -ge 7) {
     show_log "Já em PowerShell 7 — não é necessário relançar."
+    return
+  }
+
+  if ($Env:AUTONOME_PS7 -eq "1") {
+    show_warn "Já relançado anteriormente — evitando loop."
+    return
   }
   else {
 
@@ -968,6 +1093,7 @@ function Ensure-PS7 {
 
       $proc = Start-Process -FilePath $pwshPath `
         -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $argString" `
+        -Environment @{ AUTONOME_PS7 = "1" } `
         -PassThru
 
       # ⚠️ IMPORTANTE: bloqueia até terminar (seu requisito)
@@ -1001,7 +1127,7 @@ function Initialize-AutonomeCache {
   }
   catch {}
 
-  if ([string]::IsNullOrEmpty($temp_root) -or -not (Test-Path $temp_root)) {
+  if ([string]::IsNullOrEmpty($temp_root) -or -not (Test-Path $temp_root) -or ((Test-Path $temp_root) -and ((Get-Item $temp_root).CreationTime -lt (Get-Date).AddDays(-7)))) {
     $rand = rand_name 16
     $temp_root = Join-Path "$env:SystemRoot\Temp" $rand
 
@@ -1056,6 +1182,27 @@ function Initialize-AutonomeCache {
 #######################################################
 #######################################################
 write-host "Iniciando..."
+prevent_sleep
+try {
+  shutdown.exe /a 2>$null
+}
+catch {}
+
+# trava tentativas futuras (loop leve em background)
+$timeout = (Get-Date).AddMinutes(30)
+
+try {
+  Start-Job -ScriptBlock {
+    param($timeout)
+    while ((Get-Date) -lt $timeout) {
+      shutdown.exe /a 2>$null
+      Start-Sleep -Seconds 2
+    }
+  } -ArgumentList $timeout | Out-Null
+}
+catch {
+  show_warn "Start-Job não disponível neste contexto."
+}
 Ensure-PS7
 Start-Sleep -Seconds 1
 $appsinstall_folder = appinstall_find_path
@@ -1072,31 +1219,6 @@ try {
 catch {
   show_log "Falha ao desabilitar hibernação."
 }
-#######################################################
-#######################################################
-#####
-##### PiwerShell 7
-#####
-#######################################################
-#######################################################
-$x = Get-Command "pwsh" -errorAction SilentlyContinue
-if (-not (Get-Command pwsh -ErrorAction SilentlyContinue)) {
-  show_log_title "Instalando powershell 7"
-  try {
-    download_msi_install $url_pwsh "ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1 ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1 ENABLE_PSREMOTING=1 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1 ADD_PATH=1"
-    Start-Sleep -Seconds 1
-    $x1 = Get-Command "pwsh" -errorAction SilentlyContinue
-    if (-Not ([string]::IsNullOrEmpty($x1))) {
-      Remove-Item "$pwsh_msi_path" -Force
-    }
-  }
-  catch {
-    show_error "FALHA AO INSTALAR POWESHELL 7"
-  }
-}
-$appsinstall_folder = appinstall_find_path
-Write-Host "Pendrive?: '$appsinstall_folder'"
-
 $cache_root = Initialize-AutonomeCache
 
 if (-not ([string]::IsNullOrEmpty($cache_root))) {
@@ -1117,6 +1239,7 @@ if (-Not ([string]::IsNullOrEmpty($appsinstall_folder))) {
   $WallPapers_path = (get-item $appsinstall_folder).Parent.FullName
   $WallPapers_path = "$WallPapers_path\WallPapers\images"
 }
+if ([string]::IsNullOrEmpty($image_folder)) { $image_folder = "$env:SystemDrive\Users\Default\Pictures" }
 $image_folder = "$image_folder\WallPapers"
 $img_count = 0
 if ((-Not ([string]::IsNullOrEmpty($WallPapers_path))) -And (Test-Path -Path "$WallPapers_path")) {
@@ -1325,6 +1448,11 @@ write-host ""
 show_log_title "Reiniciando..."
 try {
   Stop-Transcript
+}
+catch {}
+
+try {
+  [Power]::SetThreadExecutionState(0x80000000) | Out-Null
 }
 catch {}
 if ("$in_system_context" -eq "$False") {
