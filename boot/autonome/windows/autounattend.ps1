@@ -111,7 +111,7 @@ if (-Not ([string]::IsNullOrEmpty($is_test))) {
   $Env:autonome_test = "1"
 }
 $script:is_test_mode = -not [string]::IsNullOrEmpty($Env:autonome_test)
-if ("$in_system_context" -eq "$False") {
+if (-not $in_system_context) {
   $image_folder = "$env:SystemDrive\Users\${env:USERNAME}\Pictures"
 }
 try {
@@ -178,7 +178,7 @@ write-host "Usuário atual.........: '$name_install_log'"
 Write-Host ""
 write-host "..."
 Start-Sleep -Seconds 1
-if ("$in_system_context" -eq "$False") {
+if (-not $in_system_context) {
   if ([string]::IsNullOrEmpty($Env:autonome_test)) {
     try {
       Get-Process explorer -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -318,7 +318,26 @@ function download_save() {
 
       for ($i = 1; $i -le $max; $i++) {
         try {
-          Invoke-WebRequest "$url" -OutFile "$dest" -TimeoutSec 30 -ErrorAction Stop
+          try {
+            Invoke-WebRequest "$url" -OutFile "$dest" -TimeoutSec 30 -ErrorAction Stop
+          }
+          catch {
+            show_warn "Invoke-WebRequest falhou, tentando fallback WebClient..."
+
+            try {
+              $wc = New-Object System.Net.WebClient
+              $wc.DownloadFile($url, $dest)
+            }
+            catch {
+              show_warn "WebClient falhou, tentando BITS..."
+              try {
+                Start-BitsTransfer -Source $url -Destination $dest -ErrorAction Stop
+              }
+              catch {
+                throw
+              }
+            }
+          }
 
           if (Test-Path "$dest") {
             $ok = $true
@@ -334,9 +353,9 @@ function download_save() {
       if ($ok) {
         if (Test-Path "$dest") {
           $size = (Get-Item "$dest").Length
-          if ($size -lt 10240) {
+          if ($size -le 0) {
             Remove-Item "$dest" -Force -ErrorAction SilentlyContinue
-            show_error "Arquivo inválido (muito pequeno), removido."
+            show_error "Arquivo inválido (tamanho zero), removido."
             return ""
           }
         }
@@ -354,7 +373,10 @@ function download_save() {
     show_log "Arquivo já existente '$dest'"
   }
 
-  return (Test-Path "$dest")
+  if (Test-Path "$dest") {
+    return $dest
+  }
+  return ""
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function download_to_string() {
@@ -375,7 +397,7 @@ function download_to_string() {
         if ($url -notmatch '^http') { $url = "https://$url" }
         $resp = Invoke-WebRequest $url -TimeoutSec 30 -ErrorAction Stop
 
-        if ($resp -and $resp.Content) {
+        if ($resp.StatusCode -eq 200 -and $resp.Content.Length -gt 5) {
           return $resp.Content.ToString().Trim()
         }
       }
@@ -501,21 +523,66 @@ function runInPWSH7() {
     show_error "Falha ao executar comando via PS7"
   }
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@~
+# run_command faz log apenas no processo principal, em tele.
+# Não cabe a ele fazer log individualizado em arquivo sepado
+# se for o caso de log em arquivo, essa atribuiçÃo cabe ao
+# seu invocador.
+# run_command printa o comanda a ser executado, e o executa.
 function run_command {
   param(
     [string]$command_
   )
+
   $id_ = rand_name(7)
+  show_cmd "[$id_] $command_"
+
+  $success = $false
+
+  # 1. Tenta via PowerShell (mais compatível com pipes, Out-File, etc)
   try {
-    show_cmd "[$id_] $command_"
-    $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c ""$command_""" -Wait -PassThru -WindowStyle Hidden
-    show_log "[$id_] Executado."
+    $ps_cmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command `"$command_`""
+    $p = Start-Process -FilePath "cmd.exe" `
+      -ArgumentList "/c $ps_cmd" `
+      -Wait -PassThru -WindowStyle Hidden
+
+    if ($p.ExitCode -eq 0) {
+      show_log "[$id_] Executado com sucesso (PowerShell)."
+      $success = $true
+    }
+    else {
+      show_warn "[$id_] ExitCode PowerShell: $($p.ExitCode)"
+    }
   }
-  catch {    
+  catch {
+    show_warn "[$id_] Falha via PowerShell."
+  }
+
+  # 2. fallback para CMD puro
+  if (-not $success) {
+    try {
+      $p = Start-Process -FilePath "cmd.exe" `
+        -ArgumentList "/c ""$command_""" `
+        -Wait -PassThru -WindowStyle Hidden
+
+      if ($p.ExitCode -eq 0) {
+        show_log "[$id_] Executado com sucesso (CMD)."
+        $success = $true
+      }
+      else {
+        show_warn "[$id_] ExitCode CMD: $($p.ExitCode)"
+      }
+    }
+    catch {
+      show_warn "[$id_] Falha via CMD."
+    }
+  }
+
+  # 3. fallback final PS7
+  if (-not $success) {
     if (-not $script:__ps7_fallback_used) {
       $script:__ps7_fallback_used = $true
-      show_error "[$id_] Falha ao executar comando. Tentando com PWSH 7..."
+      show_error "[$id_] Falha geral. Tentando fallback PS7..."
       runInPWSH7 "$command_"
       return
     }
@@ -723,7 +790,7 @@ function Resolve-NameIdTokens {
     $tokens += (Split-Path $name_id -LeafBase)
   }
   else {
-    $tokens += ($name_id -split '[\.\-_\s]')
+    $tokens += ($name_id -split '[.\-_\s]')
   }
 
   # normalizar igual aos apps
@@ -830,7 +897,7 @@ function Test-AppInstalled {
         if ($dn) {
           $dn_norm = ($dn.ToLower() -replace '[^a-z0-9]', '')
           $name_norm = ($name.ToLower() -replace '[^a-z0-9]', '')
-          if ($dn_norm -like "*$name_norm*") {
+          if ($dn_norm -eq $name_norm -or $dn_norm -like "$name_norm*") {
             return $true
           }
         }
@@ -914,12 +981,12 @@ function isowin_install_app {
         elseif ($lower -match 'chrome') { $exe_args = "/silent /install" }
         elseif ($lower -match 'vscode') { $exe_args = "/verysilent /mergetasks=!runcode" }
 
-        $proc = Start-Process -FilePath $nn `
-          -ArgumentList "$exe_args" `
-          -Wait `
-          -PassThru `
-          -WindowStyle Hidden
+        $cmd_exec = "`"$nn`" $exe_args"
 
+        # redireciona saída para log
+        $cmd_full = "$cmd_exec > `"$current_log`" 2>&1"
+
+        run_command $cmd_full
         if ($proc.ExitCode -ne 0) {
           show_warn "Processo retornou código $($proc.ExitCode). Tentando fallback..."
 
@@ -1197,20 +1264,31 @@ catch {}
 $timeout = (Get-Date).AddMinutes(30)
 
 try {
-  Start-Job -ScriptBlock {
-    param($timeout)
-    while ((Get-Date) -lt $timeout) {
-      shutdown.exe /a 2>$null
-      Start-Sleep -Seconds 2
-    }
-  } -ArgumentList $timeout | Out-Null
+  if ($in_system_context) {
+    show_log "SYSTEM context: usando processo leve ao invés de Job."
+
+    $cmd = "while ((Get-Date) -lt '$timeout') { shutdown.exe /a 2>nul; timeout /t 2 >nul }"
+    Start-Process -FilePath "cmd.exe" `
+      -ArgumentList "/c $cmd" `
+      -WindowStyle Hidden
+  }
+  else {
+    Start-Job -ScriptBlock {
+      param($timeout)
+      while ((Get-Date) -lt $timeout) {
+        shutdown.exe /a 2>$null
+        Start-Sleep -Seconds 2
+      }
+    } -ArgumentList $timeout | Out-Null
+  }
 }
 catch {
-  show_warn "Start-Job não disponível neste contexto."
+  show_warn "Falha ao iniciar loop anti-shutdown."
 }
 Ensure-PS7
 Start-Sleep -Seconds 1
-$appsinstall_folder = appinstall_find_path
+$script:appsinstall_folder = appinstall_find_path
+$appsinstall_folder = $script:appsinstall_folder
 Write-Host "Pendrive?: '$appsinstall_folder'"
 show_log_title "Desabilitando Hibernação."
 try {
@@ -1311,7 +1389,7 @@ if (("$Env:install_mode" -ne "cru") -And ($img_count -le 0)) {
     }
   }
   ## DEFINIR WALLPAPPER APENAS SE ESTIVER EM USUÁRIO
-  if ("$in_system_context" -eq "$False") {
+  if (-not $in_system_context) {
     show_log_title "Definindo WallPaper"
     # now set the registry entry
     $nome = download_to_string($url_defWallPaper)
@@ -1340,7 +1418,7 @@ if (("$Env:install_mode" -ne "cru") -And ($img_count -le 0)) {
 #####
 #######################################################
 #######################################################
-if ("$in_system_context" -eq "$False") {
+if (-not $in_system_context) {
   show_log_title "Fix winget, forçando disponibilização de winget no contexto do sistema"
   try {
     Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe | write-host
@@ -1375,7 +1453,7 @@ if ("$in_system_context" -eq "$False") {
 #####
 #######################################################
 #######################################################
-if ("$in_system_context" -eq "$False") {
+if (-not $in_system_context) {
   show_log_title "Instalando APPs basiquissimos"
   isowin_install_app "Oracle.JavaRuntimeEnvironment"
   isowin_install_app "Microsoft.DirectX"
@@ -1460,7 +1538,7 @@ try {
   [Power]::SetThreadExecutionState(0x80000000) | Out-Null
 }
 catch {}
-if ("$in_system_context" -eq "$False") {
+if (-not $in_system_context) {
   if ([string]::IsNullOrEmpty($Env:autonome_test)) {
     Start-Sleep -Seconds 1
     Start-Sleep -Seconds 2
