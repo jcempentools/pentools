@@ -559,7 +559,17 @@ function download_save() {
   }
 
   if (Test-Path "$dest") {
-    return $dest
+    try {
+      $file = Get-Item "$dest"
+      if ($file.Length -gt 1024) {
+        return $dest
+      }
+      else {
+        show_warn "Arquivo muito pequeno, possível falha de download"
+        Remove-Item "$dest" -Force -ErrorAction SilentlyContinue
+      }
+    }
+    catch {}
   }
   return ""
 }
@@ -589,11 +599,16 @@ function download_to_string() {
 
     for ($i = 1; $i -le $max; $i++) {
       try {
-        if ($url -notmatch '^http') { $url = "https://$url" }
+        if ($url -notmatch '^https?://') { $url = "https://$url" }
         $resp = Invoke-WebRequest $url -TimeoutSec 30 -ErrorAction Stop
 
         if ($resp.StatusCode -eq 200 -and $resp.Content.Length -gt 5) {
-          return [string]$resp.Content.Trim()
+          $content = [string]$resp.Content.Trim()
+          if ($content -match '<html|<!DOCTYPE') {
+            show_warn "Conteúdo inválido (HTML retornado)"
+            return ""
+          }
+          return $content
         }
       }
       catch {
@@ -826,9 +841,14 @@ function run_command {
         -Wait -PassThru -WindowStyle Hidden
     }
     else {
+      $tmpOut = Join-Path $script:run_log_dir "$id_.stdout.log"
+      $tmpErr = Join-Path $script:run_log_dir "$id_.stderr.log"
+
       $p = Start-Process -FilePath "cmd.exe" `
         -ArgumentList "/c $command_" `
-        -Wait -PassThru -WindowStyle Hidden
+        -Wait -PassThru -WindowStyle Hidden `
+        -RedirectStandardOutput $tmpOut `
+        -RedirectStandardError $tmpErr
     }
 
     $exitCode = $p.ExitCode
@@ -848,9 +868,14 @@ function run_command {
   # 2. fallback CMD puro (se começou em PS)
   if (-not $success -and $needsPS) {
     try {
+      $tmpOut = Join-Path $script:run_log_dir "$id_.stdout.log"
+      $tmpErr = Join-Path $script:run_log_dir "$id_.stderr.log"
+
       $p = Start-Process -FilePath "cmd.exe" `
         -ArgumentList "/c $command_" `
-        -Wait -PassThru -WindowStyle Hidden
+        -Wait -PassThru -WindowStyle Hidden `
+        -RedirectStandardOutput $tmpOut `
+        -RedirectStandardError $tmpErr
 
       $exitCode = $p.ExitCode
 
@@ -896,6 +921,7 @@ function winget_run_command {
     if ($attempt % 5 -eq 0) {
       show_log "Aguardando winget ficar disponível..."
     }
+    $winget = fixWingetLocation
     if (-not [string]::IsNullOrEmpty($winget) -and (Test-Path $winget)) {
       run_command "$winget $command_"
       return ;
@@ -1266,6 +1292,10 @@ function isowin_install_app {
 
       $cmd = "msiexec.exe $msi_args"
       run_command $cmd
+
+      if (-not (Test-AppInstalled $name_id)) {
+        show_warn "MSI pode não ter sido instalado corretamente: $name_id"
+      }
     }
     elseif ("exe" -eq $extencao) {
       # CORREÇÃO: Agora o log do EXE funciona corretamente
@@ -1280,10 +1310,14 @@ function isowin_install_app {
         $cmd_exec = "`"$nn`" $exe_args"
         $p = Start-Process -FilePath $nn `
           -ArgumentList $exe_args `
-          -Wait -PassThru `
+          -PassThru `
           -RedirectStandardOutput $current_log `
           -RedirectStandardError ($current_log + ".err") `
           -WindowStyle Hidden
+
+        while (-not $p.HasExited) {
+          Start-Sleep -Seconds 1
+        }          
 
         if ($p) {
           show_log "ExitCode EXE: $($p.ExitCode)"
@@ -1450,9 +1484,21 @@ function install_offline_drivers_async {
     }
 
     # valida INF
-    $infFiles = Get-ChildItem -Path $drivers_path -Recurse -Include *.inf -ErrorAction SilentlyContinue
+    $maxWait = 30
+    $waited = 0
+    $infFiles = @()
+
+    while ($waited -lt $maxWait) {
+      $infFiles = Get-ChildItem -Path $drivers_path -Recurse -Include *.inf -ErrorAction SilentlyContinue
+      if ($infFiles -and $infFiles.Count -gt 0) {
+        break
+      }
+      Start-Sleep -Seconds 1
+      $waited++
+    }
+
     if (-not $infFiles -or $infFiles.Count -eq 0) {
-      __drvlog "Nenhum .inf encontrado."
+      __drvlog "Nenhum .inf encontrado após espera."
       return
     }
 
@@ -1535,15 +1581,22 @@ function Ensure-PS7 {
       show_log "Relançando script em PowerShell 7..."
 
       # preserva argumentos originais
+      # preserva argumentos originais
+      # preserva argumentos originais do script (PSBoundParameters)
       $argList = @()
 
-      foreach ($a in $args) {
-        $argList += "`"$a`""
+      foreach ($kv in $PSBoundParameters.GetEnumerator()) {
+        if ($null -ne $kv.Value -and $kv.Value -ne "") {
+          $argList += "-$($kv.Key) `"$($kv.Value)`""
+        }
+        else {
+          $argList += "-$($kv.Key)"
+        }
       }
 
       $argString = $argList -join " "
 
-      $env:AUTONOME_PS7 = "1"
+      [System.Environment]::SetEnvironmentVariable("AUTONOME_PS7", "1", "Process")
 
       $proc = Start-Process -FilePath $pwshPath `
         -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $argString" `
