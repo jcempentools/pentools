@@ -1,131 +1,114 @@
-# --- LISTA DE PROGRAMAS ---
-$caminhosExe = @(
-  "$env:ProgramFiles\Adobe\Adobe Creative Cloud Experience\CCXProcess.exe",
-  "$env:ProgramFiles\Adobe\Adobe Premiere Pro 2024\Adobe Premiere Pro.exe"
-  "$env:ProgramFiles\Adobe\Adobe Photoshop 2024\Photoshop.exe",
-  "$env:ProgramFiles\Adobe\Adobe After Effects 2024\Support Files\AfterFX.exe"
+# --- CONFIGURAÇÃO ---
+$___RulePrefix = "Bloqueia ADOBE " # Prefixo que aparecerá no INÍCIO de todas as regras
+$___ProgramFiles = @(
+  "$env:ProgramFiles\Adobe",
+  "${env:ProgramFiles(x86)}\Adobe"
 )
 
-# ================================
-# BLOQUEADOR DE PROGRAMAS NO FIREWALL (REFATORADO)
-# ================================
+# Vetor de padrões (Regex)
+$___regexPatterns = @(
+  ".*\.pentools[\w\d]+"  
+)
 
-# --- GARANTIR EXECUÇÃO COMO ADMIN ---
+# Otimização: Une os padrões em uma única expressão Regex
+$___combinedRegex = $___regexPatterns -join "|"
+
+function Get-ExecutableByContent {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory = $true)][string[]]$Paths,
+    [Parameter(Mandatory = $true)][string]$CombinedPattern
+  )
+
+  $extensions = @("*.exe", "*.ps1", "*.bat", "*.cmd")
+
+  foreach ($rootPath in $Paths) {
+    if (-not (Test-Path -LiteralPath $rootPath -ErrorAction SilentlyContinue)) { continue }
+
+    try {
+      $files = Get-ChildItem -LiteralPath $rootPath -Include $extensions -Recurse -ErrorAction SilentlyContinue -Force
+
+      foreach ($file in $files) {
+        if ($null -ne $file -and -not $file.PSIsContainer) {
+          if ($file.Name -imatch $CombinedPattern) {
+            $file.FullName
+          }
+        }
+      }
+    }
+    catch { 
+      Write-Warning "Erro ao acessar subpastas em: $rootPath"
+    }
+  }
+}
+
 function Ensure-Admin {
-  $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
-  ).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+  $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+  $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+  $isAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
   if (-not $isAdmin) {
     if (-not $PSCommandPath) {
-      Write-Host "[X] Este script precisa ser executado a partir de um arquivo .ps1" -ForegroundColor Red
+      Write-Host "[X] Execute a partir de um arquivo .ps1 salvo." -ForegroundColor Red
       exit 1
     }
-
-    Write-Host "[!] Elevando privilégios para administrador..." -ForegroundColor Cyan
-
-    Start-Process powershell.exe `
-      -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" `
-      -Verb RunAs
-
+    Write-Host "[!] Elevando privilegios para Administrador..." -ForegroundColor Cyan
+    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
     exit
   }
 }
 
-# --- VALIDAR EXECUTÁVEL ---
-function Test-Executable {
-  param ($Path)
-
-  if (-not (Test-Path -Path $Path)) {    
-    return $false
-  }
-
-  if ($Path -notmatch "\.exe$") {
-    Write-Host "[-] Arquivo não é um executável válido (.exe): $Path" -ForegroundColor Yellow
-    return $false
-  }
-
-  return $true
-}
-
-# --- VERIFICAR SE REGRA JÁ EXISTE (ROBUSTO) ---
 function Test-FirewallRuleExists {
-  param (
-    [string]$RuleName,
-    [string]$ProgramPath
-  )
+  param ([string]$RuleName, [string]$ProgramPath)
+    
+  $rule = Get-NetFirewallRule -DisplayName $RuleName -ErrorAction SilentlyContinue | 
+  Get-NetFirewallApplicationFilter -ErrorAction SilentlyContinue | 
+  Where-Object { $_.Program -eq $ProgramPath }
 
-  $rules = Get-NetFirewallRule -DisplayName $RuleName -ErrorAction SilentlyContinue
-
-  if (-not $rules) {
-    return $false
-  }
-
-  foreach ($rule in $rules) {
-    $filter = Get-NetFirewallApplicationFilter -AssociatedNetFirewallRule $rule -ErrorAction SilentlyContinue
-    if ($filter.Program -eq $ProgramPath) {
-      return $true
-    }
-  }
-
-  return $false
+  return $null -ne $rule
 }
 
-# --- CRIAR REGRA ---
 function New-BlockRule {
-  param (
-    [string]$Name,
-    [string]$Direction,
-    [string]$ProgramPath
-  )
-
-  New-NetFirewallRule `
-    -DisplayName $Name `
-    -Direction $Direction `
-    -Program $ProgramPath `
-    -Action Block `
-    -Profile Any `
-    -Description "Bloqueio automático via script" `
+  param ([string]$Name, [string]$Direction, [string]$ProgramPath)
+  New-NetFirewallRule -DisplayName $Name -Direction $Direction -Program $ProgramPath `
+    -Action Block -Profile Any -Description "Bloqueio automatico via script" `
     -ErrorAction Stop | Out-Null
 }
 
 # --- EXECUÇÃO PRINCIPAL ---
 Ensure-Admin
 
-Write-Host "`n=== Iniciando bloqueio de programas ===`n" -ForegroundColor Magenta
+Write-Host "`n=== Iniciando Bloqueio de Rede (Modo Otimizado) ===" -ForegroundColor Magenta
 
-foreach ($caminho in $caminhosExe) {
+$caminhosEncontrados = Get-ExecutableByContent -Paths $___ProgramFiles -CombinedPattern $___combinedRegex
 
-  if (-not (Test-Executable $caminho)) {
-    continue
-  }
+foreach ($caminho in $caminhosEncontrados) {
+  if (-not (Test-Path -LiteralPath $caminho)) { continue }
 
   $nomeArquivo = Split-Path -Leaf $caminho
-
-  $regraEntrada = "Bloqueia Entrada $nomeArquivo"
-  $regraSaida = "Bloqueia Saida $nomeArquivo"
-
-  $entradaExiste = Test-FirewallRuleExists -RuleName $regraEntrada -ProgramPath $caminho
-  $saidaExiste = Test-FirewallRuleExists -RuleName $regraSaida   -ProgramPath $caminho
-
-  if ($entradaExiste -and $saidaExiste) {
-    Write-Host "[=] '$nomeArquivo' já está totalmente bloqueado." -ForegroundColor Gray
-    continue
-  }
+  
+  # Aplicação do prefixo no nome das regras
+  $regraEntrada = "$___RulePrefix`Entrada $nomeArquivo"
+  $regraSaida = "$___RulePrefix`Saida $nomeArquivo"
 
   try {
-    if (-not $entradaExiste) {
-      New-BlockRule -Name $regraEntrada -Direction Inbound -ProgramPath $caminho
+    $entradaExiste = Test-FirewallRuleExists -RuleName $regraEntrada -ProgramPath $caminho
+    $saidaExiste = Test-FirewallRuleExists -RuleName $regraSaida   -ProgramPath $caminho
+
+    if ($entradaExiste -and $saidaExiste) {
+      Write-Host "[=] '$nomeArquivo' ja esta protegido." -ForegroundColor Gray
+      continue
     }
 
-    if (-not $saidaExiste) {
-      New-BlockRule -Name $regraSaida -Direction Outbound -ProgramPath $caminho
-    }
+    if (-not $entradaExiste) { New-BlockRule -Name $regraEntrada -Direction Inbound -ProgramPath $caminho }
+    if (-not $saidaExiste) { New-BlockRule -Name $regraSaida   -Direction Outbound -ProgramPath $caminho }
 
     Write-Host "[+] '$nomeArquivo' bloqueado com sucesso." -ForegroundColor Green
   }
   catch {
-    Write-Host "[X] Erro ao bloquear '$nomeArquivo': $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "[X] Falha ao processar '$nomeArquivo': $($_.Exception.Message)" -ForegroundColor Red
   }
 }
 
-Write-Host "`n=== Processo finalizado ===" -ForegroundColor Magenta
+Write-Host "`n=== Processo Concluido ===" -ForegroundColor Magenta
+Read-Host "Pressione ENTER para fechar"
