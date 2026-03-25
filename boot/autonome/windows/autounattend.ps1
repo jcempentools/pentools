@@ -73,85 +73,29 @@
 # minimas objetivando um fácil rastreo git, mas com bom 
 # senso, afim de obter eficiência e gestão de código.
 #
-# >> [implementação pendente de validação/testes]
+# TO-DO[1]: localização das liastas de apps
 #
-# TO-DO[1]: Implementar/atualizar instalação de drivers, agora
-# compactados.
+# os arquivos .lst contendo a lista de apps a serem instalados
+# agora foram agrupados na subpasta ./apps-list/ a partir do
+# ponto onde se encontravam originalmente
+# o script deve ser integralmente revisado para lidar com essa
+# mudança priorizando o uso de variavel definida em cabeçalho
 #
-# Originalmente, os drivers offline residiam na pasta
-# 'Drivers' localizada sob a raiz do pendrive ou sob
-# $pendrive_autonome_path, entretanto, agora, os drivers
-# estão compactados em "$pendrive_autonome_path\Drivers.zip"
-# ou "$pendrive_autonome_path\Drivers.7z" com compactação
-# LZMA2, modo ultra. A função de atualização de driver que
-# utiliza o cache local (que é uma cópia do pendrive), deve
-# localizar o arquivo compactado no cache, descompactá-lo
-# para a mesma localização dele sob pasta .\Drivers\. E
-# então usar esta pasta para atualizar os drivers de
-# hardware.
+# TO-DO[2]: apps-list - alias para incorporação recursiva de ouros apps-list
 #
-# Importante, apenas hardware não reconhecido deve ser
-# atualizado, ou aqueles que o Windows identifique como
-# com mau funcionamento.
+# implementar sistema resiliente para que o conteúdo da lista de aplicativos
+# a serem instalados (.lst) possa conter linhas
+# iniciadas com "@" (.content.trim())) seguida pelo nome (basename) de outro 
+# arquivo de lista que será virtualmente incoporado "como se"
+# estivesse presente no arquivo (em substituição a linha contendo o "@"), 
+# evitando a necessidade de duplicação de conteudo entre listas
+# Exemplo: @apps.basic incluirá a lista contida no arquivo apps.basic.lst 
+# no lugar do @apps.basic. Essa substituição deve ocorrer antes de o
+# arquivo ser processado para instalações e estas alterações não devem
+# ser persistentes, ou seja, funcionam apenas para o uso
+# O "@" funcionam apenas enquanto um app real não for informado
+# linhas iniciadas (.content.trim())
 #
-# >> [implementação pendente de validação/testes]
-#
-# TO-DO[2]: Ajuste de $in_system_context aliado a
-#           $Env:LOCAL_EXEC
-#
-# Antes da execução deste script, $Env:LOCAL_EXEC é
-# definido e pode assumir 4 valores string (UPPERCASE), que
-# indicam em que estágio da instalação do Windows o script
-# foi invocado:
-# - "System": Scripts rodam no contexto de sistema, antes
-#   da criação de contas de usuário.
-# - "DefaultUser": Scripts para modificar a hive do usuário
-#   padrão (C:\Users\Default\NTUSER.DAT). Afetam todas as
-#   contas criadas.
-# - "FirstLogon": Scripts rodam no primeiro logon após a
-#   instalação, tipicamente com privilégios elevados.
-# - "UserOnce": Scripts rodam sempre que um usuário faz
-#   logon pela primeira vez.
-#
-# 1. Precisamos unificar ou deixar de usar a ideia de
-#    $in_system_context, ou então usá-la apenas como um
-#    validador lógico adicional, mas sem deixar de fazer
-#    o que é feito quando ela é usada, ou seja, apenas
-#    vamos aprimorar a forma de verificação;
-# 2. Precisamos garantir a existência de gatilhos
-#    customizáveis opcionais que executem scripts antes da
-#    conclusão. Se existentes, não vazios e não em branco
-#    (content.trim() != ""), localizados no cache sob:
-#    "$pendrive_autonome_path\scripts".
-#    O padrão do nome deve ser "in.{$Env:LOCAL_EXEC}.ps1",
-#    em letras totalmente minúsculas.
-# 3. Garantir que apenas funcionalidades do script sejam 
-#    executadas nas etapas em que fazem sentido (são
-#    possíveis de serem executadas)
-#    Por exemplo: não é possivel criar um arquivo dentro da 
-#    pasta de usuário, se estamos numa etapa em que não
-#    existem usuários, nem mesmo o default.
-#
-# TO-DO[3]: Localização do check list global
-#
-# O arquivo de check list global deveria estar localizado
-# na raiz de $path_log\ mas ele não tem ficado lá.
-#
-# >> [implementação pendente de validação/testes]
-#
-# TO-DO[4]: substituições xml:
-#
-# WIN 11 PRO = VK7JG-NPHTM-C97JM-9MPGT-3V66T
-# VK7JG-NPHTM-C97JM-9MPGT-3V66T
-# ${{SCRIPT::SYSTEM}}#
-# ${{SCRIPT::DEFAULTUSER}}#
-# ${{SCRIPT::FIRSTLOGON}}#
-# ${{SCRIPT::USERONCE}}#
-#
-# ${{SCRIPT::LOCKSCREN}}#
-# ${{SCRIPT::LOCKSCREN}}#  :
-# $url = 'https://4kwallpapers.com/images/wallpapers/macro-surface-3d-background-sci-fi-purple-background-3840x2160-7863.png';
-# return ( Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 ).Content;
 # =========================================================
 Param(
   [string]$is_test
