@@ -16,10 +16,10 @@ on:
   push:
     branches: [main]
     paths:
+      - 'boot/autonome/windows/autounattend.model.xml'
       - '**/*.ps1'
       - '**/*.py'
       - '**/*.bat'
-      - '**/*.xml'
       - '**/*.json'
       - 'boot/autonome/windows/make.autounattend.sh'
   workflow_dispatch:
@@ -30,7 +30,6 @@ concurrency:
 
 jobs:
   process-matrix:
-    # 🔴 REGRA GLOBAL: NÃO EXECUTA SE NÃO HOUVER MUDANÇA RELEVANTE
     if: |
       github.event_name == 'workflow_dispatch' ||
       !contains(github.event.head_commit.message, '[skip ci]')
@@ -50,17 +49,17 @@ jobs:
           fetch-depth: 0
 
       # --------------------------------------------------
-      # 2. DETECTAR MUDANÇAS REAIS (FILTRO FINO)
+      # 2. DETECTAR MUDANÇAS RELEVANTES
       # --------------------------------------------------
       - name: Detect Changed Files
         id: changed
         uses: tj-actions/changed-files@v44
         with:
           files: |
+            boot/autonome/windows/autounattend.model.xml
             **/*.ps1
             **/*.py
             **/*.bat
-            **/*.xml
             **/*.json
             boot/autonome/windows/make.autounattend.sh
           files_ignore: |
@@ -107,7 +106,7 @@ jobs:
             < "${{ steps.changed.outputs.all_changed_files_output_file }}"
 
       # --------------------------------------------------
-      # 6. GERADOR (SEMPRE APÓS ALTERAÇÃO)
+      # 6. GERADOR (EXECUTA APÓS ALTERAÇÃO)
       # --------------------------------------------------
       - name: Run Unattend Generator
         run: |
@@ -128,19 +127,27 @@ jobs:
           )
 
       # --------------------------------------------------
-      # 7. VERIFICA MUDANÇAS PARA COMMIT
+      # 7. DETECTAR QUALQUER ALTERAÇÃO (INCLUI UNTRACKED)
       # --------------------------------------------------
-      - name: Check for Changes
+      - name: Check for Changes (inclui arquivos novos)
         id: git-check
         run: |
-          if git diff --quiet && git diff --staged --quiet; then
-            echo "changed=false" >> $GITHUB_OUTPUT
-          else
+          if [[ -n "$(git status --porcelain)" ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
       # --------------------------------------------------
-      # 8. COMMIT (APENAS SE NECESSÁRIO)
+      # 8. STAGE COMPLETO (GARANTIA)
+      # --------------------------------------------------
+      - name: Stage All Changes
+        if: steps.git-check.outputs.changed == 'true'
+        run: |
+          git add -A
+
+      # --------------------------------------------------
+      # 9. COMMIT FINAL (APENAS SE NECESSÁRIO)
       # --------------------------------------------------
       - name: Commit & Push
         if: steps.git-check.outputs.changed == 'true'
