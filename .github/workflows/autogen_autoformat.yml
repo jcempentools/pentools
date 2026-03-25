@@ -1,0 +1,152 @@
+name: Generate & Format Unattend Matrix
+
+# ==============================================================================
+# DESCRIÇÃO: Pipeline Unificado de Geração e Formatação (CI-CD)
+# DIRETRIZES E OBJETIVOS:
+#   1. Automatizar a geração da matriz de XMLs Unattend para Windows.
+#   2. Garantir a formatação (Prettier) de scripts PS1, PY, BAT e JSON.
+#   3. Preservar a minificação dos XMLs em 'windows/autounattend/'.
+#   4. Resiliência: Commit único para evitar race-conditions e loops de CI.
+#   5. Eficiência: Execução baseada em filtros de caminhos (paths).
+#   6. Tolerância a falhas
+#   7: Regra: roda apenas se arquivos alvos tiverem sido mudados
+# ==============================================================================
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/*.ps1'
+      - '**/*.py'
+      - '**/*.bat'
+      - '**/*.xml'
+      - '**/*.json'
+      - 'boot/autonome/windows/make.autounattend.sh'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  process-matrix:
+    # 🔴 REGRA GLOBAL: NÃO EXECUTA SE NÃO HOUVER MUDANÇA RELEVANTE
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !contains(github.event.head_commit.message, '[skip ci]')
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      # --------------------------------------------------
+      # 1. CHECKOUT
+      # --------------------------------------------------
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # --------------------------------------------------
+      # 2. DETECTAR MUDANÇAS REAIS (FILTRO FINO)
+      # --------------------------------------------------
+      - name: Detect Changed Files
+        id: changed
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            **/*.ps1
+            **/*.py
+            **/*.bat
+            **/*.xml
+            **/*.json
+            boot/autonome/windows/make.autounattend.sh
+          files_ignore: |
+            boot/autonome/windows/autounattend/**
+            **/*.min.*
+          separator: "\x00"
+          write_output_files: true
+
+      # --------------------------------------------------
+      # 3. EARLY EXIT (REGRA PRINCIPAL)
+      # --------------------------------------------------
+      - name: Stop if nothing relevant changed
+        if: steps.changed.outputs.any_changed != 'true'
+        run: |
+          echo "Nenhuma mudança relevante detectada. Encerrando workflow."
+          exit 0
+
+      # --------------------------------------------------
+      # 4. SETUP NODE (COM CACHE)
+      # --------------------------------------------------
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      # --------------------------------------------------
+      # 5. PRETTIER (FAIL-FAST)
+      # --------------------------------------------------
+      - name: Run Prettier
+        run: |
+          set -e
+
+          npm install \
+            prettier@3.2.5 \
+            prettier-plugin-powershell \
+            @prettier/plugin-python \
+            --no-save
+
+          xargs -0 npx prettier --write \
+            --plugin=prettier-plugin-powershell \
+            --plugin=@prettier/plugin-python \
+            --ignore-unknown \
+            < "${{ steps.changed.outputs.all_changed_files_output_file }}"
+
+      # --------------------------------------------------
+      # 6. GERADOR (SEMPRE APÓS ALTERAÇÃO)
+      # --------------------------------------------------
+      - name: Run Unattend Generator
+        run: |
+          set -e
+
+          SCRIPT_PATH="boot/autonome/windows/make.autounattend.sh"
+
+          if [ ! -f "$SCRIPT_PATH" ]; then
+            echo "ERRO: script não encontrado"
+            exit 1
+          fi
+
+          chmod +x "$SCRIPT_PATH"
+
+          (
+            cd boot/autonome/windows
+            ./make.autounattend.sh
+          )
+
+      # --------------------------------------------------
+      # 7. VERIFICA MUDANÇAS PARA COMMIT
+      # --------------------------------------------------
+      - name: Check for Changes
+        id: git-check
+        run: |
+          if git diff --quiet && git diff --staged --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      # --------------------------------------------------
+      # 8. COMMIT (APENAS SE NECESSÁRIO)
+      # --------------------------------------------------
+      - name: Commit & Push
+        if: steps.git-check.outputs.changed == 'true'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'auto: update matrix & format source [skip ci]'
+          commit_user_name: 'github-actions[bot]'
+          commit_user_email: 'github-actions[bot]@users.noreply.github.com'
+          add_options: '--all'
