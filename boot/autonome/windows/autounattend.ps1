@@ -138,6 +138,20 @@
 # na raiz de $path_log\ mas ele não tem ficado lá.
 #
 # >> [implementação pendente de validação/testes]
+#
+# TO-DO[4]: substituições xml:
+#
+# WIN 11 PRO = VK7JG-NPHTM-C97JM-9MPGT-3V66T
+# VK7JG-NPHTM-C97JM-9MPGT-3V66T
+# ${{SCRIPT::SYSTEM}}#
+# ${{SCRIPT::DEFAULTUSER}}#
+# ${{SCRIPT::FIRSTLOGON}}#
+# ${{SCRIPT::USERONCE}}#
+#
+# ${{SCRIPT::LOCKSCREN}}#
+# ${{SCRIPT::LOCKSCREN}}#  :
+# $url = 'https://4kwallpapers.com/images/wallpapers/macro-surface-3d-background-sci-fi-purple-background-3840x2160-7863.png';
+# return ( Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 ).Content;
 # =========================================================
 Param(
   [string]$is_test
@@ -165,16 +179,16 @@ $script:winget_timeout = "" # BUG: manter isso vazio
 Write-Host " "
 # modo full
 if ("$Env:install_mode" -eq "dev") {
-  $url_apps_lst = "$url_apps_lst/apps.dev.lst"
+  $url_apps_lst = "$url_apps_lst/apps-list/apps.dev.lst"
 }
 elseif ("$Env:install_mode" -eq "gamer") {
-  $url_apps_lst = "$url_apps_lst/apps.gamer.lst"
+  $url_apps_lst = "$url_apps_lst/apps-list/apps.gamer.lst"
 }
 elseif ("$Env:install_mode" -eq "designer") {
-  $url_apps_lst = "$url_apps_lst/apps.designer.lst"
+  $url_apps_lst = "$url_apps_lst/apps-list/apps.designer.lst"
 }
 elseif ("$Env:install_mode" -eq "basic") {
-  $url_apps_lst = "$url_apps_lst/apps.basic.lst"
+  $url_apps_lst = "$url_apps_lst/apps-list/apps.basic.lst"
   # modo dev
 }
 try {
