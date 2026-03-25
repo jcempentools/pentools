@@ -73,29 +73,6 @@
 # minimas objetivando um fácil rastreo git, mas com bom 
 # senso, afim de obter eficiência e gestão de código.
 #
-# TO-DO[1]: localização das liastas de apps
-#
-# os arquivos .lst contendo a lista de apps a serem instalados
-# agora foram agrupados na subpasta ./apps-list/ a partir do
-# ponto onde se encontravam originalmente
-# o script deve ser integralmente revisado para lidar com essa
-# mudança priorizando o uso de variavel definida em cabeçalho
-#
-# TO-DO[2]: apps-list - alias para incorporação recursiva de ouros apps-list
-#
-# implementar sistema resiliente para que o conteúdo da lista de aplicativos
-# a serem instalados (.lst) possa conter linhas
-# iniciadas com "@" (.content.trim())) seguida pelo nome (basename) de outro 
-# arquivo de lista que será virtualmente incoporado "como se"
-# estivesse presente no arquivo (em substituição a linha contendo o "@"), 
-# evitando a necessidade de duplicação de conteudo entre listas
-# Exemplo: @apps.basic incluirá a lista contida no arquivo apps.basic.lst 
-# no lugar do @apps.basic. Essa substituição deve ocorrer antes de o
-# arquivo ser processado para instalações e estas alterações não devem
-# ser persistentes, ou seja, funcionam apenas para o uso
-# O "@" funcionam apenas enquanto um app real não for informado
-# linhas iniciadas (.content.trim())
-#
 # =========================================================
 Param(
   [string]$is_test
