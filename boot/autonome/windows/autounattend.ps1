@@ -119,6 +119,7 @@ $url_apps_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/mast
 $url_lockscreen = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/$pendrive_autonome_root/WallPapers/lockscreen.lst".Replace("\", "/")
 $url_defWallPaper = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/$pendrive_autonome_root/WallPapers/default.lst".Replace("\", "/")
 $appsinstall_folder = "" # manter vazio
+$apps_list_dir = "apps-list"
 $script:winget_timeout = "" # BUG: manter isso vazio
 Write-Host " "
 # modo full
@@ -215,7 +216,7 @@ Write-Host "-------------------------------------------------" -BackgroundColor 
 Write-Host "             Não Feche esta janela               " -BackgroundColor blue
 Write-Host "-------------------------------------------------" -BackgroundColor blue
 Write-Host ""
-Write-Host "Instação crua.........: '$Env:install_mode'"
+Write-Host "Instalação crua.......: '$Env:install_mode'"
 write-host "Em modo teste.........: '$Env:autonome_test'"
 write-host "Em contexto de sistema: '$in_system_context'"
 write-host "Usuário atual.........: '$name_install_log'"
@@ -416,7 +417,7 @@ function Invoke-AutonomeFinalTriggers {
       return
     }
 
-    $scriptsPath = Join-Path $appsinstall_folder "scripts"
+    $scriptsPath = Join-Path $script:appsinstall_folder "scripts"
 
     if (-not (Test-Path $scriptsPath)) {
       show_log "Pasta de scripts não encontrada."
@@ -484,8 +485,12 @@ function download_save() {
     return ""
   }
   $url = $url.trim()
-  if ($url -notmatch '^http.+') {
+  if ($url -notmatch '^https?://') {
     $url = "https://$url"
+  }
+
+  if ($url -notmatch '^https://') {
+    show_warn "URL não segura (não HTTPS): $url"
   }
   $destDir = Split-Path -Path $dest -Parent
 
@@ -611,7 +616,7 @@ function download_to_string() {
         $resp = Invoke-WebRequest $url -TimeoutSec 30 -ErrorAction Stop
 
         if ($resp.StatusCode -eq 200 -and $resp.Content.Length -gt 5) {
-          return $resp.Content.ToString().Trim()
+          return [string]$resp.Content.Trim()
         }
       }
       catch {
@@ -627,6 +632,86 @@ function download_to_string() {
     show_error "Falha ao baixar conteúdo de '$url'"
     return ""
   }
+}
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function Resolve-AppListContent {
+  param(
+    [string]$filePath,
+    [hashtable]$visited = $( @{} )
+  )
+
+  $result = @()
+
+  $isRemote = $filePath -match '^https?://'
+
+  if (-not $isRemote -and -not (Test-Path $filePath)) {
+    show_warn "Lista não encontrada: $filePath"
+    return $result
+  }
+
+  $realPath = if ($isRemote) { $filePath } else { (Resolve-Path $filePath).Path }
+
+  if ($visited.ContainsKey($realPath)) {
+    show_warn "Loop detectado em include: $realPath"
+    return $result
+  }
+
+  $visited[$realPath] = $true
+
+  $lines = @()
+
+  if ($isRemote) {
+    $content = download_to_string $filePath
+    if ([string]::IsNullOrEmpty($content)) {
+      show_warn "Falha ao baixar lista remota: $filePath"
+      return $result
+    }
+    $lines = $content -split "`n"
+  }
+  else {
+    $lines = Get-Content $realPath
+  }
+
+  foreach ($line in $lines) {
+
+    $line = $line.Trim()
+
+    if (
+      [string]::IsNullOrEmpty($line) -or
+      ($line -match '^\s*$') -or
+      ($line -match '^\s*#')
+    ) {
+      continue
+    }
+
+    # INCLUDE (@apps.xxx)
+    if ($line -match '^\s*@') {
+      $includeName = ($line -replace '^\s*@', '').Trim()
+
+      if (-not $includeName.EndsWith(".lst")) {
+        $includeName = "$includeName.lst"
+      }
+
+      if ($isRemote) {
+        $baseUrl = $realPath -replace '/[^/]+$', ''
+        $includePath = "$baseUrl/$includeName"
+      }
+      else {
+        $includePath = Join-Path (Split-Path $realPath -Parent) $includeName
+      }
+
+      show_log "Expandindo include: $includeName"
+
+      $included = Resolve-AppListContent -filePath $includePath -visited $visited
+
+      $result += $included
+      continue
+    }
+
+    $result += $line
+  }
+
+  return $result
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function prevent_sleep {
@@ -834,7 +919,7 @@ function winget_run_command {
     if ($attempt % 5 -eq 0) {
       show_log "Aguardando winget ficar disponível..."
     }
-    if (Test-Path $winget) {
+    if (-not [string]::IsNullOrEmpty($winget) -and (Test-Path $winget)) {
       run_command "$winget $command_"
       return ;
     }
@@ -929,6 +1014,11 @@ function Initialize-AppFileCache {
     if (-not (Test-Path $root)) { continue }
         
     $files += Get-ChildItem -Path $root -Recurse -Include *.exe, *.msi -ErrorAction SilentlyContinue | Where-Object { -not $_.PSIsContainer }
+  }
+
+  if (-not $files) {
+    $script:AppFileCache = @()
+    return
   }
 
   $script:AppFileCache = $files | ForEach-Object {
@@ -1102,10 +1192,13 @@ function Test-AppInstalled {
   # 1. winget
   try {
     $winget = fixWingetLocation
-    if (Test-Path $winget) {
-      $res = & $winget list --id "$name" 2>$null
+    if (-not [string]::IsNullOrEmpty($winget) -and (Test-Path $winget)) {
+      $res = & $winget list --id "$name" 2>$null | Out-String
+      if ($res -and ($res -notmatch "No installed package") -and ($res -match $name)) {
+        return $true
+      }
     }
-    if ($res -and $res -notmatch "No installed package") {
+    if ($res -and ($res -notmatch "No installed package")) {
       return $true
     }
   }
@@ -1175,12 +1268,9 @@ function isowin_install_app {
   }
     
   # Separa ID e URL se existirem
-  $id_only = $name_id
-  $is_url = ""
-  if ($name_id -match "\|") {
-    $id_only = $name_id.Split("|")[0]
-    $is_url = $name_id.Split("|")[-1]
-  }
+  $parts = $name_id -split '\|'
+  $id_only = $parts[0]
+  $is_url = if ($parts.Count -gt 1) { $parts[-1] } else { "" }
 
   # Busca no Pendrive usando seu novo sistema de Score
   $nn = findExeMsiOnFolders $id_only
@@ -1215,10 +1305,15 @@ function isowin_install_app {
           -ArgumentList $exe_args `
           -Wait -PassThru `
           -RedirectStandardOutput $current_log `
-          -RedirectStandardError $current_log `
+          -RedirectStandardError ($current_log + ".err") `
           -WindowStyle Hidden
 
-        show_log "ExitCode EXE: $($p.ExitCode)"
+        if ($p) {
+          show_log "ExitCode EXE: $($p.ExitCode)"
+        }
+        else {
+          show_warn "Processo EXE não retornou objeto válido"
+        }
 
         show_log "Instalação EXE finalizada (verificar confirmação)."
       }
@@ -1263,7 +1358,11 @@ function download_msi_install {
     $to = Join-Path $script:run_log_dir "$tmp.tmp"
   }
   try {
-    download_save "$url" "$to"
+    $dl = download_save "$url" "$to"
+    if (-not $dl -or -not (Test-Path $to)) {
+      show_error "Download inválido, abortando instalação"
+      return
+    }
     show_cmd "& msiexec.exe /package '$to' /quiet $op | write-host"
     run_command "msiexec.exe /package `"$to`" /quiet $op"
     write-host "Supostamente instalado."
@@ -1595,7 +1694,6 @@ catch {
 }
 Ensure-PS7
 Start-Sleep -Seconds 1
-$script:appsinstall_folder = appinstall_find_path
 $appsinstall_folder = $script:appsinstall_folder
 Write-Host "Pendrive?: '$appsinstall_folder'"
 show_log_title "Desabilitando Hibernação."
@@ -1613,7 +1711,8 @@ catch {
 $cache_root = Initialize-AutonomeCache
 
 if (-not ([string]::IsNullOrEmpty($cache_root))) {
-  $appsinstall_folder = Join-Path $cache_root $pendrive_autonome_path
+  $script:appsinstall_folder = Join-Path $cache_root $pendrive_autonome_path
+  $appsinstall_folder = $script:appsinstall_folder
   show_log "Usando cache TEMP: '$appsinstall_folder'"
 }
 install_offline_drivers_async
@@ -1660,7 +1759,11 @@ if (("$Env:install_mode" -ne "cru") -And ($img_count -le 0)) {
     $ext = "png"
     foreach ($line in Get-Content "$image_folder\download.lst") {
       $line = $line.trim()
-      if ([string]::IsNullOrEmpty($line) -Or ($line -match '^\s*$')) {
+      if (
+        [string]::IsNullOrEmpty($line) -or
+        ($line -match '^\s*$') -or
+        ($line -match '^\s*#')
+      ) {
         continue
       }
       #$destname = $i
@@ -1776,34 +1879,38 @@ if (-not $in_system_context) {
     show_log "Continuar padrão ou seguir 'apps.lst' do online/pendrive?"
     $apps_lst = ""
     # verifica se tem lista de apps no pendrive
-    if (Test-Path "$appsinstall_folder\apps.lst") {
-      $apps_lst = "$appsinstall_folder\apps.lst"
-    }
-    elseif (Test-Path "$appsinstall_folder\apps\apps.lst") {
-      $apps_lst = "$appsinstall_folder\apps\apps.lst"
+    $apps_lst = ""
+
+    $baseListPath = Join-Path $appsinstall_folder $apps_list_dir
+
+    $mainList = Join-Path $baseListPath "apps.lst"
+
+    if (Test-Path $mainList) {
+      $apps_lst = $mainList
     }
     if (-Not ([string]::IsNullOrEmpty($apps_lst))) {
       show_log "usando 'apps.lst do pendrive'..."
-      foreach ($line in Get-Content "$apps_lst") {
-        $line = $line.trim()
-        if ([string]::IsNullOrEmpty($line) -Or ($line -match '^\s*$')) {
-          continue
-        }
+      $resolvedList = Resolve-AppListContent $apps_lst
+      $resolvedList = $resolvedList | Select-Object -Unique
+
+      foreach ($line in $resolvedList) {
         isowin_install_app $line.Trim()
       }
     }
     else {
       show_log "Obtendo lista online..."
       $apps_f = "$path_log\apps-download.lst"
+      if ($url_apps_lst -notmatch '\.lst$') {
+        show_error "URL de apps inválida (não é .lst): $url_apps_lst"
+      }
       download_save "$url_apps_lst" "$apps_f"
       if (Test-Path "$apps_f") {
-        show_log "Lista de apps online encontrato, usando..."
-        foreach ($line in Get-Content "$apps_f") {
-          $line = $line.trim()
-          if ([string]::IsNullOrEmpty($line) -Or ($line -match '^\s*$')) {
-            continue
-          }
-          isowin_install_app $line.trim()
+        show_log "Lista de apps online encontrada, usando..."
+        $resolvedList = Resolve-AppListContent $apps_f
+        $resolvedList = $resolvedList | Select-Object -Unique
+
+        foreach ($line in $resolvedList) {
+          isowin_install_app $line.Trim()
         }
       }
       else {
