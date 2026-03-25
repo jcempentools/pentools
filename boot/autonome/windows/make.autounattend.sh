@@ -149,13 +149,13 @@ processar_linha() {
 }
 
 processar_modelo() {
-    local nome=$1
+    local nome="$1".ToLower()
     local serial=$2
 
     local nome_safe
     nome_safe=$(printf '%s' "$nome" | safe_filename)
 
-    local destino="$DIR_SAIDA/autounattend_${nome_safe}.xml"
+    local destino="$DIR_SAIDA/${nome_safe}.xml"
 
     while IFS= read -r linha || [ -n "$linha" ]; do
       linha=$(processar_linha "$linha" "$nome" "$serial")
