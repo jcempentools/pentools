@@ -50,12 +50,16 @@ jobs:
       - name: Run Prettier
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          # 1. Instalação rápida (beneficiada pelo cache do setup-node)
-          npm install prettier@3.2.5 --no-save
+          # 1. Instalação do Prettier + Plugins necessários
+          npm install prettier@3.2.5 \
+                      prettier-plugin-powershell \
+                      @prettier/plugin-python --no-save
 
-          # 2. Execução otimizada
-          # O xargs lê a lista NUL diretamente do arquivo de saída da action
-          xargs -0 npx prettier --write --ignore-unknown < "${{ steps.changed-files.outputs.all_changed_files_output_file }}"
+          # 2. Execução passando os plugins explicitamente
+          xargs -0 npx prettier --write \
+                --plugin=prettier-plugin-powershell \
+                --plugin=@prettier/plugin-python \
+                --ignore-unknown < "${{ steps.changed-files.outputs.all_changed_files_output_file }}"
 
       - name: Commit & Push Changes
         if: steps.changed-files.outputs.any_changed == 'true'
