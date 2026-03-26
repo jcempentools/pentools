@@ -16,6 +16,7 @@ on:
   push:
     branches: [master]
     paths:
+      - .github/workflows/autogen_autoformat.yml
       - 'boot/autonome/windows/autounattend.model.xml'
       - '**/*.ps1'
       - '**/*.py'
