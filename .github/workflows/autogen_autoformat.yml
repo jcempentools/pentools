@@ -22,6 +22,7 @@ on:
       - '**/*.py'
       - '**/*.bat'
       - '**/*.json'
+      - '**/*.sh'
       - 'boot/autonome/windows/make.autounattend.sh'
   workflow_dispatch:
 
@@ -63,6 +64,7 @@ jobs:
             **/*.py
             **/*.bat
             **/*.json
+            **/*.sh
             boot/autonome/windows/make.autounattend.sh
           files_ignore: |
             boot/autonome/windows/autounattend/**
