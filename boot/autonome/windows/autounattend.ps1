@@ -42,6 +42,8 @@
 #    - offline (preferencial)
 #    - URL direta
 #    - winget (fallback)
+# 8. Lista de app externa e recursiva (@), expandida até resolução
+#    completa; includes inválidos são ignorados (sem resíduos de "@")
 #
 # Detecção de instalação:
 # - winget list
@@ -340,7 +342,8 @@ function Resolve-InstallerArgs {
         $proc = Start-Process -FilePath $filePath `
           -ArgumentList "$arg" `
           -PassThru `
-          -WindowStyle Hidden
+          -WindowStyle Hidden `
+          -ErrorAction SilentlyContinue
 
         Start-Sleep -Seconds 2
 
@@ -449,6 +452,22 @@ function Invoke-AutonomeFinalTriggers {
   }
   catch {
     show_warn "Falha ao executar gatilhos finais"
+  }
+}
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function Install-AppList {
+  param([string]$listPath)
+
+  if ([string]::IsNullOrEmpty($listPath)) {
+    show_warn "Lista vazia."
+    return
+  }
+
+  $resolvedList = Resolve-AppListContent $listPath
+  $resolvedList = $resolvedList | Select-Object -Unique
+
+  foreach ($line in $resolvedList) {
+    isowin_install_app $line.Trim()
   }
 }
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -599,7 +618,14 @@ function download_to_string() {
 
     for ($i = 1; $i -le $max; $i++) {
       try {
-        if ($url -notmatch '^https?://') { $url = "https://$url" }
+        if ($url -notmatch '^https?://') {
+          $url = "https://$url"
+        }
+
+        if ($url -notmatch '^https://') {
+          show_warn "URL não segura (não HTTPS): $url"
+        }
+
         $resp = Invoke-WebRequest $url -TimeoutSec 30 -ErrorAction Stop
 
         if ($resp.StatusCode -eq 200 -and $resp.Content.Length -gt 5) {
@@ -629,34 +655,55 @@ function download_to_string() {
 function Resolve-AppListContent {
   param(
     [string]$filePath,
-    [hashtable]$visited = $( @{} )
+    [hashtable]$visited = $( @{} ),
+    [int]$depth = 0
   )
 
-  $result = @()
+  $MAX_DEPTH = 10
 
+  if ($depth -gt $MAX_DEPTH) {
+    show_warn "Profundidade máxima de includes atingida ($MAX_DEPTH): $filePath"
+    return @()
+  }
+
+  function __normKey($p) {
+    if ($p -match '^https?://') {
+      return $p.Trim().ToLower()
+    }
+    try {
+      return (Resolve-Path $p).Path.ToLower()
+    }
+    catch {
+      return $p.ToLower()
+    }
+  }
+
+  $result = @()
   $isRemote = $filePath -match '^https?://'
 
   if (-not $isRemote -and -not (Test-Path $filePath)) {
     show_warn "Lista não encontrada: $filePath"
-    return $result
+    return @()
   }
 
   $realPath = if ($isRemote) { $filePath } else { (Resolve-Path $filePath).Path }
+  $key = __normKey $realPath
 
-  if ($visited.ContainsKey($realPath)) {
+  if ($visited.ContainsKey($key)) {
     show_warn "Loop detectado em include: $realPath"
-    return $result
+    return @()
   }
 
-  $visited[$realPath] = $true
+  $visited[$key] = $true
 
+  # leitura
   $lines = @()
 
   if ($isRemote) {
-    $content = download_to_string $filePath
+    $content = download_to_string $realPath
     if ([string]::IsNullOrEmpty($content)) {
-      show_warn "Falha ao baixar lista remota: $filePath"
-      return $result
+      show_warn "Falha ao baixar lista remota: $realPath"
+      return @()
     }
     $lines = $content -split "`n"
   }
@@ -676,8 +723,11 @@ function Resolve-AppListContent {
       continue
     }
 
-    # INCLUDE (@apps.xxx)
+    # ==============================
+    # INCLUDE (@...)
+    # ==============================
     if ($line -match '^\s*@') {
+
       $includeName = ($line -replace '^\s*@', '').Trim()
 
       if (-not $includeName.EndsWith(".lst")) {
@@ -692,15 +742,30 @@ function Resolve-AppListContent {
         $includePath = Join-Path (Split-Path $realPath -Parent) $includeName
       }
 
-      show_log "Expandindo include: $includeName"
+      show_log "Expandindo include: $includePath (depth=$depth)"
 
-      $included = Resolve-AppListContent -filePath $includePath -visited $visited
+      $included = Resolve-AppListContent `
+        -filePath $includePath `
+        -visited $visited `
+        -depth ($depth + 1)
 
-      $result += $included
+      if ($included -and $included.Count -gt 0) {
+        $result += $included
+      }
+      else {
+        show_warn "Include inválido/removido: $includePath"
+      }
+
       continue
     }
 
-    $result += $line
+    # linha normal (garantia extra: nunca aceitar @ residual)
+    if ($line -notmatch '^\s*@') {
+      $result += $line
+    }
+    else {
+      show_warn "Linha inválida removida (resíduo @): $line"
+    }
   }
 
   return $result
@@ -837,8 +902,9 @@ function run_command {
   try {
     if ($needsPS) {
       $p = Start-Process -FilePath "powershell.exe" `
-        -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"$command_`"" `
-        -Wait -PassThru -WindowStyle Hidden
+        $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command_))
+      -ArgumentList "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $encoded"
+      -Wait -PassThru -WindowStyle Hidden
     }
     else {
       $tmpOut = Join-Path $script:run_log_dir "$id_.stdout.log"
@@ -912,7 +978,7 @@ function winget_run_command {
   )
   show_log "Configurando Winget..."
   $winget = fixWingetLocation  
-  if (-not ($script:winget_timeout -is [datetime])) {
+  if ([string]::IsNullOrEmpty($script:winget_timeout) -or -not ($script:winget_timeout -is [datetime])) {
     $script:winget_timeout = [datetime]::Now.AddMinutes(5)
   }
   $attempt = 0
@@ -1195,12 +1261,16 @@ function Test-AppInstalled {
   # 1. winget
   try {
     $winget = fixWingetLocation
-    if (-not [string]::IsNullOrEmpty($winget) -and (Test-Path $winget)) {
+    $res = ""
+    try {
       $res = & $winget list --id "$name" 2>$null | Out-String
-      if ($res -and ($res -notmatch "No installed package") -and ($res -match $name)) {
-        return $true
-      }
     }
+    catch {}
+
+    if ($res -and ($res -notmatch "No installed package") -and ($res -match $name)) {
+      return $true
+    }
+
     if ($res -and ($res -notmatch "No installed package")) {
       return $true
     }
@@ -1299,38 +1369,49 @@ function isowin_install_app {
     }
     elseif ("exe" -eq $extencao) {
       # CORREÇÃO: Agora o log do EXE funciona corretamente
+      
+      $resolved = Resolve-InstallerArgs $nn "exe"
+
+      $exe_args = $resolved
+      if (-not [string]::IsNullOrEmpty($override)) {
+        $exe_args = "$exe_args $override"
+      }
+
       try {
-        $resolved = Resolve-InstallerArgs $nn "exe"
-
-        $exe_args = $resolved
-        if (-not [string]::IsNullOrEmpty($override)) {
-          $exe_args = "$exe_args $override"
-        }
-
         $cmd_exec = "`"$nn`" $exe_args"
         $p = Start-Process -FilePath $nn `
           -ArgumentList $exe_args `
           -PassThru `
           -RedirectStandardOutput $current_log `
           -RedirectStandardError ($current_log + ".err") `
-          -WindowStyle Hidden
-
-        while (-not $p.HasExited) {
-          Start-Sleep -Seconds 1
-        }          
-
-        if ($p) {
-          show_log "ExitCode EXE: $($p.ExitCode)"
-        }
-        else {
-          show_warn "Processo EXE não retornou objeto válido"
-        }
-
-        show_log "Instalação EXE finalizada (verificar confirmação)."
+          -WindowStyle Hidden;
       }
       catch {
-        show_error "Falha ao executar '$nn'"
+        try {
+          $cmd_exec = "`"$nn`" $exe_args >> `"$current_log`" 2>&1"
+
+          $p = Start-Process -FilePath "cmd.exe" `
+            -ArgumentList "/c $cmd_exec" `
+            -PassThru `
+            -WindowStyle Hidden
+        }
+        catch {
+          show_error "Falha ao executar '$nn'"
+        }
       }
+
+      while (-not $p.HasExited) {
+        Start-Sleep -Seconds 1
+      }          
+
+      if ($p) {
+        show_log "ExitCode EXE: $($p.ExitCode)"
+      }
+      else {
+        show_warn "Processo EXE não retornou objeto válido"
+      }
+
+      show_log "Instalação EXE finalizada (verificar confirmação)."          
     }
     if (Test-AppInstalled $name_id) {
       $checklist = Load-Checklist
@@ -1920,12 +2001,7 @@ if (-not $in_system_context) {
     }
     if (-Not ([string]::IsNullOrEmpty($apps_lst))) {
       show_log "usando 'apps.lst do pendrive'..."
-      $resolvedList = Resolve-AppListContent $apps_lst
-      $resolvedList = $resolvedList | Select-Object -Unique
-
-      foreach ($line in $resolvedList) {
-        isowin_install_app $line.Trim()
-      }
+      Install-AppList $apps_lst
     }
     else {
       show_log "Obtendo lista online..."
@@ -1936,12 +2012,7 @@ if (-not $in_system_context) {
       download_save "$url_apps_lst" "$apps_f"
       if (Test-Path "$apps_f") {
         show_log "Lista de apps online encontrada, usando..."
-        $resolvedList = Resolve-AppListContent $apps_f
-        $resolvedList = $resolvedList | Select-Object -Unique
-
-        foreach ($line in $resolvedList) {
-          isowin_install_app $line.Trim()
-        }
+        Install-AppList $apps_f
       }
       else {
         show_log "Lista de apps online inexistente, usando o padrao..."
