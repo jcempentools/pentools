@@ -7,7 +7,7 @@ $___ProgramFiles = @(
 
 # Vetor de padrões (Regex)
 $___regexPatterns = @(
-  ".*\.pentools[\w\d]+"  
+  "[\w\d]+"  
 )
 
 # Otimização: Une os padrões em uma única expressão Regex
