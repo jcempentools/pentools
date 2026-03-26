@@ -305,3 +305,4 @@ if [[ "$TOTAL" -eq 0 ]]; then
 fi;
 
 log "SUCESSO: $TOTAL arquivos gerados com integridade garantida em $DIR_SAIDA";
+return 0
