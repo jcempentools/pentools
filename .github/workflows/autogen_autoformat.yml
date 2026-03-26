@@ -14,7 +14,7 @@ name: Generate & Format Unattend Matrix
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - 'boot/autonome/windows/autounattend.model.xml'
       - '**/*.ps1'
