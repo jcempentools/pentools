@@ -56,6 +56,7 @@ jobs:
         uses: tj-actions/changed-files@v44
         with:
           files: |
+            .github/workflows/autogen_autoformat.yml
             boot/autonome/windows/autounattend.model.xml
             **/*.ps1
             **/*.py
