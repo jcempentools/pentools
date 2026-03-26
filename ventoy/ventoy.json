@@ -206,6 +206,19 @@
 		{
 			"parent": "/boot/ISOs/Installs/Windows",
 			"template": [
+				"/boot/autonome/windows/apps-list/Home.xml",
+				"/boot/autonome/windows/apps-list/HomeSingleLanguage.xml",
+				"/boot/autonome/windows/apps-list/Pro.xml",
+				"/boot/autonome/windows/apps-list/ProEducation.xml",
+				"/boot/autonome/windows/apps-list/ProWorkstation.xml",
+				"/boot/autonome/windows/apps-list/Enterprise.xml",
+				"/boot/autonome/windows/apps-list/EnterpriseG.xml",
+				"/boot/autonome/windows/apps-list/Education.xml",
+				"/boot/autonome/windows/apps-list/IoTEnterprise.xml",
+				"/boot/autonome/windows/apps-list/Server2022Standard.xml",
+				"/boot/autonome/windows/apps-list/Server2022Datacenter.xml",
+
+				"/boot/autonome/windows/apps-list/full.xml",
 				"/boot/autonome/windows/apps-list/dev.xml",
 				"/boot/autonome/windows/apps-list/gamer.xml",
 				"/boot/autonome/windows/apps-list/designer.xml",
