@@ -65,8 +65,7 @@ jobs:
           files_ignore: |
             boot/autonome/windows/autounattend/**
             **/*.min.*
-          separator: "\x00"
-          write_output_files: true
+          # Removido o separator manual que causava o erro de "Input required"
 
       # --------------------------------------------------
       # 3. EARLY EXIT (REGRA PRINCIPAL)

@@ -22,7 +22,7 @@ ARQUIVO_SCRIPT="modelo_script_embutido.ps1";
 ARQUIVO_LOG="deploy_error.log";
 MAX_JOBS=4;
 
-# Nova variável de alvos (Targets)
+# Variável de alvos (Targets) integrada
 TARGETS=("Cru" "Basico" "Designer" "Gamer" "Dev" "Full");
 
 CHAVE_SENTINELA="VK7JG-NPHTM-C97JM-9MPGT-3V66T";
@@ -69,6 +69,7 @@ if [[ -z "$SCRIPT_CACHE" ]]; then
     log "ERRO: Script PS1 está vazio";
     exit 1;
 fi;
+
 MODELO_MINIFICADO="$(minificar_xml < "$ARQUIVO_MODELO")";
 
 if [[ -z "$MODELO_MINIFICADO" ]]; then
@@ -77,7 +78,6 @@ if [[ -z "$MODELO_MINIFICADO" ]]; then
 fi;
 
 # --- UTILIDADES ---
-
 xml_escape() {
     sed -e 's/&\([^a]\|$\)/\&amp;\1/g' \
         -e 's/</\&lt;/g' \
@@ -101,18 +101,18 @@ safe_filename() {
 };
 
 get_replacement() {
-    local chave=$1;
-    local nome=$2;
+    local chave="$1";
+    local nome="$2";
 
     case "$chave" in
         "WINDOWS_EDITION") echo "$nome" ;;
         "NOME_PC")         echo "PC-${nome^^}" ;;
         "IDIOMA")          echo "pt-BR" ;;
         "TIMEZONE")        echo "E. South America Standard Time" ;;
-    *)
-    log "ERRO: chave não mapeada: $chave";
-    return 1;
-;;
+        *)
+            log "ERRO: chave não mapeada: $chave";
+            return 1;
+        ;;
     esac;
 };
 
@@ -147,42 +147,42 @@ processar_linha() {
             local script_processado;
             # Aplica substituições no modelo PS1 conforme regras: #{{MODE}}# e #{{APPSLST}}#
             if ! script_processado=$(printf '%s' "$SCRIPT_CACHE" | sed "s|#{{MODE}}#|$modo_escaped|g; s|#{{APPSLST}}#|$target_escaped|g;"); then
-    log "ERRO: falha ao processar script embutido";
-    return 1;
-fi;
+                log "ERRO: falha ao processar script embutido";
+                return 1;
+            fi;
 
-if [[ -z "$script_processado" ]]; then
-    log "ERRO: script embutido resultou vazio";
-    return 1;
-fi;
+            if [[ -z "$script_processado" ]]; then
+                log "ERRO: script embutido resultou vazio";
+                return 1;
+            fi;
 
             substituicao=$(printf '%s' "$script_processado" | xml_escape);
         else
-if ! substituicao=$(get_replacement "$chave" "$nome"); then
-    log "ERRO: falha ao obter substituição para chave: $chave";
-    return 1;
-fi;
-substituicao=$(printf '%s' "$substituicao" | xml_escape);
+            if ! substituicao=$(get_replacement "$chave" "$nome"); then
+                log "ERRO: falha ao obter substituição para chave: $chave";
+                return 1;
+            fi;
+            substituicao=$(printf '%s' "$substituicao" | xml_escape);
         fi;
 
         saida+="$substituicao";
         resto="$depois";
     done;
 
-saida+="$resto";
+    saida+="$resto";
 
-# --- SENTINELA WINDOWS KEY ---
-if [[ "$saida" == *"<Key>"*"$CHAVE_SENTINELA"*"</Key>"* ]]; then
-    saida="${saida//$CHAVE_SENTINELA/$serial}";
-fi;
+    # --- SENTINELA WINDOWS KEY ---
+    if [[ "$saida" == *"<Key>"*"$CHAVE_SENTINELA"*"</Key>"* ]]; then
+        saida="${saida//$CHAVE_SENTINELA/$serial}";
+    fi;
 
-# --- DETECÇÃO DE PLACEHOLDERS NÃO RESOLVIDOS ---
-if [[ "$saida" =~ \#\{\{[a-zA-Z0-9:_.-]+\}\}\# ]]; then
-    log "ERRO: placeholder não resolvido detectado: $saida";
-    return 1;
-fi;
+    # --- DETECÇÃO DE PLACEHOLDERS NÃO RESOLVIDOS ---
+    if [[ "$saida" =~ \#\{\{[a-zA-Z0-9:_.-]+\}\}\# ]]; then
+        log "ERRO: placeholder não resolvido detectado: $saida";
+        return 1;
+    fi;
 
-printf '%s' "$saida";
+    printf '%s' "$saida";
 };
 
 processar_modelo() {
@@ -202,43 +202,42 @@ processar_modelo() {
 
     local destino="$subdiretorio/${target_filename}.xml";
 
-   while IFS= read -r linha || [ -n "$linha" ]; do
-  if ! linha=$(processar_linha "$linha" "$nome" "$serial" "$target"); then
-      log "ERRO: falha ao processar linha para $nome [$target]";
-      return 1;
-  fi;
-  printf '%s\n' "$linha";
-done <<< "$MODELO_MINIFICADO" > "$destino";
+    while IFS= read -r linha || [ -n "$linha" ]; do
+        if ! linha=$(processar_linha "$linha" "$nome" "$serial" "$target"); then
+            log "ERRO: falha ao processar linha para $nome [$target]";
+            return 1;
+        fi;
+        printf '%s\n' "$linha";
+    done <<< "$MODELO_MINIFICADO" > "$destino";
 
-# Validação XML (se xmllint disponível)
-if command -v xmllint >/dev/null 2>&1; then
-    if ! xmllint --noout "$destino"; then
-        log "ERRO: XML inválido gerado em $destino";
-        return 1;
+    # Validação XML (se xmllint disponível)
+    if command -v xmllint >/dev/null 2>&1; then
+        if ! xmllint --noout "$destino"; then
+            log "ERRO: XML inválido gerado em $destino";
+            return 1;
+        fi;
     fi;
-fi;
 };
 
 # --- EXECUÇÃO PARALELA ---
 job_count=0;
-
-log "Iniciando geração de matriz (Edições x Targets)...";
-
 pids=();
 fail=0;
+
+log "Iniciando geração de matriz (Edições x Targets)...";
 
 for item in "${EDICOES[@]}"; do
     IFS="|" read -r NOME SERIAL <<< "$item";
 
     for TGT in "${TARGETS[@]}"; do
-(
-    if processar_modelo "$NOME" "$SERIAL" "$TGT"; then
-        log "OK: $NOME [$TGT]";
-    else
-        log "ERRO: falha em $NOME [$TGT]";
-        exit 1;
-    fi;
-) &
+        (
+            if processar_modelo "$NOME" "$SERIAL" "$TGT"; then
+                log "OK: $NOME [$TGT]";
+            else
+                log "ERRO: falha em $NOME [$TGT]";
+                exit 1;
+            fi;
+        ) &
 
         pids+=($!);
         ((job_count++));
@@ -256,7 +255,7 @@ for item in "${EDICOES[@]}"; do
     done;
 done;
 
-# Espera final
+# Espera final pelos processos restantes
 for pid in "${pids[@]}"; do
     if ! wait "$pid"; then
         log "ERRO: job falhou (PID=$pid)";
@@ -276,4 +275,4 @@ if [[ "$TOTAL" -eq 0 ]]; then
     exit 1;
 fi;
 
-log "SUCESSO: $TOTAL arquivos gerados em $DIR_SAIDA";
+log "SUCESSO: $TOTAL arquivos gerados em subpastas de $DIR_SAIDA";
