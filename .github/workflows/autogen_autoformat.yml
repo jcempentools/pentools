@@ -146,7 +146,12 @@ jobs:
           SCRIPT="boot/autonome/windows/make.autounattend.sh"
 
           if [ -f "$SCRIPT" ]; then
+            echo "[INFO] Normalizando line endings (LF)..."
+            sed -i 's/\r$//' "$SCRIPT"
+
             chmod +x "$SCRIPT" || true
+
+            echo "[INFO] Executando script..."
             (cd boot/autonome/windows && ./make.autounattend.sh)
           else
             echo "[FATAL] Script não encontrado."
