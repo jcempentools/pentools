@@ -16,13 +16,14 @@
 set -euo pipefail;
 IFS=$'\n\t';
 
+trap 'log ERROR "Falha inesperada linha=$LINENO cmd=${BASH_COMMAND:-unknown}"' ERR
+
 # --- CONFIGURAÇÕES ---
 DIR_SAIDA="./autounattend";
 ARQUIVO_MODELO="autounattend.model.xml";
 ARQUIVO_SCRIPT="modelo_script_embutido.ps1";
 MAX_JOBS=4;
 
-# Variável de alvos (Targets) integrada
 TARGETS=(
     "Cru"
     "Basico"
@@ -111,11 +112,7 @@ escape_sed_replacement() {
 safe_filename() {
     local out;
     out=$(tr -cd '[:alnum:]_.-' <<< "$1");
-    if [[ -z "$out" ]]; then
-        echo "invalid_name";
-    else
-        echo "$out";
-    fi;
+    [[ -n "$out" ]] && echo "$out" || echo "invalid_name";
 };
 
 get_replacement() {
@@ -123,20 +120,12 @@ get_replacement() {
     local nome="$2";
 
     case "$chave" in
-        "WINDOWS_EDITION")
-            echo "$nome";
-            ;;
-        "NOME_PC")
-            echo "PC-${nome^^}";
-            ;;
-        "IDIOMA")
-            echo "pt-BR";
-            ;;
-        "TIMEZONE")
-            echo "E. South America Standard Time";
-            ;;
+        "WINDOWS_EDITION") echo "$nome" ;;
+        "NOME_PC") echo "PC-${nome^^}" ;;
+        "IDIOMA") echo "pt-BR" ;;
+        "TIMEZONE") echo "E. South America Standard Time" ;;
         *)
-            log ERROR "chave não mapeada: $chave";
+            log ERROR "chave não mapeada: $chave (edicao=$nome)";
             return 1;
             ;;
     esac;
@@ -148,6 +137,8 @@ processar_linha() {
     local nome="$2";
     local serial="$3";
     local target="$4";
+
+    log DEBUG "Linha len=${#linha} edicao=$nome target=$target"
 
     local saida="";
     local resto="$linha";
@@ -162,14 +153,14 @@ processar_linha() {
 
         if [[ "$chave" == SCRIPT::* ]]; then
             local modo="${chave#SCRIPT::}";
-            log DEBUG "Processando SCRIPT modo=$modo target=$target";
+            log DEBUG "SCRIPT modo=$modo target=$target";
 
             local modo_esc; modo_esc=$(printf '%s' "$modo" | escape_sed_replacement);
             local tgt_esc; tgt_esc=$(printf '%s' "$target" | escape_sed_replacement);
 
             local script_proc;
             if ! script_proc=$(printf '%s' "$SCRIPT_CACHE" | sed "s|#{{MODE}}#|$modo_esc|g; s|#{{APPSLST}}#|$tgt_esc|g;"); then
-                log ERROR "falha ao processar script embutido";
+                log ERROR "falha script embutido modo=$modo target=$target";
                 return 1;
             fi;
 
@@ -192,7 +183,7 @@ processar_linha() {
     fi;
 
     if [[ "$saida" =~ \#\{\{[a-zA-Z0-9:_.-]+\}\}\# ]]; then
-        log ERROR "placeholder órfão detectado";
+        log ERROR "placeholder órfão (edicao=$nome target=$target)";
         return 1;
     fi;
 
@@ -204,19 +195,22 @@ processar_modelo() {
     local serial="$2";
     local target="$3";
 
-    log INFO "Gerando XML para $nome [$target]";
+    local destino="$DIR_SAIDA/$(safe_filename "$nome")/$(safe_filename "$target").xml";
 
-    local edicao_folder;
-    edicao_folder=$(safe_filename "$nome");
-    local subdiretorio="$DIR_SAIDA/$edicao_folder";
-    mkdir -p "$subdiretorio";
+    log INFO "Gerando XML: $destino"
 
-    local destino="$subdiretorio/$(safe_filename "$target").xml";
+    mkdir -p "$(dirname "$destino")";
 
     while IFS= read -r linha || [ -n "$linha" ]; do
+        local linha_original="$linha";
+
         if ! linha=$(processar_linha "$linha" "$nome" "$serial" "$target"); then
+            log ERROR "Falha linha edicao=$nome target=$target"
+            log DEBUG "Original: $linha_original"
+            log DEBUG "Parcial: $linha"
             return 1;
         fi;
+
         printf '%s\n' "$linha";
     done <<< "$MODELO_MINIFICADO" > "$destino";
 
