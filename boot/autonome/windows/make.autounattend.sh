@@ -12,6 +12,7 @@
 #   6. CI/CD: Projetado para workflows do GitHub Actions e similares.
 # ==============================================================================
 
+
 set -euo pipefail;
 IFS=$'\n\t';
 
@@ -72,7 +73,6 @@ mkdir -p "$DIR_SAIDA";
 
 # --- MINIFICAÇÃO SEGURA ---
 minificar_xml() {
-    # Remove apenas quebras entre tags, preservando conteúdo interno
     sed -E 's/>[[:space:]]+</></g';
 };
 
@@ -91,7 +91,7 @@ if [[ -z "$MODELO_MINIFICADO" ]]; then
     exit 1;
 fi;
 
-# --- UTILIDADES DE ESCAPE E TRATAMENTO ---
+# --- UTILIDADES ---
 xml_escape() {
     sed -e 's/&\([^a]\|$\)/\&amp;\1/g' \
         -e 's/</\&lt;/g' \
@@ -138,7 +138,7 @@ get_replacement() {
     esac;
 };
 
-# --- PROCESSADOR DE LINHAS (CORE LOGIC) ---
+# --- PROCESSADOR ---
 processar_linha() {
     local linha="$1";
     local nome="$2";
@@ -148,7 +148,6 @@ processar_linha() {
     local saida="";
     local resto="$linha";
 
-    # Regex robusta para capturar o novo padrão #{{CHAVE}}#
     while [[ "$resto" =~ (.*?)\#\{\{([a-zA-Z0-9:_.-]+)\}\}\#(.*) ]]; do
         local antes="${BASH_REMATCH[1]}";
         local chave="${BASH_REMATCH[2]}";
@@ -159,29 +158,18 @@ processar_linha() {
 
         if [[ "$chave" == SCRIPT::* ]]; then
             local modo="${chave#SCRIPT::}";
+            local modo_esc; modo_esc=$(printf '%s' "$modo" | escape_sed_replacement);
+            local tgt_esc; tgt_esc=$(printf '%s' "$target" | escape_sed_replacement);
 
-            local modo_escaped;
-            modo_escaped=$(printf '%s' "$modo" | escape_sed_replacement);
-            
-            local target_escaped;
-            target_escaped=$(printf '%s' "$target" | escape_sed_replacement);
-
-            local script_processado;
-            # Aplica substituições no modelo PS1: #{{MODE}}# e #{{APPSLST}}#
-            if ! script_processado=$(printf '%s' "$SCRIPT_CACHE" | sed "s|#{{MODE}}#|$modo_escaped|g; s|#{{APPSLST}}#|$target_escaped|g;"); then
-                log "ERRO: falha ao processar sed no script embutido";
+            local script_proc;
+            if ! script_proc=$(printf '%s' "$SCRIPT_CACHE" | sed "s|#{{MODE}}#|$modo_esc|g; s|#{{APPSLST}}#|$tgt_esc|g;"); then
+                log "ERRO: falha ao processar script embutido";
                 return 1;
             fi;
 
-            if [[ -z "$script_processado" ]]; then
-                log "ERRO: script embutido resultou em conteúdo vazio";
-                return 1;
-            fi;
-
-            substituicao=$(printf '%s' "$script_processado" | xml_escape);
+            substituicao=$(printf '%s' "$script_proc" | xml_escape);
         else
             if ! substituicao=$(get_replacement "$chave" "$nome"); then
-                log "ERRO: falha crítica ao obter substituição para chave: $chave";
                 return 1;
             fi;
             substituicao=$(printf '%s' "$substituicao" | xml_escape);
@@ -193,21 +181,18 @@ processar_linha() {
 
     saida+="$resto";
 
-    # Substituição da chave sentinela
     if [[ "$saida" == *"<Key>"*"$CHAVE_SENTINELA"*"</Key>"* ]]; then
         saida="${saida//$CHAVE_SENTINELA/$serial}";
     fi;
 
-    # Proteção contra placeholders órfãos (Essencial para CI/CD)
     if [[ "$saida" =~ \#\{\{[a-zA-Z0-9:_.-]+\}\}\# ]]; then
-        log "ERRO: placeholder não resolvido detectado na saída final: $saida";
+        log "ERRO: placeholder órfão: $saida";
         return 1;
     fi;
 
     printf '%s' "$saida";
 };
 
-# --- GERADOR DE ARQUIVOS ---
 processar_modelo() {
     local nome="$1";
     local serial="$2";
@@ -215,42 +200,29 @@ processar_modelo() {
 
     local edicao_folder;
     edicao_folder=$(safe_filename "$nome");
-    
-    local target_filename;
-    target_filename=$(safe_filename "$target");
-
-    # Criação da estrutura de subdiretório solicitada
     local subdiretorio="$DIR_SAIDA/$edicao_folder";
-    if [ ! -d "$subdiretorio" ]; then
-        mkdir -p "$subdiretorio";
-    fi;
+    mkdir -p "$subdiretorio";
 
-    local destino="$subdiretorio/${target_filename}.xml";
+    local destino="$subdiretorio/$(safe_filename "$target").xml";
 
-    # Processamento linha a linha para evitar estouro de buffer
     while IFS= read -r linha || [ -n "$linha" ]; do
         if ! linha=$(processar_linha "$linha" "$nome" "$serial" "$target"); then
-            log "ERRO: falha ao processar linha para $nome [$target]";
             return 1;
         fi;
         printf '%s\n' "$linha";
     done <<< "$MODELO_MINIFICADO" > "$destino";
 
-    # Validação de integridade XML (Uso do xmllint se presente)
     if command -v xmllint >/dev/null 2>&1; then
-        if ! xmllint --noout "$destino"; then
-            log "ERRO: XML gerado em $destino falhou na validação de sintaxe";
-            return 1;
-        fi;
+        xmllint --noout "$destino" || return 1;
     fi;
 };
 
-# --- LOOP DE EXECUÇÃO PARALELA (MULTI-CORE) ---
+# --- EXECUÇÃO PARALELA ---
 job_count=0;
 pids=();
 fail=0;
 
-log "Iniciando geração da matriz completa (Edições x Targets)...";
+log "Iniciando geração da matriz...";
 
 for item in "${EDICOES[@]}"; do
     IFS="|" read -r NOME SERIAL <<< "$item";
@@ -258,9 +230,9 @@ for item in "${EDICOES[@]}"; do
     for TGT in "${TARGETS[@]}"; do
         (
             if processar_modelo "$NOME" "$SERIAL" "$TGT"; then
-                log "GERADO: $NOME -> $TGT.xml";
+                log "OK: $NOME [$TGT]";
             else
-                log "FALHA CRÍTICA: Erro ao processar $NOME [$TGT]";
+                log "ERRO: $NOME [$TGT]";
                 exit 1;
             fi;
         ) &
@@ -268,13 +240,9 @@ for item in "${EDICOES[@]}"; do
         pids+=($!);
         ((job_count++));
 
-        # Controle de concorrência baseado em MAX_JOBS
         if (( job_count >= MAX_JOBS )); then
             for pid in "${pids[@]}"; do
-                if ! wait "$pid"; then
-                    log "ERRO: O processo paralelo com PID $pid falhou";
-                    fail=1;
-                fi;
+                wait "$pid" || fail=1;
             done;
             pids=();
             job_count=0;
@@ -282,27 +250,8 @@ for item in "${EDICOES[@]}"; do
     done;
 done;
 
-# Aguarda conclusão dos processos remanescentes
-for pid in "${pids[@]}"; do
-    if ! wait "$pid"; then
-        log "ERRO: O processo paralelo final com PID $pid falhou";
-        fail=1;
-    fi;
-done;
+for pid in "${pids[@]}"; do wait "$pid" || fail=1; done;
+[ "$fail" -ne 0 ] && { log "FALHA NA MATRIZ"; exit 1; };
 
-# Verificação final de status
-if (( fail != 0 )); then
-    log "ERRO FINAL: A geração da matriz foi interrompida devido a erros internos.";
-    exit 1;
-fi;
-
-# Contabilidade final
-TOTAL=$(find "$DIR_SAIDA" -type f -name "*.xml" | wc -l);
-
-if [[ "$TOTAL" -eq 0 ]]; then
-    log "ERRO: O processo terminou mas nenhum arquivo XML foi encontrado em $DIR_SAIDA";
-    exit 1;
-fi;
-
-log "SUCESSO: $TOTAL arquivos gerados com integridade garantida em $DIR_SAIDA";
-return 0
+TOTAL=$(find "$DIR_SAIDA" -name "*.xml" | wc -l);
+log "SUCESSO: $TOTAL gerados em $DIR_SAIDA";
