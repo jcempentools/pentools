@@ -82,7 +82,8 @@ Param(
 $script:__ps7_fallback_used = $false
 $path_log = "$env:SystemDrive\autonome-install-LOG"
 $pwsh_msi_path = "$env:SystemDrive\pwsh_install.msi"
-# exigido exiência de unidade:/.pentools/.pentools
+# $pendrive_autonome_checker: exigido exiência de `unidade:/.pentools/.pentools`
+# ou `unidade:/boot/.pentools` para ser válido
 $pendrive_autonome_checker = ".pentools"
 $pendrive_autonome_root = "boot\autonome"
 # instalações dentro da pasta /apps em windows:
