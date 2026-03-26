@@ -20,7 +20,6 @@ IFS=$'\n\t';
 DIR_SAIDA="./autounattend";
 ARQUIVO_MODELO="autounattend.model.xml";
 ARQUIVO_SCRIPT="modelo_script_embutido.ps1";
-ARQUIVO_LOG="deploy_error.log";
 MAX_JOBS=4;
 
 # Variável de alvos (Targets) integrada
@@ -54,18 +53,21 @@ EDICOES=(
 
 # --- LOG ---
 log() {
-    local msg="$1";
-    printf '[%s] %s\n' "$(date +%F\ %T)" "$msg" | tee -a "$ARQUIVO_LOG" >&2;
+    local level="$1";
+    shift;
+    printf '[%s] [%s] %s\n' "$(date +%F\ %T)" "$level" "$*" >&2;
 };
 
 # --- VALIDAÇÕES DE AMBIENTE ---
+log INFO "Validando arquivos de entrada";
+
 if [ ! -f "$ARQUIVO_MODELO" ]; then
-    log "ERRO: Modelo XML não encontrado ($ARQUIVO_MODELO)";
+    log ERROR "Modelo XML não encontrado ($ARQUIVO_MODELO)";
     exit 1;
 fi;
 
 if [ ! -f "$ARQUIVO_SCRIPT" ]; then
-    log "ERRO: Script PS1 não encontrado ($ARQUIVO_SCRIPT)";
+    log ERROR "Script PS1 não encontrado ($ARQUIVO_SCRIPT)";
     exit 1;
 fi;
 
@@ -77,17 +79,19 @@ minificar_xml() {
 };
 
 # --- CARREGAMENTO DE CACHE ---
+log INFO "Carregando cache de arquivos";
+
 SCRIPT_CACHE="$(<"$ARQUIVO_SCRIPT")";
 
 if [[ -z "$SCRIPT_CACHE" ]]; then
-    log "ERRO: Script PS1 está vazio";
+    log ERROR "Script PS1 está vazio";
     exit 1;
 fi;
 
 MODELO_MINIFICADO="$(minificar_xml < "$ARQUIVO_MODELO")";
 
 if [[ -z "$MODELO_MINIFICADO" ]]; then
-    log "ERRO: modelo XML vazio após minificação";
+    log ERROR "modelo XML vazio após minificação";
     exit 1;
 fi;
 
@@ -132,7 +136,7 @@ get_replacement() {
             echo "E. South America Standard Time";
             ;;
         *)
-            log "ERRO: chave não mapeada: $chave";
+            log ERROR "chave não mapeada: $chave";
             return 1;
             ;;
     esac;
@@ -158,12 +162,14 @@ processar_linha() {
 
         if [[ "$chave" == SCRIPT::* ]]; then
             local modo="${chave#SCRIPT::}";
+            log DEBUG "Processando SCRIPT modo=$modo target=$target";
+
             local modo_esc; modo_esc=$(printf '%s' "$modo" | escape_sed_replacement);
             local tgt_esc; tgt_esc=$(printf '%s' "$target" | escape_sed_replacement);
 
             local script_proc;
             if ! script_proc=$(printf '%s' "$SCRIPT_CACHE" | sed "s|#{{MODE}}#|$modo_esc|g; s|#{{APPSLST}}#|$tgt_esc|g;"); then
-                log "ERRO: falha ao processar script embutido";
+                log ERROR "falha ao processar script embutido";
                 return 1;
             fi;
 
@@ -186,7 +192,7 @@ processar_linha() {
     fi;
 
     if [[ "$saida" =~ \#\{\{[a-zA-Z0-9:_.-]+\}\}\# ]]; then
-        log "ERRO: placeholder órfão: $saida";
+        log ERROR "placeholder órfão detectado";
         return 1;
     fi;
 
@@ -197,6 +203,8 @@ processar_modelo() {
     local nome="$1";
     local serial="$2";
     local target="$3";
+
+    log INFO "Gerando XML para $nome [$target]";
 
     local edicao_folder;
     edicao_folder=$(safe_filename "$nome");
@@ -222,7 +230,7 @@ job_count=0;
 pids=();
 fail=0;
 
-log "Iniciando geração da matriz...";
+log INFO "Iniciando geração da matriz";
 
 for item in "${EDICOES[@]}"; do
     IFS="|" read -r NOME SERIAL <<< "$item";
@@ -230,9 +238,9 @@ for item in "${EDICOES[@]}"; do
     for TGT in "${TARGETS[@]}"; do
         (
             if processar_modelo "$NOME" "$SERIAL" "$TGT"; then
-                log "OK: $NOME [$TGT]";
+                log INFO "OK: $NOME [$TGT]";
             else
-                log "ERRO: $NOME [$TGT]";
+                log ERROR "ERRO: $NOME [$TGT]";
                 exit 1;
             fi;
         ) &
@@ -251,7 +259,7 @@ for item in "${EDICOES[@]}"; do
 done;
 
 for pid in "${pids[@]}"; do wait "$pid" || fail=1; done;
-[ "$fail" -ne 0 ] && { log "FALHA NA MATRIZ"; exit 1; };
+[ "$fail" -ne 0 ] && { log ERROR "FALHA NA MATRIZ"; exit 1; };
 
 TOTAL=$(find "$DIR_SAIDA" -name "*.xml" | wc -l);
-log "SUCESSO: $TOTAL gerados em $DIR_SAIDA";
+log INFO "SUCESSO: $TOTAL gerados em $DIR_SAIDA";
