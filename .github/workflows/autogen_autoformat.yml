@@ -1,4 +1,4 @@
-name: Generate & Format Unattend Matrix
+name: Gera lisa de Unattend e formata arquivo com prettier
 
 # ==============================================================================
 # DESCRIÇÃO: Pipeline Unificado de Geração e Formatação (CI-CD)
