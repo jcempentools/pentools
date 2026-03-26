@@ -36,8 +36,8 @@
 #   permanecer pequeno, simples e independente.
 # =============================================================
 
-$Env:install_cru = "cru"
-$Env:LOCAL_EXEC = "DefaultUser".Trim().ToUpper()
+$Env:install_cru = "#{{APPSLST}}#".Trim().ToLower()
+$Env:LOCAL_EXEC = "#{{MODE}}#".Trim().ToUpper()
 
 try {
   $user = [Environment]::UserName
