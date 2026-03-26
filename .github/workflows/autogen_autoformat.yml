@@ -76,6 +76,11 @@ jobs:
           echo "Nenhuma mudança relevante detectada. Encerrando workflow."
           exit 0
 
+      - name: Debug script
+        run: |
+          set -x
+          cat /home/runner/work/_temp/*.sh || true
+
       # --------------------------------------------------
       # 4. SETUP NODE (COM CACHE)
       # --------------------------------------------------
