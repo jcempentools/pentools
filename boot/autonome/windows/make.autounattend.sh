@@ -219,7 +219,7 @@ processar_modelo() {
   fi
 }
 
-export DIR_SAIDA SCRIPT_CACHE MODELO_PROCESSADO
+export DIR_SAIDA SCRIPT_CACHE MODELO_PROCESSADO CHAVE_SENTINELA
 export -f processar_modelo processar_linha get_replacement xml_escape escape_sed_replacement safe_filename log
 
 # --- EXECUÇÃO ---
