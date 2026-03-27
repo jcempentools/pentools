@@ -10,17 +10,22 @@ name: Geração de Unattend + Autoformatação (Resiliente, Determinístico e Ob
 # FLUXO DE EXECUÇÃO:
 #   1. Detecta mudanças relevantes nos arquivos monitorados
 #   2. Interrompe execução se não houver alterações (early-exit)
-#   3. Formata arquivos alterados via Prettier (execução incremental)
+#   3. Aplica Prettier nos arquivos alterados do commit (escopo global)
 #   4. Executa script gerador de XMLs Unattend
-#   5. Detecta alterações resultantes (formatação + geração)
-#   6. Cria commit apenas se houver mudanças reais
-#   7. Realiza push com retry e rebase para manter histórico linear
+#   5. Detecta arquivos criados/modificados pelo gerador
+#   6. Aplica Prettier SOMENTE nesses arquivos (escopo restrito)
+#   7. Detecta alterações resultantes (geração + formatação)
+#   8. Cria commit apenas se houver mudanças reais
+#   9. Realiza push com retry e rebase para manter histórico linear
 #
 # GARANTIAS:
 #   - Idempotência: evita commits vazios e execuções redundantes
 #   - Resiliência: retry com tratamento de conflito e limpeza de estado
 #   - Observabilidade: logs estruturados visíveis apenas no console
 #   - Segurança: sem geração de arquivos de log ou execução insegura
+#   - Prettier atua em dois contextos:
+#       * arquivos alterados no commit (escopo global)
+#       * arquivos gerados/modificados em boot/autonome/windows/autounattend/**
 # ==============================================================================
 
 on:
@@ -39,7 +44,7 @@ concurrency:
 
 jobs:
   process-matrix:
-    timeout-minutes: 15
+    timeout-minutes: 1
 
     if: |
       github.event_name == 'workflow_dispatch' ||
@@ -54,12 +59,8 @@ jobs:
       - name: Contexto da execução
         run: |
           set -Eeuo pipefail
-          exec 1>&1
-          exec 2>&2
-
-          echo "::group::Contexto Detalhado"
+          echo "::group::Contexto"
           echo "[INFO] Evento: ${{ github.event_name }}"
-          echo "[INFO] Ator: ${{ github.actor }}"
           echo "[INFO] SHA: ${{ github.sha }}"
           echo "[INFO] Timestamp: $(date -Iseconds)"
           echo "::endgroup::"
@@ -69,7 +70,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Detectar arquivos alterados
+      - name: Detectar arquivos alterados (entrada)
         id: changed
         uses: tj-actions/changed-files@v44
         with:
@@ -85,37 +86,28 @@ jobs:
       - name: Validar execução
         run: |
           set -Eeuo pipefail
-          exec 1>&1
-          exec 2>&2
-
-          echo "[DEBUG] any_changed=${{ steps.changed.outputs.any_changed }}"
 
           if [ "${{ steps.changed.outputs.any_changed }}" != "true" ]; then
-            echo "[INFO] Nenhuma mudança relevante detectada. Finalizando."
+            echo "[INFO] Nenhuma mudança relevante detectada."
             exit 0
           fi
-
-          echo "::group::Arquivos Detectados"
-          echo "${{ steps.changed.outputs.all_changed_files }}"
-          echo "::endgroup::"
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Executar Prettier
+      # =========================================
+      # PRETTIER - CONTEXTO GLOBAL (commit)
+      # =========================================
+      - name: Prettier (arquivos do commit)
         env:
           FILE_LIST: ${{ steps.changed.outputs.all_changed_files_output_file }}
         run: |
           set -Eeuo pipefail
-          exec 1>&1
-          exec 2>&2
-
-          echo "::group::Prettier"
 
           if [ ! -s "$FILE_LIST" ]; then
-            echo "[WARN] Lista de arquivos vazia."
+            echo "[INFO] Nenhum arquivo para formatação (commit)."
             exit 0
           fi
 
@@ -128,45 +120,80 @@ jobs:
             --plugin=prettier-plugin-powershell \
             --plugin=@prettier/plugin-python \
             --ignore-unknown < "$FILE_LIST" \
-            || echo "[WARN] Erros não críticos no Prettier."
+            || echo "[WARN] Prettier (commit) com falhas não críticas."
 
-          COUNT=$(tr -cd '\0' < "$FILE_LIST" | wc -c)
-          echo "[METRIC] Arquivos processados: $COUNT"
-
-          echo "::endgroup::"
-
+      # =========================================
+      # GERADOR
+      # =========================================
       - name: Executar gerador
         run: |
           set -Eeuo pipefail
-          exec 1>&1
-          exec 2>&2
-
-          echo "::group::Gerador"
 
           SCRIPT="boot/autonome/windows/make.autounattend.sh"
 
-          if [ -f "$SCRIPT" ]; then
-            echo "[INFO] Normalizando line endings (LF)..."
-            sed -i 's/\r$//' "$SCRIPT"
-
-            chmod +x "$SCRIPT" || true
-
-            echo "[INFO] Executando script..."
-            (cd boot/autonome/windows && ./make.autounattend.sh)
-          else
+          if [ ! -f "$SCRIPT" ]; then
             echo "[FATAL] Script não encontrado."
             exit 1
           fi
 
-          echo "::endgroup::"
+          sed -i 's/\r$//' "$SCRIPT"
+          chmod +x "$SCRIPT" || true
 
+          (cd boot/autonome/windows && ./make.autounattend.sh)
+
+      # =========================================
+      # DETECÇÃO PÓS-GERAÇÃO
+      # =========================================
+      - name: Detectar arquivos gerados/modificados
+        id: generated
+        run: |
+          set -Eeuo pipefail
+
+          TARGET="boot/autonome/windows/autounattend"
+          TMP=$(mktemp)
+
+          git ls-files --others --modified --exclude-standard -z -- "$TARGET" > "$TMP"
+
+          COUNT=$(tr -cd '\0' < "$TMP" | wc -c)
+
+          echo "[INFO] Arquivos gerados/modificados: $COUNT"
+
+          echo "file_list=$TMP" >> "$GITHUB_OUTPUT"
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+
+      # =========================================
+      # PRETTIER - CONTEXTO GERADOR
+      # =========================================
+      - name: Prettier (pós-geração)
+        if: steps.generated.outputs.count != '0'
+        env:
+          FILE_LIST: ${{ steps.generated.outputs.file_list }}
+        run: |
+          set -Eeuo pipefail
+
+          FILTERED=$(mktemp)
+
+          tr '\0' '\n' < "$FILE_LIST" \
+            | grep -E '\.(xml|json|ya?ml|ps1|py|sh)$' \
+            | tr '\n' '\0' > "$FILTERED"
+
+          if [ ! -s "$FILTERED" ]; then
+            echo "[INFO] Nenhum arquivo suportado."
+            exit 0
+          fi
+
+          xargs -0 -r npx prettier --write \
+            --plugin=prettier-plugin-powershell \
+            --plugin=@prettier/plugin-python \
+            --ignore-unknown < "$FILTERED" \
+            || echo "[WARN] Prettier (geração) com falhas não críticas."
+
+      # =========================================
+      # GIT SYNC (ROBUSTO)
+      # =========================================
       - name: Sincronizar repositório
         run: |
           set -Eeuo pipefail
-          exec 1>&1
-          exec 2>&2
-
-          echo "::group::Git Sync"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -178,32 +205,24 @@ jobs:
             exit 0
           fi
 
-          echo "::group::Arquivos no commit"
-          git diff --cached --name-only
-          echo "::endgroup::"
+          COUNT=$(git diff --cached --name-only | wc -l)
+          git commit -m "auto: generate + format ($COUNT files) [skip ci]"
 
-          FILES_COUNT=$(git diff --cached --name-only | wc -l)
-          git commit -m "auto: update matrix & format ($FILES_COUNT files) [skip ci]"
-
-          MAX_RETRIES=3
-          for i in $(seq 1 $MAX_RETRIES); do
-            echo "[INFO] Tentativa de Push $i/$MAX_RETRIES"
-
+          for i in 1 2 3; do
             git fetch origin master
 
             if git rebase origin/master; then
               if git push origin master; then
-                echo "[SUCCESS] Sincronizado."
+                echo "[SUCCESS] Push realizado."
                 exit 0
               fi
-            else
-              echo "[WARN] Rebase falhou, limpando estado..."
-              git rebase --abort || true
-              git reset --hard HEAD
             fi
 
+            echo "[WARN] Tentativa $i falhou. Limpando estado..."
+            git rebase --abort || true
+            git reset --hard HEAD
             sleep 5
           done
 
-          echo "[FATAL] Falha ao sincronizar após $MAX_RETRIES tentativas."
+          echo "[FATAL] Falha ao sincronizar após múltiplas tentativas."
           exit 1
