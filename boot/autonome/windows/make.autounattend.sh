@@ -10,6 +10,7 @@
 #   4. Resiliência: Execução segura sem falhas silenciosas.
 #   5. Automação: Gera derivações XML para todas as edições e Targets.
 #   6. CI/CD: Projetado para workflows do GitHub Actions e similares.
+#   7. Não pode minificar ps1 inseridos
 # ==============================================================================
 
 set -euo pipefail
@@ -154,10 +155,10 @@ processar_linha() {
     local antes="${resto%%#{{*}"
     local tmp="${resto#*#{{}"
     local chave="${tmp%%}}#*}"
-    if [[ -z "$chave" ]]; then
-      log ERROR "Placeholder inválido (chave vazia) edicao=$nome target=$target"
-      return 1
-    fi    
+  if [[ -z "$chave" ]]; then
+    log ERROR "Placeholder inválido (chave vazia) edicao=$nome target=$target"
+    return 1
+  fi    
     local depois="${tmp#*}}#}"
     local substituicao=""
 
@@ -245,6 +246,7 @@ processar_modelo() {
   fi
 }
 
+export DIR_SAIDA
 export -f processar_modelo processar_linha get_replacement xml_escape escape_sed_replacement safe_filename log
 
 # --- EXECUÇÃO PARALELA ---
@@ -297,4 +299,10 @@ done
 }
 
 TOTAL=$(find "$DIR_SAIDA" -name "*.xml" 2>/dev/null | wc -l || echo 0)
+
+if (( TOTAL == 0 )); then
+  log ERROR "Nenhum arquivo gerado — falha silenciosa detectada"
+  exit 1
+fi
+
 log INFO "SUCESSO: $TOTAL gerados em $DIR_SAIDA"
