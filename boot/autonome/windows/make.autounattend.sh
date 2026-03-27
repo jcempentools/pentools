@@ -26,7 +26,6 @@ ARQUIVO_MODELO="autounattend.model.xml"
 ARQUIVO_SCRIPT="modelo_script_embutido.ps1"
 MAX_JOBS=4
 
-# timeout opcional
 if command -v timeout >/dev/null 2>&1; then
   HAS_TIMEOUT=1
 else
@@ -43,14 +42,11 @@ TARGETS=(
 )
 
 CHAVE_SENTINELA="VK7JG-NPHTM-C97JM-9MPGT-3V66T"
-WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO=(  
-  # 1. Bloco Key + WillShowUI
+
+WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO=(
   '<Key>[A-Z0-9]{5}(-[A-Z0-9]{5}){4}<\/Key>[\s\S]*?<WillShowUI>[\s\S]*?<\/WillShowUI>|<WillShowUI>Never</WillShowUI>'
-  
-  # 2. Tag ProductKey Isolada (Nova solicitação)
   '<ProductKey>\s*[A-Z0-9]{5}(-[A-Z0-9]{5}){4}\s*<\/ProductKey>| '
 )
-
 
 # --- MATRIZ ---
 EDICOES=(
@@ -89,7 +85,6 @@ log INFO "Carregando cache de arquivos"
 SCRIPT_CACHE="$(<"$ARQUIVO_SCRIPT")"
 [[ -n "$SCRIPT_CACHE" ]] || { log ERROR "Script PS1 vazio"; exit 1; }
 
-# Remoção segura de comentários XML
 MODELO_PROCESSADO="$(awk '
 BEGIN { in_comment=0 }
 {
@@ -147,7 +142,7 @@ get_replacement() {
   esac
 }
 
-# --- PROCESSADOR ---
+# --- PROCESSADOR ORIGINAL (INALTERADO) ---
 processar_linha() {
   local linha="$1" nome="$2" serial="$3" target="$4"
 
@@ -192,13 +187,15 @@ processar_linha() {
   printf '%s' "$saida"
 }
 
-processar_modelo() {
-  local nome="$1" serial="$2" target="$3"
+# --- NOVO: PROCESSADOR OEM ---
+processar_modelo_oem() {
+  local target="$1"
 
-  local destino="$DIR_SAIDA/$(safe_filename "$nome")/$(safe_filename "$target").xml"
+  local nome="OEM"
+  local destino="$DIR_SAIDA/$nome/$(safe_filename "$target").xml"
   local tmp="${destino}.tmp"
 
-  log INFO "Gerando XML: $destino"
+  log INFO "Gerando XML OEM: $destino"
 
   mkdir -p "$(dirname "$destino")"
   : > "$tmp"
@@ -207,20 +204,29 @@ processar_modelo() {
 
   while IFS= read -r linha || [[ -n "$linha" ]]; do
     ((count++))
-    ((count < MAX_LINHAS)) || { log ERROR "Loop detectado"; return 1; }
+    ((count < MAX_LINHAS)) || { log ERROR "Loop detectado OEM"; return 1; }
 
     local out
-    out=$(processar_linha "$linha" "$nome" "$serial" "$target") || return 1
+    out=$(processar_linha "$linha" "$nome" "" "$target") || return 1
 
     printf '%s\n' "$out" >> "$tmp"
   done <<<"$MODELO_PROCESSADO"
 
-  [[ -s "$tmp" ]] || { log ERROR "Arquivo vazio: $destino"; rm -f "$tmp"; return 1; }
+  [[ -s "$tmp" ]] || { log ERROR "Arquivo OEM vazio"; rm -f "$tmp"; return 1; }
 
-  # 🔴 substituição GLOBAL (correção principal)
-  sed "s|$CHAVE_SENTINELA|$serial|g" "$tmp" > "${tmp}.2" && mv "${tmp}.2" "$tmp"
+  # 🔴 Aplicação segura das regex OEM (multilinha)
+  local tmp2="${tmp}.2"
+  cp "$tmp" "$tmp2"
 
-  mv "$tmp" "$destino"
+  for regra in "${WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO[@]}"; do
+    local pattern="${regra%%|*}"
+    local replacement="${regra#*|}"
+
+    perl -0777 -pe "s|$pattern|$replacement|gs" "$tmp2" > "${tmp2}.new"
+    mv "${tmp2}.new" "$tmp2"
+  done
+
+  mv "$tmp2" "$destino"
 
   if command -v xmllint >/dev/null 2>&1; then
     xmllint --noout "$destino" || return 1
@@ -228,7 +234,7 @@ processar_modelo() {
 }
 
 export DIR_SAIDA SCRIPT_CACHE MODELO_PROCESSADO CHAVE_SENTINELA
-export -f processar_modelo processar_linha get_replacement xml_escape escape_sed_replacement safe_filename log
+export -f processar_modelo_oem processar_linha get_replacement xml_escape escape_sed_replacement safe_filename log
 
 # --- EXECUÇÃO ---
 job_count=0
@@ -237,6 +243,24 @@ fail=0
 
 log INFO "Iniciando geração da matriz"
 
+# --- OEM ---
+for TGT in "${TARGETS[@]}"; do
+  (
+    if ((HAS_TIMEOUT)); then
+      timeout 30s bash -c "processar_modelo_oem \"$TGT\""
+    else
+      bash -c "processar_modelo_oem \"$TGT\""
+    fi
+  ) && log INFO "OK: OEM [$TGT]" || {
+    log ERROR "ERRO: OEM [$TGT]"
+    exit 1
+  } &
+
+  pids+=("$!")
+  job_count=$((job_count + 1))
+done
+
+# --- EDIÇÕES ORIGINAIS ---
 for item in "${EDICOES[@]}"; do
   IFS="|" read -r NOME SERIAL <<<"$item"
 
