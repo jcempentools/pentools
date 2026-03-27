@@ -11,6 +11,7 @@
 #   5. Automação: Gera derivações XML para todas as edições e Targets.
 #   6. CI/CD: Projetado para workflows do GitHub Actions e similares.
 #   7. Não pode minificar ps1 inseridos
+#   8. Log em tela, nunca em arquivo: compatibilidade com workflow e github
 # ==============================================================================
 
 set -euo pipefail
@@ -63,50 +64,31 @@ log() {
   printf '[%s] [%s] %s\n' "$(date +%F\ %T)" "$level" "$*" >&2
 }
 
-# --- VALIDAÇÕES DE AMBIENTE ---
+# --- VALIDAÇÕES ---
 log INFO "Validando arquivos de entrada"
 
-if [ ! -f "$ARQUIVO_MODELO" ]; then
-  log ERROR "Modelo XML não encontrado ($ARQUIVO_MODELO)"
-  exit 1
-fi
-
-if [ ! -f "$ARQUIVO_SCRIPT" ]; then
-  log ERROR "Script PS1 não encontrado ($ARQUIVO_SCRIPT)"
-  exit 1
-fi
+[ -f "$ARQUIVO_MODELO" ] || { log ERROR "Modelo XML não encontrado"; exit 1; }
+[ -f "$ARQUIVO_SCRIPT" ] || { log ERROR "Script PS1 não encontrado"; exit 1; }
 
 mkdir -p "$DIR_SAIDA"
 
-# --- MINIFICAÇÃO SEGURA ---
-minificar_xml() {
-  sed -E 's/>[[:space:]]+</></g'
-}
-
-# --- CARREGAMENTO DE CACHE ---
+# --- CACHE ---
 log INFO "Carregando cache de arquivos"
 
 SCRIPT_CACHE="$(<"$ARQUIVO_SCRIPT")"
+[[ -n "$SCRIPT_CACHE" ]] || { log ERROR "Script PS1 vazio"; exit 1; }
 
-if [[ -z "$SCRIPT_CACHE" ]]; then
-  log ERROR "Script PS1 está vazio"
-  exit 1
-fi
+# 🔴 REMOÇÃO DE COMENTÁRIOS XML (SEM MINIFICAR)
+MODELO_PROCESSADO="$(sed -E 's/<!--.*?-->//g' "$ARQUIVO_MODELO")"
+[[ -n "$MODELO_PROCESSADO" ]] || { log ERROR "Modelo vazio após limpeza"; exit 1; }
 
-MODELO_MINIFICADO="$(<"$ARQUIVO_MODELO")"
-
-if [[ -z "$MODELO_MINIFICADO" ]]; then
-  log ERROR "modelo XML vazio após minificação"
-  exit 1
-fi
-
-# --- UTILIDADES ---
+# --- UTIL ---
 xml_escape() {
   sed -e 's/&\([^a]\|$\)/\&amp;\1/g' \
-    -e 's/</\&lt;/g' \
-    -e 's/>/\&gt;/g' \
-    -e 's/"/\&quot;/g' \
-    -e "s/'/\&apos;/g"
+      -e 's/</\&lt;/g' \
+      -e 's/>/\&gt;/g' \
+      -e 's/"/\&quot;/g' \
+      -e "s/'/\&apos;/g"
 }
 
 escape_sed_replacement() {
@@ -122,16 +104,12 @@ safe_filename() {
 get_replacement() {
   local chave="$1"
   local nome="$2"
-
   case "$chave" in
     "WINDOWS_EDITION") echo "$nome" ;;
     "NOME_PC") echo "PC-${nome^^}" ;;
     "IDIOMA") echo "pt-BR" ;;
     "TIMEZONE") echo "E. South America Standard Time" ;;
-    *)
-      log ERROR "chave não mapeada: $chave (edicao=$nome)"
-      return 1
-      ;;
+    *) log ERROR "chave não mapeada: $chave"; return 1 ;;
   esac
 }
 
@@ -142,48 +120,27 @@ processar_linha() {
   local serial="$3"
   local target="$4"
 
-  [[ "${DEBUG:-0}" == "1" ]] && log DEBUG "Linha len=${#linha} edicao=$nome target=$target"
-
   local saida=""
   local resto="$linha"
 
   while [[ "$resto" == *"#{{"* ]]; do
-    if [[ "$resto" != *"}}#"* ]]; then
-      log ERROR "Placeholder malformado (sem fechamento) edicao=$nome target=$target"
-      return 1
-  fi
+    [[ "$resto" == *"}}#"* ]] || { log ERROR "Placeholder malformado"; return 1; }
+
     local antes="${resto%%#{{*}"
     local tmp="${resto#*#{{}"
     local chave="${tmp%%}}#*}"
-  if [[ -z "$chave" ]]; then
-    log ERROR "Placeholder inválido (chave vazia) edicao=$nome target=$target"
-    return 1
-  fi    
     local depois="${tmp#*}}#}"
-    local substituicao=""
 
+    local substituicao=""
     saida+="$antes"
 
     if [[ "$chave" == SCRIPT::* ]]; then
       local modo="${chave#SCRIPT::}"
-      log DEBUG "SCRIPT modo=$modo target=$target"
-
-      local modo_esc
-      modo_esc=$(printf '%s' "$modo" | escape_sed_replacement)
-      local tgt_esc
-      tgt_esc=$(printf '%s' "$target" | escape_sed_replacement)
-
       local script_proc
-      if ! script_proc=$(printf '%s' "$SCRIPT_CACHE" | sed "s|#{{MODE}}#|$modo_esc|g; s|#{{APPSLST}}#|$tgt_esc|g;"); then
-        log ERROR "Falha no sed (SCRIPT) modo=$modo target=$target"
-        return 1
-      fi
-
+      script_proc=$(printf '%s' "$SCRIPT_CACHE" | sed "s|#{{MODE}}#|$modo|g; s|#{{APPSLST}}#|$target|g")
       substituicao=$(printf '%s' "$script_proc" | xml_escape)
     else
-      if ! substituicao=$(get_replacement "$chave" "$nome"); then
-        return 1
-      fi
+      substituicao=$(get_replacement "$chave" "$nome") || return 1
       substituicao=$(printf '%s' "$substituicao" | xml_escape)
     fi
 
@@ -192,15 +149,7 @@ processar_linha() {
   done
 
   saida+="$resto"
-
-  if [[ "$saida" == *"<Key>"*"$CHAVE_SENTINELA"*"</Key>"* ]]; then
-    saida="${saida//$CHAVE_SENTINELA/$serial}"
-  fi
-
-  if [[ "$saida" =~ \#\{\{[a-zA-Z0-9:_.-]+\}\}\# ]]; then
-    log ERROR "placeholder órfão (edicao=$nome target=$target)"
-    return 1
-  fi
+  saida="${saida//$CHAVE_SENTINELA/$serial}"
 
   printf '%s' "$saida"
 }
@@ -211,45 +160,40 @@ processar_modelo() {
   local target="$3"
 
   local destino="$DIR_SAIDA/$(safe_filename "$nome")/$(safe_filename "$target").xml"
+  local tmp="${destino}.tmp"
 
   log INFO "Gerando XML: $destino"
 
   mkdir -p "$(dirname "$destino")"
 
-  local MAX_LINHAS=20000
-  local count=0
+  : > "$tmp"
 
+  local count=0
   while IFS= read -r linha || [[ -n "$linha" ]]; do
     ((count++))
-    if ((count > MAX_LINHAS)); then
-      log ERROR "Limite de linhas excedido (possível loop) edicao=$nome target=$target"
-      return 1
-    fi
+    local out
+    out=$(processar_linha "$linha" "$nome" "$serial" "$target") || return 1
+    printf '%s\n' "$out" >> "$tmp"
+  done <<<"$MODELO_PROCESSADO"
 
-    local linha_original="$linha"
+  # 🔴 validação crítica
+  if [[ ! -s "$tmp" ]]; then
+    log ERROR "Arquivo vazio gerado: $destino"
+    rm -f "$tmp"
+    return 1
+  fi
 
-    if ! linha=$(processar_linha "$linha" "$nome" "$serial" "$target"); then
-      log ERROR "Falha linha edicao=$nome target=$target"
-      log DEBUG "Original: $linha_original"
-      log DEBUG "Parcial: $linha"
-      return 1
-    fi
-
-    printf '%s\n' "$linha"
-  done <<<"$MODELO_MINIFICADO" >"$destino"
+  mv "$tmp" "$destino"
 
   if command -v xmllint >/dev/null 2>&1; then
-    if ! xmllint --noout "$destino"; then
-      log ERROR "XML inválido: $destino"
-      return 1
-    fi
+    xmllint --noout "$destino" || return 1
   fi
 }
 
 export DIR_SAIDA
 export -f processar_modelo processar_linha get_replacement xml_escape escape_sed_replacement safe_filename log
 
-# --- EXECUÇÃO PARALELA ---
+# --- EXECUÇÃO ---
 job_count=0
 pids=()
 fail=0
@@ -261,7 +205,6 @@ for item in "${EDICOES[@]}"; do
 
   for TGT in "${TARGETS[@]}"; do
     (
-      set -e
       if timeout 30s bash -c "processar_modelo \"$NOME\" \"$SERIAL\" \"$TGT\""; then
         log INFO "OK: $NOME [$TGT]"
       else
@@ -271,38 +214,21 @@ for item in "${EDICOES[@]}"; do
     ) &
 
     pids+=($!)
-    job_count=$((job_count + 1))
+    ((job_count++))
 
     if ((job_count >= MAX_JOBS)); then
-      for pid in "${pids[@]}"; do
-        if ! wait "$pid"; then
-          log ERROR "Falha detectada em job PID=$pid"
-          fail=1
-        fi
-      done
+      for pid in "${pids[@]}"; do wait "$pid" || fail=1; done
       pids=()
       job_count=0
     fi
   done
 done
 
-for pid in "${pids[@]}"; do
-  if ! wait "$pid"; then
-    log ERROR "Falha detectada em job PID=$pid"
-    fail=1
-  fi
-done
+for pid in "${pids[@]}"; do wait "$pid" || fail=1; done
 
-[ "$fail" -ne 0 ] && {
-  log ERROR "FALHA NA MATRIZ"
-  exit 1
-}
+((fail)) && { log ERROR "FALHA NA MATRIZ"; exit 1; }
 
-TOTAL=$(find "$DIR_SAIDA" -name "*.xml" 2>/dev/null | wc -l || echo 0)
-
-if (( TOTAL == 0 )); then
-  log ERROR "Nenhum arquivo gerado — falha silenciosa detectada"
-  exit 1
-fi
+TOTAL=$(find "$DIR_SAIDA" -name "*.xml" | wc -l)
+((TOTAL == 0)) && { log ERROR "Nenhum XML gerado"; exit 1; }
 
 log INFO "SUCESSO: $TOTAL gerados em $DIR_SAIDA"
