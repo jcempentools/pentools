@@ -23,6 +23,10 @@ ARQUIVO_MODELO="autounattend.model.xml"
 ARQUIVO_SCRIPT="modelo_script_embutido.ps1"
 MAX_JOBS=4
 
+command -v timeout >/dev/null 2>&1 || {
+  log WARN "timeout não disponível — proteção contra loop desativada"
+}
+
 TARGETS=(
   "Cru"
   "Basico"
@@ -88,7 +92,7 @@ if [[ -z "$SCRIPT_CACHE" ]]; then
   exit 1
 fi
 
-MODELO_MINIFICADO="$(minificar_xml <"$ARQUIVO_MODELO")"
+MODELO_MINIFICADO="$(<"$ARQUIVO_MODELO")"
 
 if [[ -z "$MODELO_MINIFICADO" ]]; then
   log ERROR "modelo XML vazio após minificação"
@@ -137,15 +141,24 @@ processar_linha() {
   local serial="$3"
   local target="$4"
 
-  log DEBUG "Linha len=${#linha} edicao=$nome target=$target"
+  [[ "${DEBUG:-0}" == "1" ]] && log DEBUG "Linha len=${#linha} edicao=$nome target=$target"
 
   local saida=""
   local resto="$linha"
 
-  while [[ "$resto" =~ (.*?)\#\{\{([a-zA-Z0-9:_.-]+)\}\}\#(.*) ]]; do
-    local antes="${BASH_REMATCH[1]}"
-    local chave="${BASH_REMATCH[2]}"
-    local depois="${BASH_REMATCH[3]}"
+  while [[ "$resto" == *"#{{"* ]]; do
+    if [[ "$resto" != *"}}#"* ]]; then
+      log ERROR "Placeholder malformado (sem fechamento) edicao=$nome target=$target"
+      return 1
+  fi
+    local antes="${resto%%#{{*}"
+    local tmp="${resto#*#{{}"
+    local chave="${tmp%%}}#*}"
+    if [[ -z "$chave" ]]; then
+      log ERROR "Placeholder inválido (chave vazia) edicao=$nome target=$target"
+      return 1
+    fi    
+    local depois="${tmp#*}}#}"
     local substituicao=""
 
     saida+="$antes"
@@ -202,7 +215,16 @@ processar_modelo() {
 
   mkdir -p "$(dirname "$destino")"
 
+  local MAX_LINHAS=20000
+  local count=0
+
   while IFS= read -r linha || [[ -n "$linha" ]]; do
+    ((count++))
+    if ((count > MAX_LINHAS)); then
+      log ERROR "Limite de linhas excedido (possível loop) edicao=$nome target=$target"
+      return 1
+    fi
+
     local linha_original="$linha"
 
     if ! linha=$(processar_linha "$linha" "$nome" "$serial" "$target"); then
@@ -223,6 +245,8 @@ processar_modelo() {
   fi
 }
 
+export -f processar_modelo processar_linha get_replacement xml_escape escape_sed_replacement safe_filename log
+
 # --- EXECUÇÃO PARALELA ---
 job_count=0
 pids=()
@@ -236,7 +260,7 @@ for item in "${EDICOES[@]}"; do
   for TGT in "${TARGETS[@]}"; do
     (
       set -e
-      if processar_modelo "$NOME" "$SERIAL" "$TGT"; then
+      if timeout 30s bash -c "processar_modelo \"$NOME\" \"$SERIAL\" \"$TGT\""; then
         log INFO "OK: $NOME [$TGT]"
       else
         log ERROR "ERRO: $NOME [$TGT]"
