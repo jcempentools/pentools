@@ -207,7 +207,7 @@ for item in "${EDICOES[@]}"; do
   for TGT in "${TARGETS[@]}"; do
     (
       if ((HAS_TIMEOUT)); then
-        timeout 30s processar_modelo "$NOME" "$SERIAL" "$TGT"
+        timeout 30s bash -c "processar_modelo \"$NOME\" \"$SERIAL\" \"$TGT\""
       else
         processar_modelo "$NOME" "$SERIAL" "$TGT"
       fi
