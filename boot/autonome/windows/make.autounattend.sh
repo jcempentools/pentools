@@ -267,7 +267,7 @@ for item in "${EDICOES[@]}"; do
   for TGT in "${TARGETS[@]}"; do
     (
       if ((HAS_TIMEOUT)); then
-        timeout 30s bash -c "processar_modelo \"$NOME\" \"$SERIAL\" \"$TGT\""
+        timeout 30s bash -c "$(declare -f processar_modelo processar_linha get_replacement xml_escape escape_sed_replacement safe_filename log); processar_modelo \"$NOME\" \"$SERIAL\" \"$TGT\""
       else
         bash -c "processar_modelo \"$NOME\" \"$SERIAL\" \"$TGT\""
       fi
