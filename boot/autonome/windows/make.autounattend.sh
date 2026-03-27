@@ -32,14 +32,7 @@ else
   HAS_TIMEOUT=0
 fi
 
-TARGETS=(
-  "Cru"
-  "Basico"
-  "Designer"
-  "Gamer"
-  "Dev"
-  "Full"
-)
+TARGETS=("Cru" "Basico" "Designer" "Gamer" "Dev" "Full")
 
 CHAVE_SENTINELA="VK7JG-NPHTM-C97JM-9MPGT-3V66T"
 
@@ -71,7 +64,7 @@ log() {
   printf '[%s] [%s] %s\n' "$(date +%F\ %T)" "$level" "$*" >&2
 }
 
-# --- VALIDAÇÕES ---
+# --- VALIDAÇÃO ---
 log INFO "Validando arquivos de entrada"
 
 [[ -f "$ARQUIVO_MODELO" ]] || { log ERROR "Modelo XML não encontrado"; exit 1; }
@@ -83,33 +76,9 @@ mkdir -p "$DIR_SAIDA"
 log INFO "Carregando cache de arquivos"
 
 SCRIPT_CACHE="$(<"$ARQUIVO_SCRIPT")"
-[[ -n "$SCRIPT_CACHE" ]] || { log ERROR "Script PS1 vazio"; exit 1; }
+[[ -n "$SCRIPT_CACHE" ]] || { log ERROR "Script vazio"; exit 1; }
 
-MODELO_PROCESSADO="$(awk '
-BEGIN { in_comment=0 }
-{
-  line=$0
-  while (1) {
-    if (in_comment) {
-      if (match(line, /-->/)) {
-        line = substr(line, RSTART + 3)
-        in_comment=0
-      } else {
-        line=""
-        break
-      }
-    } else {
-      if (match(line, /<!--/)) {
-        prefix = substr(line, 1, RSTART - 1)
-        line = prefix substr(line, RSTART + 4)
-        in_comment=1
-      } else break
-    }
-  }
-  if (length(line)) print line
-}
-' "$ARQUIVO_MODELO")"
-
+MODELO_PROCESSADO="$(<"$ARQUIVO_MODELO")"
 [[ -n "$MODELO_PROCESSADO" ]] || { log ERROR "Modelo vazio"; exit 1; }
 
 # --- UTIL ---
@@ -121,28 +90,21 @@ xml_escape() {
       -e "s/'/\&apos;/g"
 }
 
-escape_sed_replacement() {
-  sed 's/[\/&]/\\&/g'
-}
-
 safe_filename() {
-  local out
-  out=$(tr -cd '[:alnum:]_.-' <<<"$1")
-  [[ -n "$out" ]] && printf '%s' "$out" || printf 'invalid_name'
+  tr -cd '[:alnum:]_.-' <<<"$1"
 }
 
 get_replacement() {
-  local chave="$1" nome="$2"
-  case "$chave" in
-    WINDOWS_EDITION) printf '%s' "$nome" ;;
-    NOME_PC) printf 'PC-%s' "${nome^^}" ;;
+  case "$1" in
+    WINDOWS_EDITION) printf '%s' "$2" ;;
+    NOME_PC) printf 'PC-%s' "${2^^}" ;;
     IDIOMA) printf 'pt-BR' ;;
     TIMEZONE) printf 'E. South America Standard Time' ;;
-    *) log ERROR "chave não mapeada: $chave"; return 1 ;;
+    *) log ERROR "chave não mapeada: $1"; return 1 ;;
   esac
 }
 
-# --- PROCESSADOR ORIGINAL (INALTERADO) ---
+# --- PROCESSAMENTO BASE ---
 processar_linha() {
   local linha="$1" nome="$2" serial="$3" target="$4"
 
@@ -156,30 +118,20 @@ processar_linha() {
     local chave="${tmp%%}}#*}"
     local depois="${tmp#*}}#}"
 
-    [[ -n "$chave" ]] || { log ERROR "Placeholder vazio"; return 1; }
-
     saida+="$antes"
 
-    local substituicao
     if [[ "$chave" == SCRIPT::* ]]; then
       local modo="${chave#SCRIPT::}"
-
-      local modo_esc tgt_esc
-      modo_esc=$(printf '%s' "$modo" | escape_sed_replacement)
-      tgt_esc=$(printf '%s' "$target" | escape_sed_replacement)
-
-      substituicao=$(printf '%s' "$SCRIPT_CACHE" | sed \
-        "s|#{{MODE}}#|$modo_esc|g; s|#{{APPSLST}}#|$tgt_esc|g")
-
-      substituicao=$(printf '%s' "$substituicao" | xml_escape)
+      local script_proc
+      script_proc=$(printf '%s' "$SCRIPT_CACHE" | sed \
+        "s|#{{MODE}}#|$modo|g; s|#{{APPSLST}}#|$target|g")
+      saida+="$(printf '%s' "$script_proc" | xml_escape)"
     else
-      substituicao=$(get_replacement "$chave" "$nome") || return 1
-      substituicao=$(printf '%s' "$substituicao" | xml_escape)
+      local val
+      val=$(get_replacement "$chave" "$nome") || return 1
+      saida+="$(printf '%s' "$val" | xml_escape)"
     fi
 
-    saida+="$substituicao"
-
-    [[ "$resto" != "$depois" ]] || { log ERROR "Loop detectado"; return 1; }
     resto="$depois"
   done
 
@@ -187,89 +139,72 @@ processar_linha() {
   printf '%s' "$saida"
 }
 
-# --- NOVO: PROCESSADOR OEM ---
-processar_modelo_oem() {
-  local target="$1"
+# --- PROCESSADOR PADRÃO ---
+processar_modelo() {
+  local nome="$1" serial="$2" target="$3"
 
-  local nome="OEM"
-  local destino="$DIR_SAIDA/$nome/$(safe_filename "$target").xml"
+  local destino="$DIR_SAIDA/$nome/$target.xml"
+  local tmp="${destino}.tmp"
+
+  log INFO "Gerando XML: $destino"
+
+  mkdir -p "$(dirname "$destino")"
+  : > "$tmp"
+
+  while IFS= read -r linha || [[ -n "$linha" ]]; do
+    processar_linha "$linha" "$nome" "$serial" "$target" >> "$tmp"
+    printf '\n' >> "$tmp"
+  done <<<"$MODELO_PROCESSADO"
+
+  sed "s|$CHAVE_SENTINELA|$serial|g" "$tmp" > "${tmp}.2"
+  mv "${tmp}.2" "$destino"
+  rm -f "$tmp"
+}
+
+# --- PROCESSADOR OEM ---
+processar_oem() {
+  local target="$1"
+  local destino="$DIR_SAIDA/OEM/$target.xml"
   local tmp="${destino}.tmp"
 
   log INFO "Gerando XML OEM: $destino"
 
   mkdir -p "$(dirname "$destino")"
-  : > "$tmp"
-
-  local count=0 MAX_LINHAS=50000
-
-  while IFS= read -r linha || [[ -n "$linha" ]]; do
-    ((count++))
-    ((count < MAX_LINHAS)) || { log ERROR "Loop detectado OEM"; return 1; }
-
-    local out
-    out=$(processar_linha "$linha" "$nome" "" "$target") || return 1
-
-    printf '%s\n' "$out" >> "$tmp"
-  done <<<"$MODELO_PROCESSADO"
-
-  [[ -s "$tmp" ]] || { log ERROR "Arquivo OEM vazio"; rm -f "$tmp"; return 1; }
-
-  # 🔴 Aplicação segura das regex OEM (multilinha)
-  local tmp2="${tmp}.2"
-  cp "$tmp" "$tmp2"
+  printf '%s' "$MODELO_PROCESSADO" > "$tmp"
 
   for regra in "${WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO[@]}"; do
-    local pattern="${regra%%|*}"
-    local replacement="${regra#*|}"
-
-    perl -0777 -pe "s|$pattern|$replacement|gs" "$tmp2" > "${tmp2}.new"
-    mv "${tmp2}.new" "$tmp2"
+    local busca="${regra%%|*}"
+    local repl="${regra#*|}"
+    perl -0777 -pe "s|$busca|$repl|gs" -i "$tmp"
   done
 
-  mv "$tmp2" "$destino"
-
-  if command -v xmllint >/dev/null 2>&1; then
-    xmllint --noout "$destino" || return 1
-  fi
+  mv "$tmp" "$destino"
 }
 
-export DIR_SAIDA SCRIPT_CACHE MODELO_PROCESSADO CHAVE_SENTINELA
-export -f processar_modelo_oem processar_linha get_replacement xml_escape escape_sed_replacement safe_filename log
-
-# --- EXECUÇÃO ---
+# --- EXECUÇÃO PARALELA ---
 job_count=0
 pids=()
 fail=0
 
 log INFO "Iniciando geração da matriz"
 
-# --- OEM ---
+# OEM
 for TGT in "${TARGETS[@]}"; do
   (
-    if ((HAS_TIMEOUT)); then
-      timeout 30s bash -c "processar_modelo_oem \"$TGT\""
-    else
-      bash -c "processar_modelo_oem \"$TGT\""
-    fi
-  ) && log INFO "OK: OEM [$TGT]" || {
-    log ERROR "ERRO: OEM [$TGT]"
-    exit 1
-  } &
-
-  pids+=("$!")
-  job_count=$((job_count + 1))
+    processar_oem "$TGT"
+  ) && log INFO "OK: OEM [$TGT]" || { log ERROR "ERRO: OEM [$TGT]"; exit 1; } &
 done
 
-# --- EDIÇÕES ORIGINAIS ---
+# EDIÇÕES
 for item in "${EDICOES[@]}"; do
   IFS="|" read -r NOME SERIAL <<<"$item"
 
   for TGT in "${TARGETS[@]}"; do
     (
       if ((HAS_TIMEOUT)); then
-        timeout 30s bash -c "$(declare -f processar_modelo processar_linha get_replacement xml_escape escape_sed_replacement safe_filename log); processar_modelo \"$NOME\" \"$SERIAL\" \"$TGT\""
+        timeout 30s processar_modelo "$NOME" "$SERIAL" "$TGT"
       else
-        bash -c "processar_modelo \"$NOME\" \"$SERIAL\" \"$TGT\""
+        processar_modelo "$NOME" "$SERIAL" "$TGT"
       fi
     ) && log INFO "OK: $NOME [$TGT]" || {
       log ERROR "ERRO: $NOME [$TGT]"
@@ -293,16 +228,10 @@ for pid in "${pids[@]}"; do
   wait "$pid" || fail=1
 done
 
-if ((fail)); then
-  log ERROR "FALHA NA MATRIZ"
-  exit 1
-fi
+((fail)) && { log ERROR "FALHA NA MATRIZ"; exit 1; }
 
-TOTAL=$(find "$DIR_SAIDA" -name "*.xml" 2>/dev/null | wc -l || echo 0)
+TOTAL=$(find "$DIR_SAIDA" -name "*.xml" | wc -l)
 
-if ((TOTAL == 0)); then
-  log ERROR "Nenhum XML gerado"
-  exit 1
-fi
+((TOTAL == 0)) && { log ERROR "Nenhum XML gerado"; exit 1; }
 
 log INFO "SUCESSO: $TOTAL gerados em $DIR_SAIDA"
