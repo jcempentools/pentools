@@ -5,12 +5,14 @@
 # DIRETRIZES E OBJETIVOS:
 #   1. Compatível com Bash 4+ (não POSIX puro).
 #   2. Substituição de padrões #{{CHAVE}}# baseada em regras dinâmicas.
-#   3. Injeção de scripts: #{{SCRIPT::VALOR}}#
+#   3. Injeção de scripts: #{{SCRIPT::VALOR}}# importa 'modelo_script_embutido.ps1'
+#      substituindo #{{MODE}}# pelo valor capturado e #{{APPSLST}}# pelo Target.
 #   4. Resiliência: Execução segura sem falhas silenciosas.
-#   5. Automação: Geração de matriz completa.
-#   6. CI/CD ready.
-#   7. NÃO minificar PS1.
-#   8. Log apenas em stderr (compatível com GitHub Actions).
+#   5. Automação: Gera derivações XML para todas as edições e Targets.
+#   6. CI/CD: Projetado para workflows do GitHub Actions e similares.
+#   7. Não pode minificar ps1 inseridos
+#   8. Log em tela, nunca em arquivo
+#   9. Paralelismo eficiente e controlado
 # ==============================================================================
 
 set -euo pipefail
@@ -18,19 +20,31 @@ IFS=$'\n\t'
 
 trap 'log ERROR "Falha inesperada linha=$LINENO cmd=${BASH_COMMAND:-unknown}"' ERR
 
-# --- CONFIG ---
+# --- CONFIGURAÇÕES ---
 DIR_SAIDA="./autounattend"
 ARQUIVO_MODELO="autounattend.model.xml"
 ARQUIVO_SCRIPT="modelo_script_embutido.ps1"
 MAX_JOBS=4
 
-HAS_TIMEOUT=0
-command -v timeout >/dev/null 2>&1 && HAS_TIMEOUT=1
+# timeout opcional
+if command -v timeout >/dev/null 2>&1; then
+  HAS_TIMEOUT=1
+else
+  HAS_TIMEOUT=0
+fi
 
-TARGETS=("Cru" "Basico" "Designer" "Gamer" "Dev" "Full")
+TARGETS=(
+  "Cru"
+  "Basico"
+  "Designer"
+  "Gamer"
+  "Dev"
+  "Full"
+)
 
 CHAVE_SENTINELA="VK7JG-NPHTM-C97JM-9MPGT-3V66T"
 
+# --- MATRIZ ---
 EDICOES=(
   "Home|TX9XD-98N7V-6WMQ6-BX7FG-H8Q99"
   "HomeSingleLanguage|7HNRX-D7KGG-3K4RQ-4WPJ4-YTDFH"
@@ -49,42 +63,49 @@ EDICOES=(
 
 # --- LOG ---
 log() {
-  printf '[%s] [%s] %s\n' "$(date +%F\ %T)" "$1" "${*:2}" >&2
+  local level="$1"; shift
+  printf '[%s] [%s] %s\n' "$(date +%F\ %T)" "$level" "$*" >&2
 }
 
-# --- VALIDAÇÃO ---
-log INFO "Validando arquivos"
+# --- VALIDAÇÕES ---
+log INFO "Validando arquivos de entrada"
 
-[[ -f "$ARQUIVO_MODELO" ]] || { log ERROR "Modelo ausente"; exit 1; }
-[[ -f "$ARQUIVO_SCRIPT" ]] || { log ERROR "PS1 ausente"; exit 1; }
+[[ -f "$ARQUIVO_MODELO" ]] || { log ERROR "Modelo XML não encontrado"; exit 1; }
+[[ -f "$ARQUIVO_SCRIPT" ]] || { log ERROR "Script PS1 não encontrado"; exit 1; }
 
 mkdir -p "$DIR_SAIDA"
 
 # --- CACHE ---
-SCRIPT_CACHE="$(<"$ARQUIVO_SCRIPT")"
-[[ -n "$SCRIPT_CACHE" ]] || { log ERROR "PS1 vazio"; exit 1; }
+log INFO "Carregando cache de arquivos"
 
-# remover comentários XML (robusto)
+SCRIPT_CACHE="$(<"$ARQUIVO_SCRIPT")"
+[[ -n "$SCRIPT_CACHE" ]] || { log ERROR "Script PS1 vazio"; exit 1; }
+
+# Remoção segura de comentários XML
 MODELO_PROCESSADO="$(awk '
-BEGIN{c=0}
+BEGIN { in_comment=0 }
 {
-  l=$0
-  while(1){
-    if(c){
-      if(match(l,/-->/)){
-        l=substr(l,RSTART+3); c=0
-      } else { l=""; break }
+  line=$0
+  while (1) {
+    if (in_comment) {
+      if (match(line, /-->/)) {
+        line = substr(line, RSTART + 3)
+        in_comment=0
+      } else {
+        line=""
+        break
+      }
     } else {
-      if(match(l,/<!--/)){
-        pre=substr(l,1,RSTART-1)
-        l=substr(l,RSTART+4)
-        c=1
-        l=pre l
+      if (match(line, /<!--/)) {
+        prefix = substr(line, 1, RSTART - 1)
+        line = prefix substr(line, RSTART + 4)
+        in_comment=1
       } else break
     }
   }
-  print l
-}' "$ARQUIVO_MODELO")"
+  if (length(line)) print line
+}
+' "$ARQUIVO_MODELO")"
 
 [[ -n "$MODELO_PROCESSADO" ]] || { log ERROR "Modelo vazio"; exit 1; }
 
@@ -97,31 +118,34 @@ xml_escape() {
       -e "s/'/\&apos;/g"
 }
 
+escape_sed_replacement() {
+  sed 's/[\/&]/\\&/g'
+}
+
 safe_filename() {
-  tr -cd '[:alnum:]_.-' <<<"$1" | sed 's/^$/invalid_name/'
+  local out
+  out=$(tr -cd '[:alnum:]_.-' <<<"$1")
+  [[ -n "$out" ]] && printf '%s' "$out" || printf 'invalid_name'
 }
 
 get_replacement() {
-  case "$1" in
-    WINDOWS_EDITION) printf '%s' "$2" ;;
-    NOME_PC) printf 'PC-%s' "${2^^}" ;;
+  local chave="$1" nome="$2"
+  case "$chave" in
+    WINDOWS_EDITION) printf '%s' "$nome" ;;
+    NOME_PC) printf 'PC-%s' "${nome^^}" ;;
     IDIOMA) printf 'pt-BR' ;;
     TIMEZONE) printf 'E. South America Standard Time' ;;
-    *) log ERROR "Chave desconhecida: $1"; return 1 ;;
+    *) log ERROR "chave não mapeada: $chave"; return 1 ;;
   esac
 }
 
-# --- CORE ---
+# --- PROCESSADOR ---
 processar_linha() {
   local linha="$1" nome="$2" serial="$3" target="$4"
 
   local saida="" resto="$linha"
-  local guard=0 MAX_SUBS=1000
 
   while [[ "$resto" == *"#{{"* ]]; do
-    ((guard++))
-    ((guard < MAX_SUBS)) || { log ERROR "Loop infinito detectado"; return 1; }
-
     [[ "$resto" == *"}}#"* ]] || { log ERROR "Placeholder malformado"; return 1; }
 
     local antes="${resto%%#{{*}"
@@ -133,32 +157,30 @@ processar_linha() {
 
     saida+="$antes"
 
-    local sub
+    local substituicao
     if [[ "$chave" == SCRIPT::* ]]; then
       local modo="${chave#SCRIPT::}"
-      sub=$(printf '%s' "$SCRIPT_CACHE" | sed \
-        "s|#{{MODE}}#|$modo|g; s|#{{APPSLST}}#|$target|g")
-      sub=$(printf '%s' "$sub" | xml_escape)
+
+      local modo_esc tgt_esc
+      modo_esc=$(printf '%s' "$modo" | escape_sed_replacement)
+      tgt_esc=$(printf '%s' "$target" | escape_sed_replacement)
+
+      substituicao=$(printf '%s' "$SCRIPT_CACHE" | sed \
+        "s|#{{MODE}}#|$modo_esc|g; s|#{{APPSLST}}#|$tgt_esc|g")
+
+      substituicao=$(printf '%s' "$substituicao" | xml_escape)
     else
-      sub=$(get_replacement "$chave" "$nome") || return 1
-      sub=$(printf '%s' "$sub" | xml_escape)
+      substituicao=$(get_replacement "$chave" "$nome") || return 1
+      substituicao=$(printf '%s' "$substituicao" | xml_escape)
     fi
 
-    saida+="$sub"
+    saida+="$substituicao"
+
+    [[ "$resto" != "$depois" ]] || { log ERROR "Loop detectado"; return 1; }
     resto="$depois"
   done
 
   saida+="$resto"
-
-  # 🔴 substituição SEMPRE
-  saida="${saida//$CHAVE_SENTINELA/$serial}"
-
-  # validação final
-  [[ "$saida" != *"#{{"* ]] || {
-    log ERROR "Placeholder não resolvido"
-    return 1
-  }
-
   printf '%s' "$saida"
 }
 
@@ -173,33 +195,39 @@ processar_modelo() {
   mkdir -p "$(dirname "$destino")"
   : > "$tmp"
 
-  local count=0 MAX=50000
+  local count=0 MAX_LINHAS=50000
 
   while IFS= read -r linha || [[ -n "$linha" ]]; do
     ((count++))
-    ((count < MAX)) || { log ERROR "Loop leitura"; return 1; }
+    ((count < MAX_LINHAS)) || { log ERROR "Loop detectado"; return 1; }
 
     local out
     out=$(processar_linha "$linha" "$nome" "$serial" "$target") || return 1
+
     printf '%s\n' "$out" >> "$tmp"
   done <<<"$MODELO_PROCESSADO"
 
-  [[ -s "$tmp" ]] || { log ERROR "Arquivo vazio"; rm -f "$tmp"; return 1; }
+  [[ -s "$tmp" ]] || { log ERROR "Arquivo vazio: $destino"; rm -f "$tmp"; return 1; }
+
+  # 🔴 substituição GLOBAL (correção principal)
+  sed "s|$CHAVE_SENTINELA|$serial|g" "$tmp" > "${tmp}.2" && mv "${tmp}.2" "$tmp"
 
   mv "$tmp" "$destino"
 
-  command -v xmllint >/dev/null 2>&1 && xmllint --noout "$destino"
+  if command -v xmllint >/dev/null 2>&1; then
+    xmllint --noout "$destino" || return 1
+  fi
 }
 
 export DIR_SAIDA SCRIPT_CACHE MODELO_PROCESSADO
-export -f processar_modelo processar_linha get_replacement xml_escape safe_filename log
+export -f processar_modelo processar_linha get_replacement xml_escape escape_sed_replacement safe_filename log
 
 # --- EXECUÇÃO ---
 job_count=0
 pids=()
 fail=0
 
-log INFO "Iniciando geração"
+log INFO "Iniciando geração da matriz"
 
 for item in "${EDICOES[@]}"; do
   IFS="|" read -r NOME SERIAL <<<"$item"
@@ -209,7 +237,7 @@ for item in "${EDICOES[@]}"; do
       if ((HAS_TIMEOUT)); then
         timeout 30s bash -c "processar_modelo \"$NOME\" \"$SERIAL\" \"$TGT\""
       else
-        processar_modelo "$NOME" "$SERIAL" "$TGT"
+        bash -c "processar_modelo \"$NOME\" \"$SERIAL\" \"$TGT\""
       fi
     ) && log INFO "OK: $NOME [$TGT]" || {
       log ERROR "ERRO: $NOME [$TGT]"
@@ -217,22 +245,32 @@ for item in "${EDICOES[@]}"; do
     } &
 
     pids+=("$!")
-    ((job_count+=1)) || true
+    job_count=$((job_count + 1))
 
     if ((job_count >= MAX_JOBS)); then
-      for pid in "${pids[@]}"; do wait "$pid" || fail=1; done
+      for pid in "${pids[@]}"; do
+        wait "$pid" || fail=1
+      done
       pids=()
       job_count=0
     fi
   done
 done
 
-for pid in "${pids[@]}"; do wait "$pid" || fail=1; done
+for pid in "${pids[@]}"; do
+  wait "$pid" || fail=1
+done
 
-((fail)) && { log ERROR "FALHA NA MATRIZ"; exit 1; }
+if ((fail)); then
+  log ERROR "FALHA NA MATRIZ"
+  exit 1
+fi
 
-TOTAL=$(find "$DIR_SAIDA" -name "*.xml" | wc -l)
+TOTAL=$(find "$DIR_SAIDA" -name "*.xml" 2>/dev/null | wc -l || echo 0)
 
-((TOTAL > 0)) || { log ERROR "Nenhum XML gerado"; exit 1; }
+if ((TOTAL == 0)); then
+  log ERROR "Nenhum XML gerado"
+  exit 1
+fi
 
-log INFO "SUCESSO: $TOTAL gerados"
+log INFO "SUCESSO: $TOTAL gerados em $DIR_SAIDA"
