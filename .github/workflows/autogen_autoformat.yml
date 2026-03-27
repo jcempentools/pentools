@@ -23,6 +23,7 @@ name: Geração de Unattend + Autoformatação (Resiliente, Determinístico e Ob
 #   - Resiliência: retry com tratamento de conflito e limpeza de estado
 #   - Observabilidade: logs estruturados visíveis apenas no console
 #   - Segurança: sem geração de arquivos de log ou execução insegura
+#   - Limite máximo de execução de 60 segundos
 #   - Prettier atua em dois contextos:
 #       * arquivos alterados no commit (escopo global)
 #       * arquivos gerados/modificados em boot/autonome/windows/autounattend/**
