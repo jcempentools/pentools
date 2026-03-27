@@ -9,7 +9,7 @@
 		<component name="Microsoft-Windows-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
 			<UserData>
 				<ProductKey>
-					<Key>VK7JG-NPHTM-C97JM-9MPGT-3V66T</Key>
+					<Key>6TP4R-GNPTD-KYYHQ-7B7DP-JWBTM</Key>
 					<WillShowUI>OnError</WillShowUI>
 				</ProductKey>
 				<AcceptEula>true</AcceptEula>
@@ -34,7 +34,7 @@
 	<settings pass="generalize"></settings>
 	<settings pass="specialize">
 		<component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
-			<ProductKey>VK7JG-NPHTM-C97JM-9MPGT-3V66T</ProductKey>
+			<ProductKey>6TP4R-GNPTD-KYYHQ-7B7DP-JWBTM</ProductKey>
 			<TimeZone>E. South America Standard Time</TimeZone>
 		</component>
 		<component name="Microsoft-Windows-Deployment" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
