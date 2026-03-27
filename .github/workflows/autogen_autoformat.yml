@@ -1,4 +1,4 @@
-name: Geração de Unattend + Autoformatação (Resiliente, Determinístico e Observável)
+name: Geração de Unattend + Autoformatação
 
 # ==============================================================================
 # DESCRIÇÃO:
@@ -23,7 +23,7 @@ name: Geração de Unattend + Autoformatação (Resiliente, Determinístico e Ob
 #   - Resiliência: retry com tratamento de conflito e limpeza de estado
 #   - Observabilidade: logs estruturados visíveis apenas no console
 #   - Segurança: sem geração de arquivos de log ou execução insegura
-#   - Limite máximo de execução de 60 segundos
+#   - Limite máximo de execução de 120 segundos
 #   - Prettier atua em dois contextos:
 #       * arquivos alterados no commit (escopo global)
 #       * arquivos gerados/modificados em boot/autonome/windows/autounattend/**
@@ -45,7 +45,7 @@ concurrency:
 
 jobs:
   process-matrix:
-    timeout-minutes: 1
+    timeout-minutes: 2
 
     if: |
       github.event_name == 'workflow_dispatch' ||
