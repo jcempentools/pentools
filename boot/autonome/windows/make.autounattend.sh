@@ -13,6 +13,9 @@
 #   7. Não pode minificar ps1 inseridos
 #   8. Log em tela, nunca em arquivo
 #   9. Paralelismo eficiente e controlado
+#  10. Manter blcos de código indentificaveis como for/while segregados em 
+#      microfunções para possíveis reutilizações (se aplicável) 
+#      Obrigatório: target
 # ==============================================================================
 
 set -euo pipefail
@@ -25,6 +28,16 @@ DIR_SAIDA="./autounattend"
 ARQUIVO_MODELO="autounattend.model.xml"
 ARQUIVO_SCRIPT="modelo_script_embutido.ps1"
 MAX_JOBS=4
+
+# Mapa futuro para substituições baseadas em chave da BIOS do Windows
+# (Mantido para extensões posteriores — não remover)
+WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO=(  
+  # 1. Bloco Key + WillShowUI
+  '<Key>[A-Z0-9]{5}(-[A-Z0-9]{5}){4}<\/Key>[\s\S]*?<WillShowUI>[\s\S]*?<\/WillShowUI>|<WillShowUI>Never</WillShowUI>'
+  
+  # 2. Tag ProductKey Isolada (Nova solicitação)
+  '<ProductKey>\s*[A-Z0-9]{5}(-[A-Z0-9]{5}){4}\s*<\/ProductKey>| '
+)
 
 # timeout opcional
 if command -v timeout >/dev/null 2>&1; then
@@ -43,14 +56,6 @@ TARGETS=(
 )
 
 CHAVE_SENTINELA="VK7JG-NPHTM-C97JM-9MPGT-3V66T"
-WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO=(  
-  # 1. Bloco Key + WillShowUI
-  '<Key>[A-Z0-9]{5}(-[A-Z0-9]{5}){4}<\/Key>[\s\S]*?<WillShowUI>[\s\S]*?<\/WillShowUI>|<WillShowUI>Never</WillShowUI>'
-  
-  # 2. Tag ProductKey Isolada (Nova solicitação)
-  '<ProductKey>\s*[A-Z0-9]{5}(-[A-Z0-9]{5}){4}\s*<\/ProductKey>| '
-)
-
 
 # --- MATRIZ ---
 EDICOES=(
@@ -76,21 +81,23 @@ log() {
 }
 
 # --- VALIDAÇÕES ---
-log INFO "Validando arquivos de entrada"
+validar_entrada() {
+  log INFO "Validando arquivos de entrada"
 
-[[ -f "$ARQUIVO_MODELO" ]] || { log ERROR "Modelo XML não encontrado"; exit 1; }
-[[ -f "$ARQUIVO_SCRIPT" ]] || { log ERROR "Script PS1 não encontrado"; exit 1; }
+  [[ -f "$ARQUIVO_MODELO" ]] || { log ERROR "Modelo XML não encontrado"; exit 1; }
+  [[ -f "$ARQUIVO_SCRIPT" ]] || { log ERROR "Script PS1 não encontrado"; exit 1; }
 
-mkdir -p "$DIR_SAIDA"
+  mkdir -p "$DIR_SAIDA"
+}
 
 # --- CACHE ---
-log INFO "Carregando cache de arquivos"
+carregar_cache() {
+  log INFO "Carregando cache de arquivos"
 
-SCRIPT_CACHE="$(<"$ARQUIVO_SCRIPT")"
-[[ -n "$SCRIPT_CACHE" ]] || { log ERROR "Script PS1 vazio"; exit 1; }
+  SCRIPT_CACHE="$(<"$ARQUIVO_SCRIPT")"
+  [[ -n "$SCRIPT_CACHE" ]] || { log ERROR "Script PS1 vazio"; exit 1; }
 
-# Remoção segura de comentários XML
-MODELO_PROCESSADO="$(awk '
+  MODELO_PROCESSADO="$(awk '
 BEGIN { in_comment=0 }
 {
   line=$0
@@ -115,7 +122,8 @@ BEGIN { in_comment=0 }
 }
 ' "$ARQUIVO_MODELO")"
 
-[[ -n "$MODELO_PROCESSADO" ]] || { log ERROR "Modelo vazio"; exit 1; }
+  [[ -n "$MODELO_PROCESSADO" ]] || { log ERROR "Modelo vazio"; exit 1; }
+}
 
 # --- UTIL ---
 xml_escape() {
@@ -153,6 +161,7 @@ processar_linha() {
 
   local saida="" resto="$linha"
 
+# Loop de substituição de placeholders dinâmicos
   while [[ "$resto" == *"#{{"* ]]; do
     [[ "$resto" == *"}}#"* ]] || { log ERROR "Placeholder malformado"; return 1; }
 
@@ -205,6 +214,7 @@ processar_modelo() {
 
   local count=0 MAX_LINHAS=50000
 
+# Processa modelo linha a linha para evitar buffering excessivo
   while IFS= read -r linha || [[ -n "$linha" ]]; do
     ((count++))
     ((count < MAX_LINHAS)) || { log ERROR "Loop detectado"; return 1; }
@@ -217,7 +227,6 @@ processar_modelo() {
 
   [[ -s "$tmp" ]] || { log ERROR "Arquivo vazio: $destino"; rm -f "$tmp"; return 1; }
 
-  # 🔴 substituição GLOBAL (correção principal)
   sed "s|$CHAVE_SENTINELA|$serial|g" "$tmp" > "${tmp}.2" && mv "${tmp}.2" "$tmp"
 
   mv "$tmp" "$destino"
@@ -227,58 +236,108 @@ processar_modelo() {
   fi
 }
 
-export DIR_SAIDA SCRIPT_CACHE MODELO_PROCESSADO CHAVE_SENTINELA
-export -f processar_modelo processar_linha get_replacement xml_escape escape_sed_replacement safe_filename log
+# --- EXECUÇÃO PARALELA ---
+# Executa um único job isolado (subshell para paralelismo seguro)
+executar_job() {
+  local nome="$1"
+  local serial="$2"
+  local target="$3"
 
-# --- EXECUÇÃO ---
-job_count=0
-pids=()
-fail=0
+  (
+    if ((HAS_TIMEOUT)); then
+      timeout 30s bash -c "processar_modelo \"$nome\" \"$serial\" \"$target\""
+    else
+      bash -c "processar_modelo \"$nome\" \"$serial\" \"$target\""
+    fi
+  ) && log INFO "OK: $nome [$target]" || {
+    log ERROR "ERRO: $nome [$target]"
+    exit 1
+  }
+}
 
-log INFO "Iniciando geração da matriz"
+# Aguarda todos os PIDs do lote atual
+# Usa nameref para manipular array externo
+aguardar_lote() {
+  local -n _pids=$1
+  local fail_ref=$2
 
-for item in "${EDICOES[@]}"; do
-  IFS="|" read -r NOME SERIAL <<<"$item"
+  for pid in "${_pids[@]}"; do
+    wait "$pid" || eval "$fail_ref=1"
+  done
+
+  _pids=()
+}
+
+# --- ITERAÇÃO DE TARGETS ---
+# Segrega processamento por target para reutilização futura
+executar_targets_para_edicao() {
+  local nome="$1"
+  local serial="$2"
 
   for TGT in "${TARGETS[@]}"; do
-    (
-      if ((HAS_TIMEOUT)); then
-        timeout 30s bash -c "processar_modelo \"$NOME\" \"$SERIAL\" \"$TGT\""
-      else
-        bash -c "processar_modelo \"$NOME\" \"$SERIAL\" \"$TGT\""
-      fi
-    ) && log INFO "OK: $NOME [$TGT]" || {
-      log ERROR "ERRO: $NOME [$TGT]"
-      exit 1
-    } &
+    executar_job "$nome" "$serial" "$TGT" &
 
     pids+=("$!")
     job_count=$((job_count + 1))
 
+    # Controle de paralelismo por lote
     if ((job_count >= MAX_JOBS)); then
-      for pid in "${pids[@]}"; do
-        wait "$pid" || fail=1
-      done
-      pids=()
+      aguardar_lote pids fail
       job_count=0
     fi
   done
-done
+}
 
-for pid in "${pids[@]}"; do
-  wait "$pid" || fail=1
-done
+executar_matriz() {
+  # Contador de jobs paralelos ativos
+  local job_count=0
 
-if ((fail)); then
-  log ERROR "FALHA NA MATRIZ"
-  exit 1
-fi
+  # Lista de PIDs ativos
+  local pids=()
 
-TOTAL=$(find "$DIR_SAIDA" -name "*.xml" 2>/dev/null | wc -l || echo 0)
+  # Flag de falha global
+  fail=0
 
-if ((TOTAL == 0)); then
-  log ERROR "Nenhum XML gerado"
-  exit 1
-fi
+  log INFO "Iniciando geração da matriz"
 
-log INFO "SUCESSO: $TOTAL gerados em $DIR_SAIDA"
+  # Itera cada edição definida na matriz
+  for item in "${EDICOES[@]}"; do
+    IFS="|" read -r NOME SERIAL <<<"$item"
+
+    # Delegação para função segregada de targets
+    executar_targets_para_edicao "$NOME" "$SERIAL"
+  done
+
+  # Aguarda qualquer job restante
+  aguardar_lote pids fail
+}
+
+finalizar_execucao() {
+  if ((fail)); then
+    log ERROR "FALHA NA MATRIZ"
+    exit 1
+  fi
+
+  TOTAL=$(find "$DIR_SAIDA" -name "*.xml" 2>/dev/null | wc -l || echo 0)
+
+  if ((TOTAL == 0)); then
+    log ERROR "Nenhum XML gerado"
+    exit 1
+  fi
+
+  log INFO "SUCESSO: $TOTAL gerados em $DIR_SAIDA"
+}
+
+# --- EXPORTS ---
+export DIR_SAIDA SCRIPT_CACHE MODELO_PROCESSADO CHAVE_SENTINELA
+export -f processar_modelo processar_linha get_replacement xml_escape escape_sed_replacement safe_filename log executar_job
+
+# --- MAIN ---
+main() {
+  validar_entrada
+  carregar_cache
+  executar_matriz
+  finalizar_execucao
+}
+
+main "$@"
