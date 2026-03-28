@@ -26,20 +26,31 @@ ARQUIVO_MODELO="autounattend.model.xml"
 ARQUIVO_SCRIPT="modelo_script_embutido.ps1"
 MAX_JOBS=4
 
+# timeout opcional
 if command -v timeout >/dev/null 2>&1; then
   HAS_TIMEOUT=1
 else
   HAS_TIMEOUT=0
 fi
 
-TARGETS=("Cru" "Basico" "Designer" "Gamer" "Dev" "Full")
+TARGETS=(
+  "Cru"
+  "Basico"
+  "Designer"
+  "Gamer"
+  "Dev"
+  "Full"
+)
 
 CHAVE_SENTINELA="VK7JG-NPHTM-C97JM-9MPGT-3V66T"
-
-WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO=(
+WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO=(  
+  # 1. Bloco Key + WillShowUI
   '<Key>[A-Z0-9]{5}(-[A-Z0-9]{5}){4}<\/Key>[\s\S]*?<WillShowUI>[\s\S]*?<\/WillShowUI>|<WillShowUI>Never</WillShowUI>'
+  
+  # 2. Tag ProductKey Isolada (Nova solicitação)
   '<ProductKey>\s*[A-Z0-9]{5}(-[A-Z0-9]{5}){4}\s*<\/ProductKey>| '
 )
+
 
 # --- MATRIZ ---
 EDICOES=(
@@ -66,6 +77,7 @@ log() {
 
 # --- VALIDAÇÕES ---
 log INFO "Validando arquivos de entrada"
+
 [[ -f "$ARQUIVO_MODELO" ]] || { log ERROR "Modelo XML não encontrado"; exit 1; }
 [[ -f "$ARQUIVO_SCRIPT" ]] || { log ERROR "Script PS1 não encontrado"; exit 1; }
 
@@ -73,9 +85,11 @@ mkdir -p "$DIR_SAIDA"
 
 # --- CACHE ---
 log INFO "Carregando cache de arquivos"
+
 SCRIPT_CACHE="$(<"$ARQUIVO_SCRIPT")"
 [[ -n "$SCRIPT_CACHE" ]] || { log ERROR "Script PS1 vazio"; exit 1; }
 
+# Remoção segura de comentários XML
 MODELO_PROCESSADO="$(awk '
 BEGIN { in_comment=0 }
 {
@@ -136,6 +150,7 @@ get_replacement() {
 # --- PROCESSADOR ---
 processar_linha() {
   local linha="$1" nome="$2" serial="$3" target="$4"
+
   local saida="" resto="$linha"
 
   while [[ "$resto" == *"#{{"* ]]; do
@@ -146,11 +161,14 @@ processar_linha() {
     local chave="${tmp%%}}#*}"
     local depois="${tmp#*}}#}"
 
+    [[ -n "$chave" ]] || { log ERROR "Placeholder vazio"; return 1; }
+
     saida+="$antes"
 
     local substituicao
     if [[ "$chave" == SCRIPT::* ]]; then
       local modo="${chave#SCRIPT::}"
+
       local modo_esc tgt_esc
       modo_esc=$(printf '%s' "$modo" | escape_sed_replacement)
       tgt_esc=$(printf '%s' "$target" | escape_sed_replacement)
@@ -165,6 +183,8 @@ processar_linha() {
     fi
 
     saida+="$substituicao"
+
+    [[ "$resto" != "$depois" ]] || { log ERROR "Loop detectado"; return 1; }
     resto="$depois"
   done
 
@@ -183,35 +203,32 @@ processar_modelo() {
   mkdir -p "$(dirname "$destino")"
   : > "$tmp"
 
+  local count=0 MAX_LINHAS=50000
+
   while IFS= read -r linha || [[ -n "$linha" ]]; do
+    ((count++))
+    ((count < MAX_LINHAS)) || { log ERROR "Loop detectado"; return 1; }
+
     local out
     out=$(processar_linha "$linha" "$nome" "$serial" "$target") || return 1
+
     printf '%s\n' "$out" >> "$tmp"
   done <<<"$MODELO_PROCESSADO"
 
+  [[ -s "$tmp" ]] || { log ERROR "Arquivo vazio: $destino"; rm -f "$tmp"; return 1; }
+
+  # 🔴 substituição GLOBAL (correção principal)
   sed "s|$CHAVE_SENTINELA|$serial|g" "$tmp" > "${tmp}.2" && mv "${tmp}.2" "$tmp"
+
   mv "$tmp" "$destino"
-}
 
-# --- OEM (NOVO, ISOLADO, SEM IMPACTAR PIPELINE EXISTENTE) ---
-processar_oem_pos() {
-  local target="$1"
-  local nome="OEM"
-  local serial=""
-
-  processar_modelo "$nome" "$serial" "$target"
-
-  local destino="$DIR_SAIDA/$nome/$(safe_filename "$target").xml"
-
-  for regra in "${WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO[@]}"; do
-    local pattern="${regra%%|*}"
-    local repl="${regra#*|}"
-    perl -0777 -pe "s|$pattern|$repl|gs" -i "$destino"
-  done
+  if command -v xmllint >/dev/null 2>&1; then
+    xmllint --noout "$destino" || return 1
+  fi
 }
 
 export DIR_SAIDA SCRIPT_CACHE MODELO_PROCESSADO CHAVE_SENTINELA
-export -f processar_modelo processar_linha processar_oem_pos get_replacement xml_escape escape_sed_replacement safe_filename log
+export -f processar_modelo processar_linha get_replacement xml_escape escape_sed_replacement safe_filename log
 
 # --- EXECUÇÃO ---
 job_count=0
@@ -220,23 +237,16 @@ fail=0
 
 log INFO "Iniciando geração da matriz"
 
-# --- OEM EXECUÇÃO (ADICIONADO, NÃO INTERFERE NO RESTO) ---
-for TGT in "${TARGETS[@]}"; do
-  (
-    processar_oem_pos "$TGT"
-  ) && log INFO "OK: OEM [$TGT]" || {
-    log ERROR "ERRO: OEM [$TGT]"
-    exit 1
-  } &
-done
-
-# --- LOOP ORIGINAL INTACTO ---
 for item in "${EDICOES[@]}"; do
   IFS="|" read -r NOME SERIAL <<<"$item"
 
   for TGT in "${TARGETS[@]}"; do
     (
-      processar_modelo "$NOME" "$SERIAL" "$TGT"
+      if ((HAS_TIMEOUT)); then
+        timeout 30s bash -c "processar_modelo \"$NOME\" \"$SERIAL\" \"$TGT\""
+      else
+        bash -c "processar_modelo \"$NOME\" \"$SERIAL\" \"$TGT\""
+      fi
     ) && log INFO "OK: $NOME [$TGT]" || {
       log ERROR "ERRO: $NOME [$TGT]"
       exit 1
