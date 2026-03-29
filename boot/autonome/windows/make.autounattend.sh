@@ -264,9 +264,9 @@ aplicar_substituicoes_oem() {
 # Reutiliza processar_modelo e aplica substituições globais OEM
 processar_modelo_oem() {
   local nome="$1"
-  local target="$2"
+  local _unused_serial="$2"
+  local target="$3"
 
-  # OEM não usa serial, então passamos sentinel para não interferir
   processar_modelo "$nome" "$CHAVE_SENTINELA" "$target"
 
   local destino="$DIR_SAIDA/$(safe_filename "$nome")/$(safe_filename "$target").xml"
@@ -358,7 +358,7 @@ executar_matriz() {
   done
 
   # --- EDIÇÃO OEM (especial) ---
-  executar_targets_para_edicao executar_job_oem "$EDICAO_OEM_NOME"
+  executar_targets_para_edicao executar_job_oem "$EDICAO_OEM_NOME" ""
 
   # Aguarda qualquer job restante
   aguardar_lote pids fail
