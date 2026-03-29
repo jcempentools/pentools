@@ -39,7 +39,7 @@ WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO=(
   '<WillShowUI>[^<]*<\/WillShowUI>|<WillShowUI>Never</WillShowUI>'
   
   # 3. Tag ProductKey Isolada (Nova solicitação)
-  '<ProductKey>\s*[A-Z0-9]{5}(-[A-Z0-9]{5}){4}\s*<\/ProductKey>|'
+  '<ProductKey>[^<]*<\/ProductKey>|'
 )
 
 # timeout opcional
