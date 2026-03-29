@@ -153,7 +153,7 @@ escrever_menu() {
       fi
 
       echo "  menuentry \"${target}\" {"
-      echo "    set xml=\"${path}\""
+      echo "    set xml=\"/boot/autonome/windows${path}\""
       echo "    ventoy_autounattend \$xml"
       echo "  }"
 
