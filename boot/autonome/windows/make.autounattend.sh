@@ -57,6 +57,9 @@ TARGETS=(
 
 CHAVE_SENTINELA="VK7JG-NPHTM-C97JM-9MPGT-3V66T"
 
+# Nome lógico da edição OEM baseada em BIOS
+EDICAO_OEM_NOME="OEM"
+
 # --- MATRIZ ---
 EDICOES=(
   "Home|TX9XD-98N7V-6WMQ6-BX7FG-H8Q99"
@@ -236,23 +239,65 @@ processar_modelo() {
   fi
 }
 
-# --- EXECUÇÃO PARALELA ---
-# Executa um único job isolado (subshell para paralelismo seguro)
-executar_job() {
+# --- SUBSTITUIÇÕES OEM ---
+# Aplica mapa regex -> replacement múltiplas vezes no arquivo gerado
+aplicar_substituicoes_oem() {
+  local arquivo="$1"
+
+  local tmp="${arquivo}.oem"
+
+  cp "$arquivo" "$tmp"
+
+  # Itera pares regex|replacement definidos globalmente
+  for item in "${WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO[@]}"; do
+    local regex="${item%%|*}"
+    local repl="${item#*|}"
+
+    # substituição global múltipla (mesma técnica já usada no script)
+    sed -E "s|$regex|$repl|g" "$tmp" > "${tmp}.2" && mv "${tmp}.2" "$tmp"
+  done
+
+  mv "$tmp" "$arquivo"
+}
+
+# --- PROCESSADOR OEM ---
+# Reutiliza processar_modelo e aplica substituições globais OEM
+processar_modelo_oem() {
   local nome="$1"
-  local serial="$2"
-  local target="$3"
+  local target="$2"
+
+  # OEM não usa serial, então passamos sentinel para não interferir
+  processar_modelo "$nome" "$CHAVE_SENTINELA" "$target"
+
+  local destino="$DIR_SAIDA/$(safe_filename "$nome")/$(safe_filename "$target").xml"
+
+  aplicar_substituicoes_oem "$destino"
+}
+
+executar_job_generico() {
+  local func="$1"
+  local nome="$2"
+  local serial="$3"
+  local target="$4"
 
   (
     if ((HAS_TIMEOUT)); then
-      timeout 30s bash -c "processar_modelo \"$nome\" \"$serial\" \"$target\""
+      timeout 30s bash -c "$func \"$nome\" \"$serial\" \"$target\""
     else
-      bash -c "processar_modelo \"$nome\" \"$serial\" \"$target\""
+      bash -c "$func \"$nome\" \"$serial\" \"$target\""
     fi
   ) && log INFO "OK: $nome [$target]" || {
     log ERROR "ERRO: $nome [$target]"
     exit 1
   }
+}
+
+executar_job() {
+  executar_job_generico processar_modelo "$@"
+}
+
+executar_job_oem() {
+  executar_job_generico processar_modelo_oem "$@"
 }
 
 # Aguarda todos os PIDs do lote atual
@@ -269,18 +314,22 @@ aguardar_lote() {
 }
 
 # --- ITERAÇÃO DE TARGETS ---
-# Segrega processamento por target para reutilização futura
+# Itera targets reutilizando handler de execução (callback)
 executar_targets_para_edicao() {
-  local nome="$1"
-  local serial="$2"
+  local handler="$1"
+  local nome="$2"
+  local serial="${3:-}"
 
-  for TGT in "${TARGETS[@]}"; do
-    executar_job "$nome" "$serial" "$TGT" &
+# Itera todos os targets definidos para a edição atual
+for TGT in "${TARGETS[@]}"; do
+    "$handler" "$nome" "$serial" "$TGT" &
 
+    # Armazena PID do job para controle de paralelismo
     pids+=("$!")
     job_count=$((job_count + 1))
 
     # Controle de paralelismo por lote
+    # Quando atinge limite, aguarda lote atual finalizar
     if ((job_count >= MAX_JOBS)); then
       aguardar_lote pids fail
       job_count=0
@@ -288,6 +337,7 @@ executar_targets_para_edicao() {
   done
 }
 
+# Usa variáveis globais: pids, job_count, fail
 executar_matriz() {
   # Contador de jobs paralelos ativos
   local job_count=0
@@ -300,13 +350,15 @@ executar_matriz() {
 
   log INFO "Iniciando geração da matriz"
 
-  # Itera cada edição definida na matriz
+   # Itera cada edição definida na matriz
   for item in "${EDICOES[@]}"; do
     IFS="|" read -r NOME SERIAL <<<"$item"
 
-    # Delegação para função segregada de targets
-    executar_targets_para_edicao "$NOME" "$SERIAL"
+    executar_targets_para_edicao executar_job "$NOME" "$SERIAL"
   done
+
+  # --- EDIÇÃO OEM (especial) ---
+  executar_targets_para_edicao executar_job_oem "$EDICAO_OEM_NOME"
 
   # Aguarda qualquer job restante
   aguardar_lote pids fail
