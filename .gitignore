@@ -17,14 +17,15 @@
 !/boot/autonome/windows/apps/Adobe/bloquear.ps1
 /CustomDrivers
 /Programs
+/apps/*
+/Drivers/*
+!boot/autonome/windows/Drivers.*
 *.log
 !/ventoy/**/*
 /boot/ventoy-install/
-Disk Backup/
-DiskImage/
+/Disk Backup
+/DiskImage
 /Imagens/*
 /testes/*
-/Drivers/*
-!/Drivers/x99
 *cracked*
 !.gitkeep
