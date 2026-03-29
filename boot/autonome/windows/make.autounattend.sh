@@ -35,14 +35,14 @@ MAX_JOBS=4
 # Vetor global de handlers executados após geração de cada XML
 declare -a HOOK_HANDLERS=()
 
-# Buffer em memória do menu Ventoy (.lst)
+# Buffer em memória do menu Ventoy (.cfg)
 MENU_BUFFER=""
 
 # Arquivo temporário para agregação paralela segura
 MENU_TMP_FILE="$(mktemp)"
 
 # Caminho do arquivo final do menu
-VENTOY_MENU_FILE="$(mktemp)/menu.lst"
+VENTOY_MENU_FILE="$(mktemp)/menu.cfg"
 
 # Executa todos handlers registrados
 executar_hooks() {
@@ -138,8 +138,7 @@ escrever_menu() {
   [[ -s "$MENU_TMP_FILE" ]] || return 0
 
   {
-    echo "# Autogerado - Ventoy Menu"
-    echo "# $(date)"
+    echo "# Autogerado - Ventoy Menu"    
     echo
 
     local last=""
@@ -153,10 +152,10 @@ escrever_menu() {
         last="$edicao"
       fi
 
-      echo "    menuentry \"${target}\" {"
-      echo "        set xml=\"${path}\""
-      echo "        ventoy_autounattend \$xml"
-      echo "    }"
+      echo "  menuentry \"${target}\" {"
+      echo "    set xml=\"${path}\""
+      echo "    ventoy_autounattend \$xml"
+      echo "  }"
 
     done
 
