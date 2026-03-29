@@ -42,7 +42,7 @@ MENU_BUFFER=""
 MENU_TMP_FILE="$(mktemp)"
 
 # Caminho do arquivo final do menu
-VENTOY_MENU_FILE="$(mktemp)/menu.cfg"
+VENTOY_MENU_FILE="$(DIR_SAIDA)/menu.cfg"
 
 # Executa todos handlers registrados
 executar_hooks() {
