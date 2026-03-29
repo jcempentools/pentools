@@ -32,11 +32,14 @@ MAX_JOBS=4
 # Mapa futuro para substituições baseadas em chave da BIOS do Windows
 # (Mantido para extensões posteriores — não remover)
 WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO=(  
-  # 1. Bloco Key + WillShowUI
-  '<Key>([A-Z0-9]{5}(-[A-Z0-9]{5}){4})?<\/Key>[\s\S]*?<WillShowUI>[\s\S]*?<\/WillShowUI>|<WillShowUI>Never</WillShowUI>'
+  # 1. Bloco Key
+  '<Key>[^<]*<\/Key>|'
+
+  # 2. Bloco  WillShowUI
+  '<WillShowUI>[^<]*<\/WillShowUI>|<WillShowUI>Never</WillShowUI>'
   
-  # 2. Tag ProductKey Isolada (Nova solicitação)
-  '<ProductKey>\s*[A-Z0-9]{5}(-[A-Z0-9]{5}){4}\s*<\/ProductKey>| '
+  # 3. Tag ProductKey Isolada (Nova solicitação)
+  '<ProductKey>\s*[A-Z0-9]{5}(-[A-Z0-9]{5}){4}\s*<\/ProductKey>|'
 )
 
 # timeout opcional
