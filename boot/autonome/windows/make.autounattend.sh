@@ -28,10 +28,10 @@ DIR_SAIDA="./autounattend"
 ARQUIVO_MODELO="autounattend.model.xml"
 ARQUIVO_SCRIPT="modelo_script_embutido.ps1"
 MAX_JOBS=4
+
 # ------------------------------------------------------------------------------
 # HOOKS E MENU VENTOY
 # ------------------------------------------------------------------------------
-
 # Vetor global de handlers executados após geração de cada XML
 declare -a HOOK_HANDLERS=()
 
@@ -66,10 +66,6 @@ handler_ventoy_menu() {
   MENU_BUFFER+="title ${edicao} -> ${target}"$'\n'
   MENU_BUFFER+="xml ${rel_path}"$'\n'
 }
-
-
-# Registro padrão do handler Ventoy
-HOOK_HANDLERS+=(handler_ventoy_menu)
 
 # Mapa futuro para substituições baseadas em chave da BIOS do Windows
 # (Mantido para extensões posteriores — não remover)
@@ -141,6 +137,9 @@ escrever_menu() {
 
   log INFO "Menu Ventoy atualizado: $VENTOY_MENU_FILE"
 }
+
+# Registro padrão do handler Ventoy
+HOOK_HANDLERS+=(handler_ventoy_menu)
 
 # --- VALIDAÇÕES ---
 validar_entrada() {
