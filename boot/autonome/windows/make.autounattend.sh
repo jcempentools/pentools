@@ -38,6 +38,9 @@ declare -a HOOK_HANDLERS=()
 # Buffer em memória do menu Ventoy (.lst)
 MENU_BUFFER=""
 
+# Arquivo temporário para agregação paralela segura
+MENU_TMP_FILE="$(mktemp)"
+
 # Caminho do arquivo final do menu
 VENTOY_MENU_FILE="./ventoy_autounattend.lst"
 
@@ -45,6 +48,12 @@ VENTOY_MENU_FILE="./ventoy_autounattend.lst"
 executar_hooks() {
   local xml_path="$1"
   local edicao="$2"
+
+  # fallback para subshell (array não exportado)
+  if [[ ${#HOOK_HANDLERS[@]} -eq 0 ]]; then
+    handler_ventoy_menu "$xml_path" "$edicao"
+    return
+  fi
 
   for handler in "${HOOK_HANDLERS[@]}"; do
     "$handler" "$xml_path" "$edicao"
@@ -62,9 +71,9 @@ handler_ventoy_menu() {
   local target
   target="$(basename "$xml_path" .xml)"
 
-  MENU_BUFFER+=$'\n'
-  MENU_BUFFER+="title ${edicao} -> ${target}"$'\n'
-  MENU_BUFFER+="xml ${rel_path}"$'\n'
+  {
+    echo "${edicao}|${target}|/${rel_path}"
+  } >> "$MENU_TMP_FILE"
 }
 
 # Mapa futuro para substituições baseadas em chave da BIOS do Windows
@@ -126,14 +135,35 @@ log() {
 
 # Persistência final do menu Ventoy
 escrever_menu() {
-  [[ -n "$MENU_BUFFER" ]] || return 0
+  [[ -s "$MENU_TMP_FILE" ]] || return 0
 
   {
     echo "# Autogerado - Ventoy Menu"
     echo "# $(date)"
     echo
-    printf '%s\n' "$MENU_BUFFER"
+
+    local last=""
+
+    sort "$MENU_TMP_FILE" | while IFS="|" read -r edicao target path; do
+
+      if [[ "$last" != "$edicao" ]]; then
+        [[ -n "$last" ]] && echo "}"
+        echo
+        echo "submenu \"Windows ${edicao}\" {"
+        last="$edicao"
+      fi
+
+      echo "    menuentry \"${target}\" {"
+      echo "        set xml=\"${path}\""
+      echo "        ventoy_autounattend \$xml"
+      echo "    }"
+
+    done
+
+    echo "}"
   } > "$VENTOY_MENU_FILE"
+
+  rm -f "$MENU_TMP_FILE"
 
   log INFO "Menu Ventoy atualizado: $VENTOY_MENU_FILE"
 }
