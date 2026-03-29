@@ -42,7 +42,7 @@ MENU_BUFFER=""
 MENU_TMP_FILE="$(mktemp)"
 
 # Caminho do arquivo final do menu
-VENTOY_MENU_FILE="./ventoy_autounattend.lst"
+VENTOY_MENU_FILE="$(mktemp)/menu.lst"
 
 # Executa todos handlers registrados
 executar_hooks() {
