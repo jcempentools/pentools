@@ -96,7 +96,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       # =========================================
       # PRETTIER - CONTEXTO GLOBAL (commit)
@@ -112,7 +112,7 @@ jobs:
             exit 0
           fi
 
-          npm install --no-save --no-package-lock --loglevel=error \
+          npm install -g --no-save --no-package-lock --loglevel=error \
             prettier@3.2.5 \
             prettier-plugin-powershell \
             @prettier/plugin-python
