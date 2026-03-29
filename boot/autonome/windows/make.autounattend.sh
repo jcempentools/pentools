@@ -482,6 +482,9 @@ export -f processar_modelo processar_linha get_replacement xml_escape escape_sed
 export -f executar_hooks
 export -f handler_ventoy_menu
 export -f escrever_menu
+export MENU_TMP_FILE
+export VENTOY_MENU_FILE
+
 # --- MAIN ---
 main() {
   validar_entrada
