@@ -33,7 +33,7 @@ MAX_JOBS=4
 # (Mantido para extensões posteriores — não remover)
 WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO=(  
   # 1. Bloco Key + WillShowUI
-  '<Key>[A-Z0-9]{5}(-[A-Z0-9]{5}){4}<\/Key>[\s\S]*?<WillShowUI>[\s\S]*?<\/WillShowUI>|<WillShowUI>Never</WillShowUI>'
+  '<Key>([A-Z0-9]{5}(-[A-Z0-9]{5}){4})?<\/Key>[\s\S]*?<WillShowUI>[\s\S]*?<\/WillShowUI>|<WillShowUI>Never</WillShowUI>'
   
   # 2. Tag ProductKey Isolada (Nova solicitação)
   '<ProductKey>\s*[A-Z0-9]{5}(-[A-Z0-9]{5}){4}\s*<\/ProductKey>| '
