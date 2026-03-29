@@ -5,6 +5,16 @@
 # Preparar ambiente Windows de forma automática,
 # previsível e rastreável.
 #
+# Comportamento adicional (offline-first avançado):
+# - O pendrive pode conter apps para instalação offline
+#   no caminho padrão: unidade:\boot\autonome\windows\apps\
+# - Se existir "unidade:\apps\", seu conteúdo será mesclado
+#   ao cache local em "${CACHE}\boot\autonome\windows\apps\",
+#   sobrescrevendo arquivos existentes.
+# - Se existir "unidade:\Drivers\", será mesclado à pasta de
+#   Drivers local (mesmo após extração de .7z/zip), permitindo
+#   sobrescrever versões ou adicionar drivers manualmente.
+#
 # Princípios:
 # - Idempotente: não tenta instala o que já foi instalado
 #   (checklist global)
@@ -35,11 +45,11 @@
 # 1. Detecta contexto (SYSTEM/USER)
 # 2. Garante PowerShell 7+
 # 3. Prepara cache local (TEMP persistente via registry)
-# 4. Instala drivers offline (assíncrono)
+# 4. Merge de Drivers externos (unidade:\Drivers) e instalação (assíncrono)
 # 5. Configura ambiente (energia, wallpaper, etc)
 # 6. Atualiza winget
 # 7. Instala apps:
-#    - offline (preferencial)
+#    - offline (merge de unidade:\apps + cache)
 #    - URL direta
 #    - winget (fallback)
 # 8. Lista de app externa e recursiva (@), expandida até resolução
@@ -53,7 +63,7 @@
 # Cache:
 # - %SystemRoot%\Temp\<ID_RANDOM>
 # - Controlado via HKLM:\SOFTWARE\AutonomeInstall
-# - Sincronização incremental via robocopy
+# - Sincronização incremental via robocopy (incluindo pastas externas)
 #
 # Execução:
 # - Padrão: cmd.exe
@@ -1751,15 +1761,34 @@ function Initialize-AutonomeCache {
 
   $drive_root = (Get-Item $src).PSDrive.Root
 
+  # =========================================================
+  # MERGE OFFLINE (ROOT DO PENDRIVE → CACHE)
+  #
+  # Comportamento:
+  # - Conteúdo de "unidade:\Drivers\" é mesclado ao cache
+  #   no mesmo destino onde os drivers extraídos são usados
+  #
+  # - Conteúdo de "unidade:\apps\" é mesclado diretamente
+  #   em:
+  #     ${CACHE}\boot\autonome\windows\apps\
+  #
+  # - Estratégia:
+  #   * Merge incremental (robocopy)
+  #   * Sobrescrita controlada (arquivos mais novos prevalecem)
+  #   * Permite override manual sem rebuild do pacote principal
+  # =========================================================
+
   $drivers = Join-Path $drive_root "Drivers"
   if (Test-Path $drivers) {
-    show_log "Merge Drivers → cache"
+    show_log "Merge Drivers (root) → cache"
+    # merge incremental preservando estrutura
     run_command "robocopy `"$drivers`" `"$dest`" /E /XO /R:1 /W:1 /NFL /NDL /NJH /NJS"
   }
 
   $apps = Join-Path $drive_root "apps"
   if (Test-Path $apps) {
-    show_log "Merge apps → cache"
+    show_log "Merge apps (root) → cache"
+    # merge direto sobre pasta apps do cache (override permitido)
     run_command "robocopy `"$apps`" `"$dest`" /E /XO /R:1 /W:1 /NFL /NDL /NJH /NJS"
   }
 
