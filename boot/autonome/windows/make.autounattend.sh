@@ -28,6 +28,48 @@ DIR_SAIDA="./autounattend"
 ARQUIVO_MODELO="autounattend.model.xml"
 ARQUIVO_SCRIPT="modelo_script_embutido.ps1"
 MAX_JOBS=4
+# ------------------------------------------------------------------------------
+# HOOKS E MENU VENTOY
+# ------------------------------------------------------------------------------
+
+# Vetor global de handlers executados após geração de cada XML
+declare -a HOOK_HANDLERS=()
+
+# Buffer em memória do menu Ventoy (.lst)
+MENU_BUFFER=""
+
+# Caminho do arquivo final do menu
+VENTOY_MENU_FILE="./ventoy_autounattend.lst"
+
+# Executa todos handlers registrados
+executar_hooks() {
+  local xml_path="$1"
+  local edicao="$2"
+
+  for handler in "${HOOK_HANDLERS[@]}"; do
+    "$handler" "$xml_path" "$edicao"
+  done
+}
+
+# Handler: constrói menu Ventoy em memória
+handler_ventoy_menu() {
+  local xml_path="$1"
+  local edicao="$2"
+
+  local rel_path
+  rel_path="${xml_path#./}"
+
+  local target
+  target="$(basename "$xml_path" .xml)"
+
+  MENU_BUFFER+=$'\n'
+  MENU_BUFFER+="title ${edicao} -> ${target}"$'\n'
+  MENU_BUFFER+="xml ${rel_path}"$'\n'
+}
+
+
+# Registro padrão do handler Ventoy
+HOOK_HANDLERS+=(handler_ventoy_menu)
 
 # Mapa futuro para substituições baseadas em chave da BIOS do Windows
 # (Mantido para extensões posteriores — não remover)
@@ -84,6 +126,20 @@ EDICOES=(
 log() {
   local level="$1"; shift
   printf '[%s] [%s] %s\n' "$(date +%F\ %T)" "$level" "$*" >&2
+}
+
+# Persistência final do menu Ventoy
+escrever_menu() {
+  [[ -n "$MENU_BUFFER" ]] || return 0
+
+  {
+    echo "# Autogerado - Ventoy Menu"
+    echo "# $(date)"
+    echo
+    printf '%s\n' "$MENU_BUFFER"
+  } > "$VENTOY_MENU_FILE"
+
+  log INFO "Menu Ventoy atualizado: $VENTOY_MENU_FILE"
 }
 
 # --- VALIDAÇÕES ---
@@ -240,6 +296,11 @@ processar_modelo() {
   if command -v xmllint >/dev/null 2>&1; then
     xmllint --noout "$destino" || return 1
   fi
+
+  # ------------------------------------------------------------------
+  # HOOK: executa handlers após criação do XML
+  # ------------------------------------------------------------------
+  executar_hooks "$destino" "$nome"
 }
 
 # --- SUBSTITUIÇÕES OEM ---
@@ -393,6 +454,7 @@ main() {
   validar_entrada
   carregar_cache
   executar_matriz
+  escrever_menu
   finalizar_execucao
 }
 
