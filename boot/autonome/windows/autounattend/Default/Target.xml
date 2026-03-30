@@ -8,9 +8,7 @@
 		</component>
 		<component name="Microsoft-Windows-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
 			<UserData>
-				<ProductKey>
-					<WillShowUI>Never</WillShowUI>
-				</ProductKey>
+				<ProductKey><Key>$$VNTY_SERIAL_WIN_KEYTAG$$</Key><WillShowUI>Never</WillShowUI></ProductKey>
 				<AcceptEula>true</AcceptEula>
 			</UserData>
 			<UseConfigurationSet>false</UseConfigurationSet>
@@ -32,6 +30,10 @@
 	</settings>
 	<settings pass="generalize"></settings>
 	<settings pass="specialize">
+		<component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+			<ProductKey>$$VNTY_SERIAL_WIN_PRODUCTKEYTAG$$</ProductKey>
+			<TimeZone>E. South America Standard Time</TimeZone>
+		</component>
 		<component name="Microsoft-Windows-Deployment" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
 			<RunSynchronous>
 				<RunSynchronousCommand wcm:action="add">
@@ -55,9 +57,6 @@
 					<Path>reg.exe unload "HKU\DefaultUser"</Path>
 				</RunSynchronousCommand>
 			</RunSynchronous>
-		</component>
-		<component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
-			<TimeZone>E. South America Standard Time</TimeZone>
 		</component>
 	</settings>
 	<settings pass="auditSystem"></settings>
