@@ -7,15 +7,10 @@
 			<UILanguage>pt-BR</UILanguage>
 		</component>
 		<component name="Microsoft-Windows-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
-			<ImageInstall>
-				<OSImage>
-					<InstallFrom>
-						<MetaData><Key>/IMAGE/INDEX</Key><Value>$$VNTY_EDICAO_WIN$$</Value></MetaData>
-					</InstallFrom>
-				</OSImage>
-			</ImageInstall>
 			<UserData>
-				<ProductKey><Key>$$VNTY_SERIAL_WIN$$</Key><WillShowUI>Never</WillShowUI></ProductKey>
+				<ProductKey>
+					<WillShowUI>Never</WillShowUI>
+				</ProductKey>
 				<AcceptEula>true</AcceptEula>
 			</UserData>
 			<UseConfigurationSet>false</UseConfigurationSet>
@@ -37,10 +32,6 @@
 	</settings>
 	<settings pass="generalize"></settings>
 	<settings pass="specialize">
-		<component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
-			<ProductKey>$$VNTY_SERIAL_WIN$$</ProductKey>
-			<TimeZone>E. South America Standard Time</TimeZone>
-		</component>
 		<component name="Microsoft-Windows-Deployment" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
 			<RunSynchronous>
 				<RunSynchronousCommand wcm:action="add">
@@ -64,6 +55,9 @@
 					<Path>reg.exe unload "HKU\DefaultUser"</Path>
 				</RunSynchronousCommand>
 			</RunSynchronous>
+		</component>
+		<component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+			<TimeZone>E. South America Standard Time</TimeZone>
 		</component>
 	</settings>
 	<settings pass="auditSystem"></settings>
