@@ -36,7 +36,7 @@
 #   permanecer pequeno, simples e independente.
 # =============================================================
 
-$Env:install_cru = "$$VNTY_PERFIL_CONFIG$$".Trim().ToLower()
+$Env:install_cru = "#{{TIPO}}#".Trim().ToLower()
 $Env:LOCAL_EXEC = "#{{MODE}}#".Trim().ToUpper()
 
 try {

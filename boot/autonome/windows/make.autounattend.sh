@@ -90,6 +90,8 @@ WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO=(
 
   # 4. MetaData IMAGE INDEX (estrutura completa, tolerante a quebra)
   '<MetaData[^>]*>[[:space:]]*<Key>/IMAGE/INDEX</Key>[[:space:]]*<Value>[^<]*</Value>[[:space:]]*</MetaData>|<MetaData><Key>/IMAGE/INDEX</Key><Value>$$VNTY_EDICAO_WIN$$</Value></MetaData>'
+
+  '#\{\{TIPO\}\}#|$$VNTY_PERFIL_CONFIG$$'
 )
 
 # timeout opcional
