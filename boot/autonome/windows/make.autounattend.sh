@@ -478,7 +478,7 @@ finalizar_execucao() {
 
 # --- EXPORTS ---
 export DIR_SAIDA SCRIPT_CACHE MODELO_PROCESSADO CHAVE_SENTINELA
-export -f processar_modelo_oem aplicar_substituicoes_oem
+export -f processar_modelo_oem aplicar_substituicoes_oem WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO
 export -f processar_modelo processar_linha get_replacement xml_escape escape_sed_replacement safe_filename log executar_job
 
 # --- EXPORTS HOOKS ---
