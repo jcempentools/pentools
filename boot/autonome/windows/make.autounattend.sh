@@ -348,8 +348,9 @@ aplicar_substituicoes_oem() {
     local regex="${item%%|*}"
     local repl="${item#*|}"
 
-    # substituição global múltipla (mesma técnica já usada no script)
-    sed -E "s|$regex|$repl|g" "$tmp" > "${tmp}.2" && mv "${tmp}.2" "$tmp"
+    # IMPORTANTE:
+    # Une todo o arquivo em um único buffer para permitir regex multi-linha
+    sed -E ':a;N;$!ba;s|'"$regex"'|'"$repl"'|g' "$tmp" > "${tmp}.2" && mv "${tmp}.2" "$tmp"
   done
 
   mv "$tmp" "$arquivo"
