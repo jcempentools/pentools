@@ -2,7 +2,10 @@
 /System Volume Information/
 *.log
 *.tmp
-*cracked*
+
+# Ignorar .sha256 que contenham "BB" ou "Crack" (Case-insensitive manual)
+*[Bb][Bb]*
+*[Cc][Rr][Aa][Cc][Kk]*
 
 # === Imagens de Disco e Instaladores ===
 *.iso
@@ -10,8 +13,6 @@
 *.wim
 *.msi
 *.exe
-*.sha*
-*.sha256
 
 # === Arquivos Compactados ===
 *.zip
