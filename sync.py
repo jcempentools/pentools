@@ -176,6 +176,11 @@ def destination_cleanup(root, dry_run=False):
         rel_path = os.path.relpath(dest_full_path, destination_path)
         origin_equivalent = os.path.join(ORIGIN_PATH, rel_path)
 
+        # --- IGNORA PASTAS RAIZ apps/ e Drivers/ NO DESTINO ---
+        # Se estiver na raiz do destino e for uma dessas pastas, ignora completamente
+        if root == destination_path and item in ("apps", "Drivers"):
+            continue
+
         if re.search(IGNORED_PATHS, dest_full_path, re.IGNORECASE):
             continue
 
