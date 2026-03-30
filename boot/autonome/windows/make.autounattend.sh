@@ -352,10 +352,13 @@ aplicar_substituicoes_oem() {
   for item in "${WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO[@]}"; do
     local regex="${item%%|*}"
     local repl="${item#*|}"
-    
-    # Use vírgula (,) ou arroba (@) como delimitador do SED
-    # para não conflitar com o pipe (|) do seu vetor
-    sed_script+="s@$regex@$repl@g;"
+
+    # ESCAPE DOS CIFRÕES: Transforma $$ em \$ \$ para o Bash não expandir o PID
+    # e para o sed não interpretar como fim de linha.
+    repl=$(echo "$repl" | sed 's/\$/\\$/g')
+
+    # Use um delimitador neutro (vírgula)
+    sed_script+="s,${regex},${repl},g;"
   done
 
   # Executa tudo de uma vez (evita perda de contexto entre regras)
