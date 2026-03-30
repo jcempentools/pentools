@@ -263,7 +263,7 @@
         }
       ],
       "parent": "/boot/ISOs/Installs/Windows",
-      "template": "/boot/autonome/windows/autounattend.model.xml"
+      "template": "/boot/autonome/windows/autounattend/Default/Target.xml"
     }
   ]
 }
