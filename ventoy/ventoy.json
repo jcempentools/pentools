@@ -206,7 +206,7 @@
     {
       "control": [
         {
-          "item": "VNTY_EDICAO_WIN",
+          "item": "VNTY_SERIAL_WIN_PRODUCTKEYTAG",
           "value": "<ProductKey>XQQYW-N6F4Q-V3BT8-YBWK2-PTPBT</ProductKey>",
           "menu": [
             "|Confirma? OEM - Windows Original do Equipamento",
@@ -229,7 +229,7 @@
           ]
         },
         {
-          "item": "VNTY_SERIAL_WIN",
+          "item": "VNTY_SERIAL_WIN_KEYTAG",
           "value": "<Key>XQQYW-N6F4Q-V3BT8-YBWK2-PTPBT</Key>",
           "menu": [
             "|Confirma? OEM - Windows Original do Equipamento",
@@ -252,7 +252,7 @@
           ]
         },
         {
-          "item": "VNTY_PERFIL_CONFIG",
+          "item": "VNTY_PERFIL_CONFIG_install_cru",
           "value": "Basico",
           "menu": [
             "|Sistema Limpo (Sem extras)",
