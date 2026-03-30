@@ -376,11 +376,15 @@ executar_job_generico() {
   local serial="$3"
   local target="$4"
 
+  # Serializa o mapa OEM para o subshell (arrays não sobrevivem ao bash -c)
+  local mapa_serializado
+  mapa_serializado="$(declare -p WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO)"
+
   (
     if ((HAS_TIMEOUT)); then
-      timeout 30s bash -c "$func \"$nome\" \"$serial\" \"$target\""
+      timeout 30s bash -c "$mapa_serializado; $func \"$nome\" \"$serial\" \"$target\""
     else
-      bash -c "$func \"$nome\" \"$serial\" \"$target\""
+      bash -c "$mapa_serializado; $func \"$nome\" \"$serial\" \"$target\""
     fi
   ) && log INFO "OK: $nome [$target]" || {
     log ERROR "ERRO: $nome [$target]"
