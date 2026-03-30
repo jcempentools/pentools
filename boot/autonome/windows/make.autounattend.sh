@@ -79,17 +79,17 @@ handler_ventoy_menu() {
 # Mapa futuro para substituições baseadas em chave da BIOS do Windows
 # (Mantido para extensões posteriores — não remover)
 WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO=(    
-  # 1. Bloco  WillShowUI
-  '<WillShowUI>[^<]*<\/WillShowUI>|<WillShowUI>Never</WillShowUI>'
+  # 1. WillShowUI (qualquer conteúdo)
+  '<WillShowUI>[\s\S]*?<\/WillShowUI>|<WillShowUI>Never</WillShowUI>'
   
-  # 2. Tag ProductKey Isolada (Nova solicitação)
-  '<ProductKey>[^<]*<\/ProductKey>|<ProductKey>$$VNTY_SERIAL_WIN$$<\/ProductKey>'
+  # 2. ProductKey simples (qualquer conteúdo interno)
+  '<ProductKey>[\s\S]*?<\/ProductKey>|<ProductKey>$$VNTY_SERIAL_WIN$$<\/ProductKey>'
 
-  # 3. Tag ProductKey Isolada (Nova solicitação)
-  '<ProductKey>[^<]*<Key>[^<]*<\/Key>|<ProductKey><Key>$$VNTY_SERIAL_WIN$$</Key>'  
+  # 3. ProductKey com <Key> interno (estrutura parcial)
+  '<ProductKey>[\s\S]*?<Key>[\s\S]*?<\/Key>[\s\S]*?<\/ProductKey>|<ProductKey><Key>$$VNTY_SERIAL_WIN$$</Key></ProductKey>'  
 
-  # 4. Tag Image/Index Isolada (Nova solicitação)
-  '<Key>\/IMAGE\/INDEX<\/Key>[^<]*<Value>[^<]*<\/Value>[^<]*<\/MetaData>|<Key>/IMAGE/INDEX</Key><Value>$$VNTY_EDICAO_WIN$$</Value><\/MetaData>'
+  # 4. MetaData IMAGE INDEX (totalmente tolerante)
+  '<MetaData[\s\S]*?<Key>\/IMAGE\/INDEX<\/Key>[\s\S]*?<Value>[\s\S]*?<\/Value>[\s\S]*?<\/MetaData>|<Key>/IMAGE/INDEX</Key><Value>$$VNTY_EDICAO_WIN$$</Value></MetaData>'
 )
 
 # timeout opcional
