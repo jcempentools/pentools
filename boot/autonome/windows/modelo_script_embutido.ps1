@@ -36,12 +36,12 @@
 #   permanecer pequeno, simples e independente.
 # =============================================================
 
-$Env:install_cru = "#{{TIPO}}#".Trim().ToLower()
-$Env:LOCAL_EXEC = "#{{MODE}}#".Trim().ToUpper()
+$Env:install_cru = ("#{{TIPO}}#").Trim().ToLower();
+$Env:LOCAL_EXEC = "#{{MODE}}#".Trim().ToUpper();
 
 try {
-  $user = [Environment]::UserName
-  $domain = [Environment]::UserDomainName  
+  $user = [Environment]::UserName;
+  $domain = [Environment]::UserDomainName;
 }
 catch {  
 }
@@ -50,47 +50,47 @@ catch {
 # =========================================================
 # Configuração
 # =========================================================
-$script = "C:\autounattend.ps1"
-$relPath = "boot\autonome\windows\autounattend.ps1"
+$script = "C:\autounattend.ps1";
+$relPath = "boot\autonome\windows\autounattend.ps1";
 
-Remove-Item $script -Force -ErrorAction SilentlyContinue
+Remove-Item $script -Force -ErrorAction SilentlyContinue;
 
 
 # =========================================================
 # Função: localizar script offline
 # =========================================================
 function Find-OfflineScript {
-  $found = $null
+  $found = $null;
 
   foreach ($letter in 65..90) {
     try {
-      $drive = [char]$letter + ":\"
-      $test = $drive + $relPath
+      $drive = [char]$letter + ":\";
+      $test = $drive + $relPath;
       if (Test-Path $test) {
-        $found = $test
-        break
+        $found = $test;
+        break;
       }
     }
     catch {}
   }
 
-  return $found
+  return $found;
 }
 
 
 # =========================================================
 # 1. Tentar localizar offline
 # =========================================================
-$found = Find-OfflineScript
+$found = Find-OfflineScript;
 
 
 # =========================================================
 # 2. Tentar montar volumes se não encontrou
 # =========================================================
 if (-not $found) {
-  try { mountvol /E > $null 2>&1 } catch {}
-  Start-Sleep -Seconds 2
-  $found = Find-OfflineScript
+  try { mountvol /E > $null 2>&1; } catch {}
+  Start-Sleep -Seconds 2;
+  $found = Find-OfflineScript;
 }
 
 
@@ -99,7 +99,7 @@ if (-not $found) {
 # =========================================================
 if ($found) {
   try {
-    Copy-Item $found $script -Force -ErrorAction SilentlyContinue
+    Copy-Item $found $script -Force -ErrorAction SilentlyContinue;
   }
   catch {}
 }
@@ -110,8 +110,8 @@ if ($found) {
 # =========================================================
 if (!(Test-Path $script)) {
   try {
-    $wc = New-Object System.Net.WebClient
-    $wc.DownloadFile("https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/autonome/windows/autounattend.ps1", $script)
+    $wc = New-Object System.Net.WebClient;
+    $wc.DownloadFile("https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/autonome/windows/autounattend.ps1", $script);
   }
   catch {}
 }
@@ -122,7 +122,7 @@ if (!(Test-Path $script)) {
 # =========================================================
 if (Test-Path $script) {
   try {
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script;
   }
   catch {}
 }
@@ -130,6 +130,6 @@ if (Test-Path $script) {
 
 # limpeza silenciosa
 try {
-  Remove-Item $script -Force -ErrorAction SilentlyContinue
+  Remove-Item $script -Force -ErrorAction SilentlyContinue;
 }
 catch {}
