@@ -80,6 +80,7 @@ jobs:
             boot/autonome/windows/autounattend.model.xml
             **/*.{ps1,py,bat,json,sh}
             boot/autonome/windows/make.autounattend.sh
+            boot/autonome/windows/modelo_script_embutido.ps1
           files_ignore: |
             boot/autonome/windows/autounattend/**
             **/*.min.*
