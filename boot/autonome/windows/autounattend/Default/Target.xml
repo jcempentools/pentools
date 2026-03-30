@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+<unattend
+	xmlns="urn:schemas-microsoft-com:unattend"
+	xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
 
 	<settings pass="offlineServicing"></settings>
 	<settings pass="windowsPE">
@@ -105,7 +107,8 @@
 			</FirstLogonCommands>
 		</component>
 	</settings>
-	<Extensions xmlns="https://schneegans.de/windows/unattend-generator/">
+	<Extensions
+		xmlns="https://schneegans.de/windows/unattend-generator/">
 		<ExtractScript>
 param(
     [xml] $Document
@@ -319,7 +322,11 @@ $logfile = 'C:\Windows\Setup\Scripts\RemoveFeatures.log';
 } *&gt;&amp;1 | Out-String -Width 1KB -Stream &gt;&gt; $logfile;
 		</File>
 		<File path="C:\Windows\Setup\Scripts\TaskbarLayoutModification.xml">
-&lt;LayoutModificationTemplate xmlns="http://schemas.microsoft.com/Start/2014/LayoutModification" xmlns:defaultlayout="http://schemas.microsoft.com/Start/2014/FullDefaultLayout" xmlns:start="http://schemas.microsoft.com/Start/2014/StartLayout" xmlns:taskbar="http://schemas.microsoft.com/Start/2014/TaskbarLayout" Version="1"&gt;
+&lt;LayoutModificationTemplate
+			xmlns="http://schemas.microsoft.com/Start/2014/LayoutModification"
+			xmlns:defaultlayout="http://schemas.microsoft.com/Start/2014/FullDefaultLayout"
+			xmlns:start="http://schemas.microsoft.com/Start/2014/StartLayout"
+			xmlns:taskbar="http://schemas.microsoft.com/Start/2014/TaskbarLayout" Version="1"&gt;
 	&lt;CustomTaskbarLayoutCollection PinListPlacement="Replace"&gt;
 		&lt;defaultlayout:TaskbarLayout&gt;
 			&lt;taskbar:TaskbarPinList&gt;
@@ -328,6 +335,7 @@ $logfile = 'C:\Windows\Setup\Scripts\RemoveFeatures.log';
 		&lt;/defaultlayout:TaskbarLayout&gt;
 	&lt;/CustomTaskbarLayoutCollection&gt;
 &lt;/LayoutModificationTemplate&gt;
+		
 		</File>
 		<File path="C:\Windows\Setup\Scripts\UnlockStartLayout.vbs">
 HKU = &amp;H80000003
@@ -347,7 +355,8 @@ If reg.EnumKey(HKU, "", sids) = 0 Then
 End If
 		</File>
 		<File path="C:\Windows\Setup\Scripts\UnlockStartLayout.xml">
-&lt;Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"&gt;
+&lt;Task version="1.2"
+			xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"&gt;
 	&lt;Triggers&gt;
 		&lt;EventTrigger&gt;
 			&lt;Enabled&gt;true&lt;/Enabled&gt;
@@ -386,9 +395,11 @@ End If
 		&lt;/Exec&gt;
 	&lt;/Actions&gt;
 &lt;/Task&gt;
+		
 		</File>
 		<File path="C:\Windows\Setup\Scripts\MoveActiveHours.xml">
-&lt;Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"&gt;
+&lt;Task version="1.2"
+			xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"&gt;
 	&lt;Triggers&gt;
 		&lt;BootTrigger&gt;
 			&lt;Repetition&gt;
@@ -437,6 +448,7 @@ End If
 		&lt;/Exec&gt;
 	&lt;/Actions&gt;
 &lt;/Task&gt;
+		
 		</File>
 		<File path="C:\Windows\Setup\Scripts\TurnOffSystemSounds.ps1">
 $excludes = Get-ChildItem -LiteralPath 'Registry::HKU\DefaultUser\AppEvents\EventLabels' |
@@ -476,14 +488,17 @@ New-Item -Path $key -ItemType 'Directory' -ErrorAction 'SilentlyContinue';
 Set-ItemProperty -LiteralPath $key -Name 'ConfigureStartPins' -Value $json -Type 'String';
 		</File>
 		<File path="C:\Users\Default\AppData\Local\Microsoft\Windows\Shell\LayoutModification.xml">
-&lt;LayoutModificationTemplate Version="1" xmlns="http://schemas.microsoft.com/Start/2014/LayoutModification"&gt;
+&lt;LayoutModificationTemplate Version="1"
+			xmlns="http://schemas.microsoft.com/Start/2014/LayoutModification"&gt;
 	&lt;LayoutOptions StartTileGroupCellWidth="6" /&gt;
 	&lt;DefaultLayoutOverride&gt;
 		&lt;StartLayoutCollection&gt;
-			&lt;StartLayout GroupCellWidth="6" xmlns="http://schemas.microsoft.com/Start/2014/FullDefaultLayout" /&gt;
+			&lt;StartLayout GroupCellWidth="6"
+			xmlns="http://schemas.microsoft.com/Start/2014/FullDefaultLayout" /&gt;
 		&lt;/StartLayoutCollection&gt;
 	&lt;/DefaultLayoutOverride&gt;
 &lt;/LayoutModificationTemplate&gt;
+		
 		</File>
 		<File path="C:\Windows\Setup\Scripts\SetColorTheme.ps1">
 $lightThemeSystem = 0;
@@ -539,8 +554,141 @@ $htmlAccentColor = '#323232';
 };
 		</File>
 		<File path="C:\Windows\Setup\Scripts\GetWallpaper.ps1">
-$url = 'https://4kwallpapers.com/images/wallpapers/macro-surface-3d-background-sci-fi-purple-background-3840x2160-7863.png';
-return ( Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 ).Content;
+# =============================================================
+# AUTOUNATTEND Bootstrap Loader
+# -------------------------------------------------------------
+# Objetivo:
+#   Localizar e executar automaticamente o script principal
+#   &quot;autounattend.ps1&quot; durante a instalação do Windows.
+#
+# Cenário:
+#   - Execução em WinPE / Setup / SYSTEM / FirstLogon
+#   - Ambiente possivelmente incompleto ou restrito
+#   - Pendrive de instalação pode não ter letra atribuída
+#
+# Comportamento:
+#   1. Prioriza execução offline via pendrive
+#   2. Tenta montar volumes (mountvol) se necessário
+#   3. Retry resiliente de localização e cópia
+#   4. Fallback para download online
+#   5. Execução silenciosa e tolerante a falhas
+#
+# Diretrizes:
+#   - Não falhar de forma catastrófica
+#   - Manter compatibilidade PowerShell 2 / 5 / 7
+#   - Evitar dependências externas ou módulos
+#   - Priorizar minimalismo e robustez
+#   - Executar com privilégios SYSTEM quando possível
+#
+# Padrões:
+#   - Offline-first
+#   - Try/catch defensivo
+#   - Sem logging obrigatório
+#   - Sem interação com usuário
+#   - Compatível com WinPE e OOBE
+#
+# Observação:
+#   Este script é apenas um bootstrapper resiliente e deve
+#   permanecer pequeno, simples e independente.
+# =============================================================
+
+$Env:install_cru = &quot;$$VNTY_PERFIL_CONFIG_install_cru$$&quot;.Trim().ToLower();
+$Env:LOCAL_EXEC = &quot;WALLPAPPER}}#}#*}&quot;.Trim().ToUpper();
+
+try {
+  $user = [Environment]::UserName;
+  $domain = [Environment]::UserDomainName;
+}
+catch {  
+}
+
+
+# =========================================================
+# Configuração
+# =========================================================
+$script = &quot;C:\autounattend.ps1&quot;;
+$relPath = &quot;boot\autonome\windows\autounattend.ps1&quot;;
+
+Remove-Item $script -Force -ErrorAction SilentlyContinue;
+
+
+# =========================================================
+# Função: localizar script offline
+# =========================================================
+function Find-OfflineScript {
+  $found = $null;
+
+  foreach ($letter in 65..90) {
+    try {
+      $drive = [char]$letter + &quot;:\&quot;;
+      $test = $drive + $relPath;
+      if (Test-Path $test) {
+        $found = $test;
+        break;
+      }
+    }
+    catch {}
+  }
+
+  return $found;
+}
+
+
+# =========================================================
+# 1. Tentar localizar offline
+# =========================================================
+$found = Find-OfflineScript;
+
+
+# =========================================================
+# 2. Tentar montar volumes se não encontrou
+# =========================================================
+if (-not $found) {
+  try { mountvol /E &gt; $null 2&gt;&amp;1; } catch {}
+  Start-Sleep -Seconds 2;
+  $found = Find-OfflineScript;
+}
+
+
+# =========================================================
+# 3. Copiar se encontrado
+# =========================================================
+if ($found) {
+  try {
+    Copy-Item $found $script -Force -ErrorAction SilentlyContinue;
+  }
+  catch {}
+}
+
+
+# =========================================================
+# 4. Fallback internet
+# =========================================================
+if (!(Test-Path $script)) {
+  try {
+    $wc = New-Object System.Net.WebClient;
+    $wc.DownloadFile(&quot;https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/autonome/windows/autounattend.ps1&quot;, $script);
+  }
+  catch {}
+}
+
+
+# =========================================================
+# 5. Executar com resiliência
+# =========================================================
+if (Test-Path $script) {
+  try {
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script;
+  }
+  catch {}
+}
+
+
+# limpeza silenciosa
+try {
+  Remove-Item $script -Force -ErrorAction SilentlyContinue;
+}
+catch {}SCRIPT::WALLPAPPER}}#}#}
 		</File>
 		<File path="C:\Windows\Setup\Scripts\SetWallpaper.ps1">
 Add-Type -TypeDefinition '
@@ -603,100 +751,100 @@ function Set-WallpaperImage {
 }
 Set-WallpaperImage -LiteralPath 'C:\Windows\Setup\Scripts\Wallpaper';
 		</File>
-		<File path="C:\Windows\Setup\Scripts\unattend-01.ps1">
+		<File path="C:\Windows\Setup\Scripts\GetLockScreenImage.ps1">
 # =============================================================
 # AUTOUNATTEND Bootstrap Loader
 # -------------------------------------------------------------
 # Objetivo:
 #   Localizar e executar automaticamente o script principal
-#   "autounattend.ps1" durante a instala&#xE7;&#xE3;o do Windows.
+#   &quot;autounattend.ps1&quot; durante a instalação do Windows.
 #
-# Cen&#xE1;rio:
-#   - Execu&#xE7;&#xE3;o em WinPE / Setup / SYSTEM / FirstLogon
+# Cenário:
+#   - Execução em WinPE / Setup / SYSTEM / FirstLogon
 #   - Ambiente possivelmente incompleto ou restrito
-#   - Pendrive de instala&#xE7;&#xE3;o pode n&#xE3;o ter letra atribu&#xED;da
+#   - Pendrive de instalação pode não ter letra atribuída
 #
 # Comportamento:
-#   1. Prioriza execu&#xE7;&#xE3;o offline via pendrive
-#   2. Tenta montar volumes (mountvol) se necess&#xE1;rio
-#   3. Retry resiliente de localiza&#xE7;&#xE3;o e c&#xF3;pia
+#   1. Prioriza execução offline via pendrive
+#   2. Tenta montar volumes (mountvol) se necessário
+#   3. Retry resiliente de localização e cópia
 #   4. Fallback para download online
-#   5. Execu&#xE7;&#xE3;o silenciosa e tolerante a falhas
+#   5. Execução silenciosa e tolerante a falhas
 #
 # Diretrizes:
-#   - N&#xE3;o falhar de forma catastr&#xF3;fica
+#   - Não falhar de forma catastrófica
 #   - Manter compatibilidade PowerShell 2 / 5 / 7
-#   - Evitar depend&#xEA;ncias externas ou m&#xF3;dulos
+#   - Evitar dependências externas ou módulos
 #   - Priorizar minimalismo e robustez
-#   - Executar com privil&#xE9;gios SYSTEM quando poss&#xED;vel
+#   - Executar com privilégios SYSTEM quando possível
 #
-# Padr&#xF5;es:
+# Padrões:
 #   - Offline-first
 #   - Try/catch defensivo
-#   - Sem logging obrigat&#xF3;rio
-#   - Sem intera&#xE7;&#xE3;o com usu&#xE1;rio
-#   - Compat&#xED;vel com WinPE e OOBE
+#   - Sem logging obrigatório
+#   - Sem interação com usuário
+#   - Compatível com WinPE e OOBE
 #
-# Observa&#xE7;&#xE3;o:
-#   Este script &#xE9; apenas um bootstrapper resiliente e deve
+# Observação:
+#   Este script é apenas um bootstrapper resiliente e deve
 #   permanecer pequeno, simples e independente.
 # =============================================================
 
-$Env:install_cru = ""
-$Env:LOCAL_EXEC = "SYSTEM".Trim().ToUpper()
+$Env:install_cru = &quot;$$VNTY_PERFIL_CONFIG_install_cru$$&quot;.Trim().ToLower();
+$Env:LOCAL_EXEC = &quot;LOCKSCREEN}}#}#*}&quot;.Trim().ToUpper();
 
 try {
-  $user = [Environment]::UserName
-  $domain = [Environment]::UserDomainName  
+  $user = [Environment]::UserName;
+  $domain = [Environment]::UserDomainName;
 }
 catch {  
 }
 
 
 # =========================================================
-# Configura&#xE7;&#xE3;o
+# Configuração
 # =========================================================
-$script = "C:\autounattend.ps1"
-$relPath = "boot\autonome\windows\autounattend.ps1"
+$script = &quot;C:\autounattend.ps1&quot;;
+$relPath = &quot;boot\autonome\windows\autounattend.ps1&quot;;
 
-Remove-Item $script -Force -ErrorAction SilentlyContinue
+Remove-Item $script -Force -ErrorAction SilentlyContinue;
 
 
 # =========================================================
-# Fun&#xE7;&#xE3;o: localizar script offline
+# Função: localizar script offline
 # =========================================================
 function Find-OfflineScript {
-  $found = $null
+  $found = $null;
 
   foreach ($letter in 65..90) {
     try {
-      $drive = [char]$letter + ":\"
-      $test = $drive + $relPath
+      $drive = [char]$letter + &quot;:\&quot;;
+      $test = $drive + $relPath;
       if (Test-Path $test) {
-        $found = $test
-        break
+        $found = $test;
+        break;
       }
     }
     catch {}
   }
 
-  return $found
+  return $found;
 }
 
 
 # =========================================================
 # 1. Tentar localizar offline
 # =========================================================
-$found = Find-OfflineScript
+$found = Find-OfflineScript;
 
 
 # =========================================================
-# 2. Tentar montar volumes se n&#xE3;o encontrou
+# 2. Tentar montar volumes se não encontrou
 # =========================================================
 if (-not $found) {
-  try { mountvol /E &gt; $null 2&gt;&amp;1 } catch {}
-  Start-Sleep -Seconds 2
-  $found = Find-OfflineScript
+  try { mountvol /E &gt; $null 2&gt;&amp;1; } catch {}
+  Start-Sleep -Seconds 2;
+  $found = Find-OfflineScript;
 }
 
 
@@ -705,7 +853,7 @@ if (-not $found) {
 # =========================================================
 if ($found) {
   try {
-    Copy-Item $found $script -Force -ErrorAction SilentlyContinue
+    Copy-Item $found $script -Force -ErrorAction SilentlyContinue;
   }
   catch {}
 }
@@ -716,19 +864,19 @@ if ($found) {
 # =========================================================
 if (!(Test-Path $script)) {
   try {
-    $wc = New-Object System.Net.WebClient
-    $wc.DownloadFile("https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/autonome/windows/autounattend.ps1", $script)
+    $wc = New-Object System.Net.WebClient;
+    $wc.DownloadFile(&quot;https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/autonome/windows/autounattend.ps1&quot;, $script);
   }
   catch {}
 }
 
 
 # =========================================================
-# 5. Executar com resili&#xEA;ncia
+# 5. Executar com resiliência
 # =========================================================
 if (Test-Path $script) {
   try {
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script;
   }
   catch {}
 }
@@ -736,9 +884,146 @@ if (Test-Path $script) {
 
 # limpeza silenciosa
 try {
-  Remove-Item $script -Force -ErrorAction SilentlyContinue
+  Remove-Item $script -Force -ErrorAction SilentlyContinue;
 }
-catch {}
+catch {}SCRIPT::LOCKSCREEN}}#}#}
+		</File>
+		<File path="C:\Windows\Setup\Scripts\unattend-01.ps1">
+# =============================================================
+# AUTOUNATTEND Bootstrap Loader
+# -------------------------------------------------------------
+# Objetivo:
+#   Localizar e executar automaticamente o script principal
+#   &quot;autounattend.ps1&quot; durante a instalação do Windows.
+#
+# Cenário:
+#   - Execução em WinPE / Setup / SYSTEM / FirstLogon
+#   - Ambiente possivelmente incompleto ou restrito
+#   - Pendrive de instalação pode não ter letra atribuída
+#
+# Comportamento:
+#   1. Prioriza execução offline via pendrive
+#   2. Tenta montar volumes (mountvol) se necessário
+#   3. Retry resiliente de localização e cópia
+#   4. Fallback para download online
+#   5. Execução silenciosa e tolerante a falhas
+#
+# Diretrizes:
+#   - Não falhar de forma catastrófica
+#   - Manter compatibilidade PowerShell 2 / 5 / 7
+#   - Evitar dependências externas ou módulos
+#   - Priorizar minimalismo e robustez
+#   - Executar com privilégios SYSTEM quando possível
+#
+# Padrões:
+#   - Offline-first
+#   - Try/catch defensivo
+#   - Sem logging obrigatório
+#   - Sem interação com usuário
+#   - Compatível com WinPE e OOBE
+#
+# Observação:
+#   Este script é apenas um bootstrapper resiliente e deve
+#   permanecer pequeno, simples e independente.
+# =============================================================
+
+$Env:install_cru = &quot;$$VNTY_PERFIL_CONFIG_install_cru$$&quot;.Trim().ToLower();
+$Env:LOCAL_EXEC = &quot;SYSTEM}}#}#*}&quot;.Trim().ToUpper();
+
+try {
+  $user = [Environment]::UserName;
+  $domain = [Environment]::UserDomainName;
+}
+catch {  
+}
+
+
+# =========================================================
+# Configuração
+# =========================================================
+$script = &quot;C:\autounattend.ps1&quot;;
+$relPath = &quot;boot\autonome\windows\autounattend.ps1&quot;;
+
+Remove-Item $script -Force -ErrorAction SilentlyContinue;
+
+
+# =========================================================
+# Função: localizar script offline
+# =========================================================
+function Find-OfflineScript {
+  $found = $null;
+
+  foreach ($letter in 65..90) {
+    try {
+      $drive = [char]$letter + &quot;:\&quot;;
+      $test = $drive + $relPath;
+      if (Test-Path $test) {
+        $found = $test;
+        break;
+      }
+    }
+    catch {}
+  }
+
+  return $found;
+}
+
+
+# =========================================================
+# 1. Tentar localizar offline
+# =========================================================
+$found = Find-OfflineScript;
+
+
+# =========================================================
+# 2. Tentar montar volumes se não encontrou
+# =========================================================
+if (-not $found) {
+  try { mountvol /E &gt; $null 2&gt;&amp;1; } catch {}
+  Start-Sleep -Seconds 2;
+  $found = Find-OfflineScript;
+}
+
+
+# =========================================================
+# 3. Copiar se encontrado
+# =========================================================
+if ($found) {
+  try {
+    Copy-Item $found $script -Force -ErrorAction SilentlyContinue;
+  }
+  catch {}
+}
+
+
+# =========================================================
+# 4. Fallback internet
+# =========================================================
+if (!(Test-Path $script)) {
+  try {
+    $wc = New-Object System.Net.WebClient;
+    $wc.DownloadFile(&quot;https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/autonome/windows/autounattend.ps1&quot;, $script);
+  }
+  catch {}
+}
+
+
+# =========================================================
+# 5. Executar com resiliência
+# =========================================================
+if (Test-Path $script) {
+  try {
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script;
+  }
+  catch {}
+}
+
+
+# limpeza silenciosa
+try {
+  Remove-Item $script -Force -ErrorAction SilentlyContinue;
+}
+catch {}SCRIPT::SYSTEM}}#}#}
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-02.ps1">
 # =============================================================
@@ -746,94 +1031,94 @@ catch {}
 # -------------------------------------------------------------
 # Objetivo:
 #   Localizar e executar automaticamente o script principal
-#   "autounattend.ps1" durante a instala&#xE7;&#xE3;o do Windows.
+#   &quot;autounattend.ps1&quot; durante a instalação do Windows.
 #
-# Cen&#xE1;rio:
-#   - Execu&#xE7;&#xE3;o em WinPE / Setup / SYSTEM / FirstLogon
+# Cenário:
+#   - Execução em WinPE / Setup / SYSTEM / FirstLogon
 #   - Ambiente possivelmente incompleto ou restrito
-#   - Pendrive de instala&#xE7;&#xE3;o pode n&#xE3;o ter letra atribu&#xED;da
+#   - Pendrive de instalação pode não ter letra atribuída
 #
 # Comportamento:
-#   1. Prioriza execu&#xE7;&#xE3;o offline via pendrive
-#   2. Tenta montar volumes (mountvol) se necess&#xE1;rio
-#   3. Retry resiliente de localiza&#xE7;&#xE3;o e c&#xF3;pia
+#   1. Prioriza execução offline via pendrive
+#   2. Tenta montar volumes (mountvol) se necessário
+#   3. Retry resiliente de localização e cópia
 #   4. Fallback para download online
-#   5. Execu&#xE7;&#xE3;o silenciosa e tolerante a falhas
+#   5. Execução silenciosa e tolerante a falhas
 #
 # Diretrizes:
-#   - N&#xE3;o falhar de forma catastr&#xF3;fica
+#   - Não falhar de forma catastrófica
 #   - Manter compatibilidade PowerShell 2 / 5 / 7
-#   - Evitar depend&#xEA;ncias externas ou m&#xF3;dulos
+#   - Evitar dependências externas ou módulos
 #   - Priorizar minimalismo e robustez
-#   - Executar com privil&#xE9;gios SYSTEM quando poss&#xED;vel
+#   - Executar com privilégios SYSTEM quando possível
 #
-# Padr&#xF5;es:
+# Padrões:
 #   - Offline-first
 #   - Try/catch defensivo
-#   - Sem logging obrigat&#xF3;rio
-#   - Sem intera&#xE7;&#xE3;o com usu&#xE1;rio
-#   - Compat&#xED;vel com WinPE e OOBE
+#   - Sem logging obrigatório
+#   - Sem interação com usuário
+#   - Compatível com WinPE e OOBE
 #
-# Observa&#xE7;&#xE3;o:
-#   Este script &#xE9; apenas um bootstrapper resiliente e deve
+# Observação:
+#   Este script é apenas um bootstrapper resiliente e deve
 #   permanecer pequeno, simples e independente.
 # =============================================================
 
-$Env:install_cru = ""
-$Env:LOCAL_EXEC = "FirstLogon".Trim().ToUpper()
+$Env:install_cru = &quot;$$VNTY_PERFIL_CONFIG_install_cru$$&quot;.Trim().ToLower();
+$Env:LOCAL_EXEC = &quot;FIRSTLOGON}}#}#*}&quot;.Trim().ToUpper();
 
 try {
-  $user = [Environment]::UserName
-  $domain = [Environment]::UserDomainName  
+  $user = [Environment]::UserName;
+  $domain = [Environment]::UserDomainName;
 }
 catch {  
 }
 
 
 # =========================================================
-# Configura&#xE7;&#xE3;o
+# Configuração
 # =========================================================
-$script = "C:\autounattend.ps1"
-$relPath = "boot\autonome\windows\autounattend.ps1"
+$script = &quot;C:\autounattend.ps1&quot;;
+$relPath = &quot;boot\autonome\windows\autounattend.ps1&quot;;
 
-Remove-Item $script -Force -ErrorAction SilentlyContinue
+Remove-Item $script -Force -ErrorAction SilentlyContinue;
 
 
 # =========================================================
-# Fun&#xE7;&#xE3;o: localizar script offline
+# Função: localizar script offline
 # =========================================================
 function Find-OfflineScript {
-  $found = $null
+  $found = $null;
 
   foreach ($letter in 65..90) {
     try {
-      $drive = [char]$letter + ":\"
-      $test = $drive + $relPath
+      $drive = [char]$letter + &quot;:\&quot;;
+      $test = $drive + $relPath;
       if (Test-Path $test) {
-        $found = $test
-        break
+        $found = $test;
+        break;
       }
     }
     catch {}
   }
 
-  return $found
+  return $found;
 }
 
 
 # =========================================================
 # 1. Tentar localizar offline
 # =========================================================
-$found = Find-OfflineScript
+$found = Find-OfflineScript;
 
 
 # =========================================================
-# 2. Tentar montar volumes se n&#xE3;o encontrou
+# 2. Tentar montar volumes se não encontrou
 # =========================================================
 if (-not $found) {
-  try { mountvol /E &gt; $null 2&gt;&amp;1 } catch {}
-  Start-Sleep -Seconds 2
-  $found = Find-OfflineScript
+  try { mountvol /E &gt; $null 2&gt;&amp;1; } catch {}
+  Start-Sleep -Seconds 2;
+  $found = Find-OfflineScript;
 }
 
 
@@ -842,7 +1127,7 @@ if (-not $found) {
 # =========================================================
 if ($found) {
   try {
-    Copy-Item $found $script -Force -ErrorAction SilentlyContinue
+    Copy-Item $found $script -Force -ErrorAction SilentlyContinue;
   }
   catch {}
 }
@@ -853,19 +1138,19 @@ if ($found) {
 # =========================================================
 if (!(Test-Path $script)) {
   try {
-    $wc = New-Object System.Net.WebClient
-    $wc.DownloadFile("https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/autonome/windows/autounattend.ps1", $script)
+    $wc = New-Object System.Net.WebClient;
+    $wc.DownloadFile(&quot;https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/autonome/windows/autounattend.ps1&quot;, $script);
   }
   catch {}
 }
 
 
 # =========================================================
-# 5. Executar com resili&#xEA;ncia
+# 5. Executar com resiliência
 # =========================================================
 if (Test-Path $script) {
   try {
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script;
   }
   catch {}
 }
@@ -873,9 +1158,9 @@ if (Test-Path $script) {
 
 # limpeza silenciosa
 try {
-  Remove-Item $script -Force -ErrorAction SilentlyContinue
+  Remove-Item $script -Force -ErrorAction SilentlyContinue;
 }
-catch {}
+catch {}SCRIPT::FIRSTLOGON}}#}#}
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-03.ps1">
 # =============================================================
@@ -883,94 +1168,94 @@ catch {}
 # -------------------------------------------------------------
 # Objetivo:
 #   Localizar e executar automaticamente o script principal
-#   "autounattend.ps1" durante a instala&#xE7;&#xE3;o do Windows.
+#   &quot;autounattend.ps1&quot; durante a instalação do Windows.
 #
-# Cen&#xE1;rio:
-#   - Execu&#xE7;&#xE3;o em WinPE / Setup / SYSTEM / FirstLogon
+# Cenário:
+#   - Execução em WinPE / Setup / SYSTEM / FirstLogon
 #   - Ambiente possivelmente incompleto ou restrito
-#   - Pendrive de instala&#xE7;&#xE3;o pode n&#xE3;o ter letra atribu&#xED;da
+#   - Pendrive de instalação pode não ter letra atribuída
 #
 # Comportamento:
-#   1. Prioriza execu&#xE7;&#xE3;o offline via pendrive
-#   2. Tenta montar volumes (mountvol) se necess&#xE1;rio
-#   3. Retry resiliente de localiza&#xE7;&#xE3;o e c&#xF3;pia
+#   1. Prioriza execução offline via pendrive
+#   2. Tenta montar volumes (mountvol) se necessário
+#   3. Retry resiliente de localização e cópia
 #   4. Fallback para download online
-#   5. Execu&#xE7;&#xE3;o silenciosa e tolerante a falhas
+#   5. Execução silenciosa e tolerante a falhas
 #
 # Diretrizes:
-#   - N&#xE3;o falhar de forma catastr&#xF3;fica
+#   - Não falhar de forma catastrófica
 #   - Manter compatibilidade PowerShell 2 / 5 / 7
-#   - Evitar depend&#xEA;ncias externas ou m&#xF3;dulos
+#   - Evitar dependências externas ou módulos
 #   - Priorizar minimalismo e robustez
-#   - Executar com privil&#xE9;gios SYSTEM quando poss&#xED;vel
+#   - Executar com privilégios SYSTEM quando possível
 #
-# Padr&#xF5;es:
+# Padrões:
 #   - Offline-first
 #   - Try/catch defensivo
-#   - Sem logging obrigat&#xF3;rio
-#   - Sem intera&#xE7;&#xE3;o com usu&#xE1;rio
-#   - Compat&#xED;vel com WinPE e OOBE
+#   - Sem logging obrigatório
+#   - Sem interação com usuário
+#   - Compatível com WinPE e OOBE
 #
-# Observa&#xE7;&#xE3;o:
-#   Este script &#xE9; apenas um bootstrapper resiliente e deve
+# Observação:
+#   Este script é apenas um bootstrapper resiliente e deve
 #   permanecer pequeno, simples e independente.
 # =============================================================
 
-$Env:install_cru = ""
-$Env:LOCAL_EXEC = "UserOnce".Trim().ToUpper()
+$Env:install_cru = &quot;$$VNTY_PERFIL_CONFIG_install_cru$$&quot;.Trim().ToLower();
+$Env:LOCAL_EXEC = &quot;USERONCE}}#}#*}&quot;.Trim().ToUpper();
 
 try {
-  $user = [Environment]::UserName
-  $domain = [Environment]::UserDomainName  
+  $user = [Environment]::UserName;
+  $domain = [Environment]::UserDomainName;
 }
 catch {  
 }
 
 
 # =========================================================
-# Configura&#xE7;&#xE3;o
+# Configuração
 # =========================================================
-$script = "C:\autounattend.ps1"
-$relPath = "boot\autonome\windows\autounattend.ps1"
+$script = &quot;C:\autounattend.ps1&quot;;
+$relPath = &quot;boot\autonome\windows\autounattend.ps1&quot;;
 
-Remove-Item $script -Force -ErrorAction SilentlyContinue
+Remove-Item $script -Force -ErrorAction SilentlyContinue;
 
 
 # =========================================================
-# Fun&#xE7;&#xE3;o: localizar script offline
+# Função: localizar script offline
 # =========================================================
 function Find-OfflineScript {
-  $found = $null
+  $found = $null;
 
   foreach ($letter in 65..90) {
     try {
-      $drive = [char]$letter + ":\"
-      $test = $drive + $relPath
+      $drive = [char]$letter + &quot;:\&quot;;
+      $test = $drive + $relPath;
       if (Test-Path $test) {
-        $found = $test
-        break
+        $found = $test;
+        break;
       }
     }
     catch {}
   }
 
-  return $found
+  return $found;
 }
 
 
 # =========================================================
 # 1. Tentar localizar offline
 # =========================================================
-$found = Find-OfflineScript
+$found = Find-OfflineScript;
 
 
 # =========================================================
-# 2. Tentar montar volumes se n&#xE3;o encontrou
+# 2. Tentar montar volumes se não encontrou
 # =========================================================
 if (-not $found) {
-  try { mountvol /E &gt; $null 2&gt;&amp;1 } catch {}
-  Start-Sleep -Seconds 2
-  $found = Find-OfflineScript
+  try { mountvol /E &gt; $null 2&gt;&amp;1; } catch {}
+  Start-Sleep -Seconds 2;
+  $found = Find-OfflineScript;
 }
 
 
@@ -979,7 +1264,7 @@ if (-not $found) {
 # =========================================================
 if ($found) {
   try {
-    Copy-Item $found $script -Force -ErrorAction SilentlyContinue
+    Copy-Item $found $script -Force -ErrorAction SilentlyContinue;
   }
   catch {}
 }
@@ -990,19 +1275,19 @@ if ($found) {
 # =========================================================
 if (!(Test-Path $script)) {
   try {
-    $wc = New-Object System.Net.WebClient
-    $wc.DownloadFile("https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/autonome/windows/autounattend.ps1", $script)
+    $wc = New-Object System.Net.WebClient;
+    $wc.DownloadFile(&quot;https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/autonome/windows/autounattend.ps1&quot;, $script);
   }
   catch {}
 }
 
 
 # =========================================================
-# 5. Executar com resili&#xEA;ncia
+# 5. Executar com resiliência
 # =========================================================
 if (Test-Path $script) {
   try {
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script;
   }
   catch {}
 }
@@ -1010,9 +1295,9 @@ if (Test-Path $script) {
 
 # limpeza silenciosa
 try {
-  Remove-Item $script -Force -ErrorAction SilentlyContinue
+  Remove-Item $script -Force -ErrorAction SilentlyContinue;
 }
-catch {}
+catch {}SCRIPT::USERONCE}}#}#}
 		</File>
 		<File path="C:\Windows\Setup\Scripts\unattend-04.ps1">
 # =============================================================
@@ -1020,95 +1305,94 @@ catch {}
 # -------------------------------------------------------------
 # Objetivo:
 #   Localizar e executar automaticamente o script principal
-#   "autounattend.ps1" durante a instala&#xE7;&#xE3;o do Windows.
+#   &quot;autounattend.ps1&quot; durante a instalação do Windows.
 #
-# Cen&#xE1;rio:
-#   - Execu&#xE7;&#xE3;o em WinPE / Setup / SYSTEM / FirstLogon
+# Cenário:
+#   - Execução em WinPE / Setup / SYSTEM / FirstLogon
 #   - Ambiente possivelmente incompleto ou restrito
-#   - Pendrive de instala&#xE7;&#xE3;o pode n&#xE3;o ter letra atribu&#xED;da
+#   - Pendrive de instalação pode não ter letra atribuída
 #
 # Comportamento:
-#   1. Prioriza execu&#xE7;&#xE3;o offline via pendrive
-#   2. Tenta montar volumes (mountvol) se necess&#xE1;rio
-#   3. Retry resiliente de localiza&#xE7;&#xE3;o e c&#xF3;pia
+#   1. Prioriza execução offline via pendrive
+#   2. Tenta montar volumes (mountvol) se necessário
+#   3. Retry resiliente de localização e cópia
 #   4. Fallback para download online
-#   5. Execu&#xE7;&#xE3;o silenciosa e tolerante a falhas
+#   5. Execução silenciosa e tolerante a falhas
 #
 # Diretrizes:
-#   - N&#xE3;o falhar de forma catastr&#xF3;fica
+#   - Não falhar de forma catastrófica
 #   - Manter compatibilidade PowerShell 2 / 5 / 7
-#   - Evitar depend&#xEA;ncias externas ou m&#xF3;dulos
+#   - Evitar dependências externas ou módulos
 #   - Priorizar minimalismo e robustez
-#   - Executar com privil&#xE9;gios SYSTEM quando poss&#xED;vel
+#   - Executar com privilégios SYSTEM quando possível
 #
-# Padr&#xF5;es:
+# Padrões:
 #   - Offline-first
 #   - Try/catch defensivo
-#   - Sem logging obrigat&#xF3;rio
-#   - Sem intera&#xE7;&#xE3;o com usu&#xE1;rio
-#   - Compat&#xED;vel com WinPE e OOBE
+#   - Sem logging obrigatório
+#   - Sem interação com usuário
+#   - Compatível com WinPE e OOBE
 #
-# Observa&#xE7;&#xE3;o:
-#   Este script &#xE9; apenas um bootstrapper resiliente e deve
+# Observação:
+#   Este script é apenas um bootstrapper resiliente e deve
 #   permanecer pequeno, simples e independente.
 # =============================================================
 
-$Env:install_cru = ""
-$Env:LOCAL_EXEC = "DefaultUser".Trim().ToUpper()
-
+$Env:install_cru = &quot;$$VNTY_PERFIL_CONFIG_install_cru$$&quot;.Trim().ToLower();
+$Env:LOCAL_EXEC = &quot;DEFAULTUSER}}#}#*}&quot;.Trim().ToUpper();
 
 try {
-  $user = [Environment]::UserName
-  $domain = [Environment]::UserDomainName  
+  $user = [Environment]::UserName;
+  $domain = [Environment]::UserDomainName;
 }
 catch {  
 }
 
 
 # =========================================================
-# Configura&#xE7;&#xE3;o
+# Configuração
 # =========================================================
-$script = "C:\autounattend.ps1"
-$relPath = "boot\autonome\windows\autounattend.ps1"
+$script = &quot;C:\autounattend.ps1&quot;;
+$relPath = &quot;boot\autonome\windows\autounattend.ps1&quot;;
 
-Remove-Item $script -Force -ErrorAction SilentlyContinue
+Remove-Item $script -Force -ErrorAction SilentlyContinue;
 
 
 # =========================================================
-# Fun&#xE7;&#xE3;o: localizar script offline
+# Função: localizar script offline
 # =========================================================
 function Find-OfflineScript {
-  $found = $null
+  $found = $null;
 
   foreach ($letter in 65..90) {
     try {
-      $drive = [char]$letter + ":\"
-      $test = $drive + $relPath
+      $drive = [char]$letter + &quot;:\&quot;;
+      $test = $drive + $relPath;
       if (Test-Path $test) {
-        $found = $test
-        break
+        $found = $test;
+        break;
       }
     }
     catch {}
   }
 
-  return $found
+  return $found;
 }
 
 
 # =========================================================
 # 1. Tentar localizar offline
 # =========================================================
-$found = Find-OfflineScript
+$found = Find-OfflineScript;
 
 
 # =========================================================
-# 2. Tentar montar volumes se n&#xE3;o encontrou
+# 2. Tentar montar volumes se não encontrou
 # =========================================================
 if (-not $found) {
-  try { mountvol /E &gt; $null 2&gt;&amp;1 } catch {}
-  Start-Sleep -Seconds 2
-  $found = Find-OfflineScript
+  try { mountvol /E &gt; $null 2&gt;&amp;1; } catch {}
+  Start-Sleep -Seconds 2;
+  $found = Find-OfflineScript;
 }
 
 
@@ -1117,7 +1401,7 @@ if (-not $found) {
 # =========================================================
 if ($found) {
   try {
-    Copy-Item $found $script -Force -ErrorAction SilentlyContinue
+    Copy-Item $found $script -Force -ErrorAction SilentlyContinue;
   }
   catch {}
 }
@@ -1128,19 +1412,19 @@ if ($found) {
 # =========================================================
 if (!(Test-Path $script)) {
   try {
-    $wc = New-Object System.Net.WebClient
-    $wc.DownloadFile("https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/autonome/windows/autounattend.ps1", $script)
+    $wc = New-Object System.Net.WebClient;
+    $wc.DownloadFile(&quot;https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/boot/autonome/windows/autounattend.ps1&quot;, $script);
   }
   catch {}
 }
 
 
 # =========================================================
-# 5. Executar com resili&#xEA;ncia
+# 5. Executar com resiliência
 # =========================================================
 if (Test-Path $script) {
   try {
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script;
   }
   catch {}
 }
@@ -1148,9 +1432,9 @@ if (Test-Path $script) {
 
 # limpeza silenciosa
 try {
-  Remove-Item $script -Force -ErrorAction SilentlyContinue
+  Remove-Item $script -Force -ErrorAction SilentlyContinue;
 }
-catch {}
+catch {}SCRIPT::DEFAULTUSER}}#}#}
 		</File>
 		<File path="C:\Windows\Setup\Scripts\Specialize.ps1">
 $scripts = @(
@@ -1253,7 +1537,7 @@ $scripts = @(
 		Set-ItemProperty -LiteralPath "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects\SelectionFade" -Name 'DefaultValue' -Value 0 -Type 'DWord' -Force;
 		Set-ItemProperty -LiteralPath "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects\DWMSaveThumbnailEnabled" -Name 'DefaultValue' -Value 0 -Type 'DWord' -Force;
 		Set-ItemProperty -LiteralPath "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects\CursorShadow" -Name 'DefaultValue' -Value 1 -Type 'DWord' -Force;
-		Set-ItemProperty -LiteralPath "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects\ListviewShadow" -Name 'DefaultValue' -Value 0 -Type 'DWord' -Force;
+		Set-ItemProperty -LiteralPath "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects\ListviewShadow" -Name 'DefaultValue' -Value 1 -Type 'DWord' -Force;
 		Set-ItemProperty -LiteralPath "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects\ThumbnailsOrIcon" -Name 'DefaultValue' -Value 1 -Type 'DWord' -Force;
 		Set-ItemProperty -LiteralPath "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects\ListviewAlphaSelect" -Name 'DefaultValue' -Value 0 -Type 'DWord' -Force;
 		Set-ItemProperty -LiteralPath "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects\DragFullWindows" -Name 'DefaultValue' -Value 0 -Type 'DWord' -Force;
@@ -1281,6 +1565,15 @@ $scripts = @(
 		try {
 		  $bytes = &amp; 'C:\Windows\Setup\Scripts\GetWallpaper.ps1';
 		  [System.IO.File]::WriteAllBytes( 'C:\Windows\Setup\Scripts\Wallpaper', $bytes );
+		} catch {
+		  $_;
+		}
+	};
+	{
+		try {
+		  $bytes = &amp; 'C:\Windows\Setup\Scripts\GetLockScreenImage.ps1';
+		  [System.IO.File]::WriteAllBytes( 'C:\Windows\Setup\Scripts\LockScreenImage', $bytes );
+		  reg.exe add "HKLM\Software\Microsoft\Windows\CurrentVersion\PersonalizationCSP" /v LockScreenImagePath /t REG_SZ /d "C:\Windows\Setup\Scripts\LockScreenImage" /f;
 		} catch {
 		  $_;
 		}
