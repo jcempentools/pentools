@@ -52,7 +52,7 @@ ORIGIN_PATH = os.path.normpath(SCRIPT_DIR).rstrip(os.path.sep) + os.path.sep
 
 # Atribui uma regex à variável IGNORED_PATHS
 IGNORED_PATHS = (
-    r"(\.(git(\\|/|$)|(log|tmp)$)|"    
+    r"(\.(git(\\|/|$)|vscode|trunk|github|(log|tmp)$)|"    
     r"(\.fseventsd$|\.Trashes$|\.Spotlight$|\.AppleDouble$|"
     r"\.TemporaryItems$|\$Recycle\.Bin$|Recycler$))"
     + "|" +
@@ -282,6 +282,47 @@ def recursive_directory_iteration(root, action, retry, dry_run):
         if os.path.isdir(full_path):
             recursive_directory_iteration(full_path, action, retry, dry_run)
 
+def apply_root_hidden_attribute():
+    """Oculta arquivos/pastas no root do destino que existem na origem (exceto exceções)"""
+    try:
+        origin_root_items = set(os.listdir(ORIGIN_PATH))
+    except Exception as e:
+        show_message(f"Erro ao listar origem (root): {e}", "e")
+        return
+
+    exceptions = {"NÃO FORMATAR", "Drivers", "apps"}
+
+    for item in os.listdir(destination_path):
+        dest_full_path = os.path.join(destination_path, item)
+
+        # Apenas itens no root que também existem na origem
+        if item not in origin_root_items:
+            continue
+
+        # Exceções explícitas
+        if item in exceptions:
+            continue
+
+        try:
+            # Apenas aplica no item (não recursivo)
+            if os.name == "nt":
+                import ctypes
+                FILE_ATTRIBUTE_HIDDEN = 0x02
+
+                attrs = ctypes.windll.kernel32.GetFileAttributesW(dest_full_path)
+                if attrs != -1 and not (attrs & FILE_ATTRIBUTE_HIDDEN):
+                    ctypes.windll.kernel32.SetFileAttributesW(dest_full_path, attrs | FILE_ATTRIBUTE_HIDDEN)
+                    show_message(f"Ocultado: {item}", "d")
+            else:
+                # Fallback Unix (renomeia com ponto)
+                if not os.path.basename(dest_full_path).startswith("."):
+                    hidden_path = os.path.join(destination_path, "." + item)
+                    os.rename(dest_full_path, hidden_path)
+                    show_message(f"Ocultado (unix): {item}", "d")
+
+        except Exception as e:
+            show_message(f"Falha ao ocultar {item}: {e}", "e")            
+
 def main():
     global destination_path, failed_files, retent_loop_count
     
@@ -310,6 +351,10 @@ def main():
         time.sleep(1)
         for path in to_retry:
             origin_to_destination(path, False, dry_run)
+
+    # 4. OCULTAR ITENS DO ROOT (PÓS-PROCESSAMENTO)
+    show_message("Etapa 4: Aplicando ocultação no root...", "info")
+    apply_root_hidden_attribute()
 
     show_message("Processo concluído.", "s")
 
