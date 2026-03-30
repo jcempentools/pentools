@@ -179,6 +179,7 @@ def destination_cleanup(root, dry_run=False):
         # --- IGNORA PASTAS RAIZ apps/ e Drivers/ NO DESTINO ---
         # Se estiver na raiz do destino e for uma dessas pastas, ignora completamente
         if root == destination_path and item in ("apps", "Drivers"):
+            show_message(f"Remoção configurada para ignorar: {item}", "w")
             continue
 
         if re.search(IGNORED_PATHS, dest_full_path, re.IGNORECASE):
