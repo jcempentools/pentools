@@ -22,7 +22,7 @@
 /CustomDrivers/
 /Programs/
 /apps/*
-/Drivers/*
+Drivers/
 
 # === Backups e Testes ===
 /Disk Backup/
