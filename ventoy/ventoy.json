@@ -208,7 +208,7 @@
         {
           "item": "VNTY_EDICAO_WIN",
           "value": "<ProductKey>XQQYW-N6F4Q-V3BT8-YBWK2-PTPBT</ProductKey>",
-          "menu": [ 
+          "menu": [
             "|Confirma? OEM - Windows Original do Equipamento",
             "<ProductKey>YTMG3-N6DKC-DKB77-7M9GH-8HVX7</ProductKey>|Home",
             "<ProductKey>4CPRK-NM3K3-X6XXQ-RXX86-MTFDY</ProductKey>|Home N",
@@ -226,7 +226,7 @@
             "<ProductKey>2WH4N-8QGBV-H22JP-CT43Q-MDWWJ</ProductKey>|Education N",
             "<ProductKey>YVWGF-BXNMC-HTVAY-H9Y97-G9PPH</ProductKey>|Pro Education N",
             "<ProductKey>WYPNQ-8C467-V2W6J-TX4WX-WT2RQ</ProductKey>|Pro N for Workstations"
-          
+          ]
         },
         {
           "item": "VNTY_SERIAL_WIN",
