@@ -344,14 +344,18 @@ aplicar_substituicoes_oem() {
   cp "$arquivo" "$tmp"
 
   # Itera pares regex|replacement definidos globalmente
+  # Monta script sed único com todas substituições
+  local sed_script=":a;N;\$!ba;"
+
   for item in "${WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO[@]}"; do
     local regex="${item%%|*}"
     local repl="${item#*|}"
 
-    # IMPORTANTE:
-    # Une todo o arquivo em um único buffer para permitir regex multi-linha
-    sed -E ':a;N;$!ba;s|'"$regex"'|'"$repl"'|g' "$tmp" > "${tmp}.2" && mv "${tmp}.2" "$tmp"
+    sed_script+="s|$regex|$repl|g;"
   done
+
+  # Executa tudo de uma vez (evita perda de contexto entre regras)
+  sed -E "$sed_script" "$tmp" > "${tmp}.2" && mv "${tmp}.2" "$tmp"
 
   mv "$tmp" "$arquivo"
 }
@@ -482,7 +486,7 @@ finalizar_execucao() {
 
 # --- EXPORTS ---
 export DIR_SAIDA SCRIPT_CACHE MODELO_PROCESSADO CHAVE_SENTINELA
-export -f processar_modelo_oem aplicar_substituicoes_oem WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO
+export -f processar_modelo_oem aplicar_substituicoes_oem
 export -f processar_modelo processar_linha get_replacement xml_escape escape_sed_replacement safe_filename log executar_job
 
 # --- EXPORTS HOOKS ---
