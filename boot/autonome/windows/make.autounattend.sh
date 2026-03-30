@@ -78,17 +78,14 @@ handler_ventoy_menu() {
 
 # Mapa futuro para substituições baseadas em chave da BIOS do Windows
 # (Mantido para extensões posteriores — não remover)
-WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO=(  
-  # 1. Bloco Key
-  '<Key>[^<]*<\/Key>|'
-
-  # 2. Bloco  WillShowUI
+WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO=(    
+  # 1. Bloco  WillShowUI
   '<WillShowUI>[^<]*<\/WillShowUI>|<WillShowUI>Never</WillShowUI>'
   
-  # 3. Tag ProductKey Isolada (Nova solicitação)
+  # 2. Tag ProductKey Isolada (Nova solicitação)
   '<ProductKey>[^<]*<\/ProductKey>|<ProductKey>$$VNTY_SERIAL_WIN$$<\/ProductKey>'
 
-  # 4. Tag ProductKey Isolada (Nova solicitação)
+  # 3. Tag ProductKey Isolada (Nova solicitação)
   '<ProductKey>[^<]*<Key>[^<]*<\/Key>|<ProductKey><Key>$$VNTY_SERIAL_WIN$$</Key>'  
 
   # 4. Tag Image/Index Isolada (Nova solicitação)
@@ -103,7 +100,7 @@ else
 fi
 
 TARGETS=(
-  "Default"
+  "Target"
 #  "Basico"
 #  "Designer"
 #  "Gamer"
