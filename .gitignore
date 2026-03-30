@@ -41,6 +41,7 @@
 !/ventoy/**/*
 
 # Exceções específicas da pasta autonome
+!/boot/autonome/windows/apps/7-Zip/*
 !/boot/autonome/**/.syncdownload
 !/boot/autonome/**/Drivers.*
 !/boot/autonome/windows/apps/Adobe/bloquear.ps1
