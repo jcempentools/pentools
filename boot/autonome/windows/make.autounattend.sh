@@ -228,7 +228,11 @@ xml_escape() {
 }
 
 escape_sed_replacement() {
-  sed 's/[\/&]/\\&/g'
+  # Escapa caracteres críticos para o sed:
+  # /  -> delimitador alternativo possível
+  # &  -> referência ao match
+  # ;  -> separador de comandos do sed (CAUSA DO BUG)
+  sed 's/[\/&;]/\\&/g'
 }
 
 safe_filename() {
@@ -275,8 +279,15 @@ processar_linha() {
       modo_esc=$(printf '%s' "$modo" | escape_sed_replacement)
       tgt_esc=$(printf '%s' "$target" | escape_sed_replacement)
 
-      substituicao=$(printf '%s' "$SCRIPT_CACHE" | sed \
-        "s|#{{MODE}}#|$modo_esc|g; s|#{{APPSLST}}#|$tgt_esc|g")
+      # Substituição segura usando variáveis do awk (evita parsing do sed)
+      substituicao=$(printf '%s' "$SCRIPT_CACHE" | awk \
+        -v mode="$modo" \
+        -v target="$target" '
+        {
+          gsub(/#\{\{MODE\}\}#/, mode)
+          gsub(/#\{\{APPSLST\}\}#/, target)
+          print
+        }')
 
       substituicao=$(printf '%s' "$substituicao" | xml_escape)
     else
