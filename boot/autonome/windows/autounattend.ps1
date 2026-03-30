@@ -1556,9 +1556,35 @@ function install_offline_drivers_async {
 
         __drvlog "Extraindo Drivers.7z..."
 
-        $sevenZip = findExeMsiOnFolders "7zip"
+        # =========================================================
+        # RESOLVE 7z.exe PRIORITARIAMENTE DO CACHE OFFLINE
+        # Caminho esperado:
+        #   ${CACHE}\boot\autonome\windows\apps\7-zip\7z.exe
+        # Fallback:
+        #   usa método antigo (findExeMsiOnFolders)
+        # =========================================================
 
-        if (-not $sevenZip) {
+        $sevenZip = ""
+
+        try {
+          if (-not [string]::IsNullOrEmpty($script:appsinstall_folder)) {
+            $sevenZipCache = Join-Path $script:appsinstall_folder "apps\7-zip\7z.exe"
+
+            if (Test-Path $sevenZipCache) {
+              $sevenZip = $sevenZipCache
+              __drvlog "7z.exe encontrado no cache: $sevenZip"
+            }
+          }
+        }
+        catch {}
+
+        # fallback legado (mantido)
+        if ([string]::IsNullOrEmpty($sevenZip)) {
+          __drvlog "7z.exe não encontrado no cache, tentando fallback..."
+          $sevenZip = findExeMsiOnFolders "7zip"
+        }
+
+        if (-not $sevenZip -or -not (Test-Path $sevenZip)) {
           __drvlog "ERRO: 7zip não encontrado"
           return
         }
