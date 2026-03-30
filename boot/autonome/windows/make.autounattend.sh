@@ -83,10 +83,10 @@ WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO=(
   '<WillShowUI>[^<]*</WillShowUI>|<WillShowUI>Never</WillShowUI>'
 
   # 2. ProductKey simples (sem <Key>)
-  '<ProductKey>[[:space:]]*[^<]*[[:space:]]*</ProductKey>|<ProductKey>$$VNTY_SERIAL_WIN_PRODUCTKEYTAG$$</ProductKey>'
+  '<ProductKey>[[:space:]]*[^<]*[[:space:]]*</ProductKey>|$$VNTY_SERIAL_WIN_PRODUCTKEYTAG$$'
 
   # 3. ProductKey com <Key> interno (estrutura completa)
-  '<ProductKey>[[:space:]]*<Key>[^<]*</Key>[[:space:]]*<WillShowUI>[^<]*</WillShowUI>[[:space:]]*</ProductKey>|<ProductKey><Key>$$VNTY_SERIAL_WIN_KEYTAG$$</Key><WillShowUI>Never</WillShowUI></ProductKey>'
+  '<ProductKey>[[:space:]]*<Key>[^<]*</Key>[[:space:]]*<WillShowUI>[^<]*</WillShowUI>[[:space:]]*</ProductKey>|<ProductKey>$$VNTY_SERIAL_WIN_KEYTAG$$<WillShowUI>Never</WillShowUI></ProductKey>'
 
   # 4. MetaData IMAGE INDEX (estrutura completa, tolerante a quebra)
   '<MetaData[^>]*>[[:space:]]*<Key>/IMAGE/INDEX</Key>[[:space:]]*<Value>[^<]*</Value>[[:space:]]*</MetaData>|<MetaData><Key>/IMAGE/INDEX</Key><Value>$$VNTY_EDICAO_WIN$$</Value></MetaData>'  
