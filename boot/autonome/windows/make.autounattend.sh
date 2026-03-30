@@ -355,7 +355,7 @@ aplicar_substituicoes_oem() {
     
     # Use vírgula (,) ou arroba (@) como delimitador do SED
     # para não conflitar com o pipe (|) do seu vetor
-    sed_script+="s,${regex},${repl},g;" 
+    sed_script+="s@$regex@$repl@g;"
   done
 
   # Executa tudo de uma vez (evita perda de contexto entre regras)
