@@ -253,7 +253,100 @@ def origin_to_destination(path, retry, dry_run):
 
         if not dry_run:
             os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-            
+
+            # --- TRATAMENTO PARA .syncdownload ---
+            if path.lower().endswith(".syncdownload"):
+                try:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        lines = [l.strip() for l in f.readlines() if l.strip()]
+
+                    if not lines:
+                        return
+
+                    url = lines[0]
+                    expected_hash = lines[1] if len(lines) > 1 else None
+
+                    # Nome do arquivo (mesma lógica do cleanup)
+                    filename = None
+
+                    # 1. URL
+                    url_name = os.path.basename(url.split("?")[0])
+                    if url_name:
+                        filename = url_name
+
+                    # 2. Header
+                    try:
+                        import urllib.request
+                        req = urllib.request.Request(url, method='HEAD')
+                        with urllib.request.urlopen(req) as response:
+                            content_disposition = response.headers.get('Content-Disposition')
+                            if content_disposition:
+                                match = re.search(r'filename="?([^"]+)"?', content_disposition)
+                                if match:
+                                    filename = match.group(1)
+                    except Exception:
+                        pass
+
+                    # 3. Fallback
+                    if not filename:
+                        base = os.path.basename(path)
+                        filename = base[:-len(".syncdownload")]
+
+                    final_dest_path = os.path.join(os.path.dirname(dest_path), filename)
+
+                    # Verifica necessidade de download
+                    need_download = True
+
+                    if os.path.exists(final_dest_path):
+                        if expected_hash:
+                            current_hash = hash_file(final_dest_path, "Destino")
+                            if current_hash == expected_hash:
+                                need_download = False
+                        else:
+                            need_download = True
+
+                    if need_download:
+                        import urllib.request
+
+                        show_message(f"Baixando: {rel_path} -> {filename}", "+")
+
+                        with urllib.request.urlopen(url) as response:
+                            total_size = int(response.headers.get('Content-Length', 0))
+                            chunk_size = 65536
+
+                            with Progress(
+                                TextColumn("[bold lightmagenta]→ Download: {task.fields[name]}"),
+                                BarColumn(),
+                                TaskProgressColumn(),
+                                DownloadColumn(),
+                                TransferSpeedColumn(),
+                                TimeRemainingColumn(),
+                                transient=True
+                            ) as progress:
+                                task = progress.add_task("", total=total_size, name=filename)
+
+                                with open(final_dest_path, 'wb') as out_file:
+                                    while True:
+                                        chunk = response.read(chunk_size)
+                                        if not chunk:
+                                            break
+                                        out_file.write(chunk)
+                                        progress.update(task, advance=len(chunk))
+
+                        # Validação
+                        if expected_hash:
+                            downloaded_hash = hash_file(final_dest_path, "Download")
+                            if downloaded_hash != expected_hash:
+                                show_message(f"Hash inválido: {filename}", "e")
+                            else:
+                                show_message(f"Download validado: {filename}", "s")
+
+                except Exception as e:
+                    show_message(f"Erro no .syncdownload {rel_path}: {e}", "e")
+
+                return
+            # --- FIM DO TRATAMENTO ---
+
             # Lógica simples de cópia (exemplo: se não existe ou hash diferente)
             if not os.path.exists(dest_path) or hash_file(path, "Origem") != hash_file(dest_path, "Destino"):
                 show_message(f"Copiando: {rel_path}", "+")
