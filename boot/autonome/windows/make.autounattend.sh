@@ -25,8 +25,8 @@ trap 'log ERROR "Falha inesperada linha=$LINENO cmd=${BASH_COMMAND:-unknown}"' E
 
 # --- CONFIGURAÇÕES ---
 DIR_SAIDA="./autounattend"
-ARQUIVO_MODELO="autounattend.model.xml"
-ARQUIVO_SCRIPT="modelo_script_embutido.ps1"
+ARQUIVO_MODELO="./autounattend.model.xml"
+ARQUIVO_SCRIPT="./modelo_script_embutido.ps1"
 MAX_JOBS=4
 
 # ------------------------------------------------------------------------------
