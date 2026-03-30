@@ -179,7 +179,51 @@ def destination_cleanup(root, dry_run=False):
         if re.search(IGNORED_PATHS, dest_full_path, re.IGNORECASE):
             continue
 
+        # --- TRATAMENTO PARA ARQUIVOS GERADOS POR .syncdownload ---
+        origin_equivalent_sync = origin_equivalent + ".syncdownload"
+
         if not os.path.exists(origin_equivalent):
+            # Verifica se existe um .syncdownload correspondente na origem
+            if os.path.exists(origin_equivalent_sync):
+                try:
+                    with open(origin_equivalent_sync, 'r', encoding='utf-8') as f:
+                        first_line = f.readline().strip()
+
+                    expected_name = None
+
+                    # 1. Tenta extrair da URL
+                    url_name = os.path.basename(first_line.split("?")[0])
+                    if url_name:
+                        expected_name = url_name
+
+                    # 2. Tenta extrair do header (Content-Disposition)
+                    try:
+                        import urllib.request
+
+                        req = urllib.request.Request(first_line, method='HEAD')
+                        with urllib.request.urlopen(req) as response:
+                            content_disposition = response.headers.get('Content-Disposition')
+
+                            if content_disposition:
+                                match = re.search(r'filename="?([^"]+)"?', content_disposition)
+                                if match:
+                                    expected_name = match.group(1)
+                    except Exception:
+                        # Falha silenciosa — mantém comportamento atual
+                        pass
+
+                    # 3. FALLBACK: usa o nome do .syncdownload removendo a extensão
+                    if not expected_name:
+                        sync_name = os.path.basename(origin_equivalent_sync)
+                        if sync_name.lower().endswith(".syncdownload"):
+                            expected_name = sync_name[:-len(".syncdownload")]
+
+                    # Se o nome bate com o arquivo atual, NÃO remove
+                    if expected_name and os.path.basename(dest_full_path) == expected_name:
+                        continue
+                except Exception:
+                    pass
+
             show_message(f"Removendo do destino (não existe na origem): {rel_path}", "remove")
             if not dry_run:
                 try:

@@ -1,31 +1,46 @@
+# === Sistema e Metadados ===
 /System Volume Information/
-/System Volume Information
-*.iso
-*.sha256
-*.sha*
-*.img
-*.wim
-*.zip
-*.7z
-*.msi
-*.exe
 *.log
 *.tmp
-*.casper-rw
-/boot/ISOs/Installs/BB
-/boot/autonome/windows/apps/*
-!/boot/autonome/windows/apps/Adobe/bloquear.ps1
-/CustomDrivers
-/Programs
+*cracked*
+
+# === Imagens de Disco e Instaladores ===
+*.iso
+*.img
+*.wim
+*.msi
+*.exe
+*.sha*
+*.sha256
+
+# === Arquivos Compactados ===
+*.zip
+*.7z
+
+# === Pastas de Apps e Drivers ===
+/CustomDrivers/
+/Programs/
 /apps/*
 /Drivers/*
-!boot/autonome/windows/Drivers.*
-*.log
-!/ventoy/**/*
-/boot/ventoy-install/
-/Disk Backup
-/DiskImage
-/Imagens/*
+
+# === Backups e Testes ===
+/Disk Backup/
+/DiskImage/
+/Imagens*/
 /testes/*
-*cracked*
+*.casper-rw
+
+# === Estrutura Ventoy e Boot ===
+/boot/ventoy-install/
+/boot/ISOs/Installs/BB/
+/boot/autonome/windows/apps/*
+
+# === Exceções (Não ignorar) ===
 !.gitkeep
+!.gitignore
+!/ventoy/**/*
+
+# Exceções específicas da pasta autonome
+!/boot/autonome/**/.syncdownload
+!/boot/autonome/**/Drivers.*
+!/boot/autonome/windows/apps/Adobe/bloquear.ps1
