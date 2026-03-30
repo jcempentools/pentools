@@ -52,8 +52,7 @@ ORIGIN_PATH = os.path.normpath(SCRIPT_DIR).rstrip(os.path.sep) + os.path.sep
 
 # Atribui uma regex à variável IGNORED_PATHS
 IGNORED_PATHS = (
-    r"(\.(git(\\|/|$)|(log|tmp)$)|"
-    r"^(\\|/)?(minios|Disk ?Backup|DiskImage)(\\|/|$)|"
+    r"(\.(git(\\|/|$)|(log|tmp)$)|"    
     r"(\.fseventsd$|\.Trashes$|\.Spotlight$|\.AppleDouble$|"
     r"\.TemporaryItems$|\$Recycle\.Bin$|Recycler$))"
     + "|" +
@@ -65,8 +64,7 @@ IGNORED_PATHS = (
     )
     if any(arg.startswith("ignore=") for arg in sys.argv)
     else
-    r"(\.(git(\\|/|$)|(log|tmp)$)|"
-    r"^(\\|/)?(minios|Disk ?Backup|DiskImage)(\\|/|$)|"
+    r"(\.(git(\\|/|$)|(log|tmp)$)|"    
     r"(\.fseventsd$|\.Trashes$|\.Spotlight$|\.AppleDouble$|"
     r"\.TemporaryItems$|\$Recycle\.Bin$|Recycler$))"
 )
@@ -179,10 +177,11 @@ def destination_cleanup(root, dry_run=False):
         # --- IGNORA PASTAS RAIZ apps/ e Drivers/ NO DESTINO ---
         # Se estiver na raiz do destino e for uma dessas pastas, ignora completamente
         if root == destination_path and item in ("apps", "Drivers"):
-            show_message(f"Remoção configurada para ignorar: {item}", "w")
+            show_message(f"Remoção ignorada: {item}", "w")
             continue
 
         if re.search(IGNORED_PATHS, dest_full_path, re.IGNORECASE):
+            show_message(f"Remoção ignorada [regex]: {dest_full_path}", "w")
             continue
 
         # --- TRATAMENTO PARA ARQUIVOS GERADOS POR .syncdownload ---
