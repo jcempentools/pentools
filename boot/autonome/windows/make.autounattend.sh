@@ -86,7 +86,13 @@ WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO=(
   '<WillShowUI>[^<]*<\/WillShowUI>|<WillShowUI>Never</WillShowUI>'
   
   # 3. Tag ProductKey Isolada (Nova solicitação)
-  '<ProductKey>[^<]*<\/ProductKey>|'
+  '<ProductKey>[^<]*<\/ProductKey>|<ProductKey>$$VNTY_SERIAL_WIN$$<\/ProductKey>'
+
+  # 4. Tag ProductKey Isolada (Nova solicitação)
+  '<ProductKey>[^<]*<Key>[^<]*<\/Key>|<ProductKey><Key>$$VNTY_SERIAL_WIN$$</Key>'  
+
+  # 4. Tag Image/Index Isolada (Nova solicitação)
+  '<Key>\/IMAGE\/INDEX<\/Key>[^<]*<Value>[^<]*<\/Value>[^<]*<\/MetaData>|<Key>/IMAGE/INDEX</Key><Value>$$VNTY_EDICAO_WIN$$</Value><\/MetaData>'
 )
 
 # timeout opcional
@@ -97,34 +103,34 @@ else
 fi
 
 TARGETS=(
-  "Cru"
-  "Basico"
-  "Designer"
-  "Gamer"
-  "Dev"
-  "Full"
+  "Default"
+#  "Basico"
+#  "Designer"
+#  "Gamer"
+#  "Dev"
+#  "Full"
 )
 
 CHAVE_SENTINELA="VK7JG-NPHTM-C97JM-9MPGT-3V66T"
 
 # Nome lógico da edição OEM baseada em BIOS
-EDICAO_OEM_NOME="OEM"
+EDICAO_OEM_NOME="Default"
 
 # --- MATRIZ ---
 EDICOES=(
-  "Home|TX9XD-98N7V-6WMQ6-BX7FG-H8Q99"
-  "HomeSingleLanguage|7HNRX-D7KGG-3K4RQ-4WPJ4-YTDFH"
-  "Pro|W269N-WFGWX-YVC9B-4J6C9-T83GX"
-  "Pro-Education|6TP4R-GNPTD-KYYHQ-7B7DP-JWBTM"
-  "Pro-Workstation|NRG8B-V9WV7-BCY92-WRCYJ-TWR9J"
-  "Enterprise|NPPR9-FWDCX-D2C8J-H872K-2YT43"
-  "Enterprise-G|YYVX9-NTFWV-6MDM3-9PT4T-4M68B"
-  "Education|NW6C2-QMPVW-D7KKK-3GKT6-VCFB2"
-  "IoT-Enterprise|XQQYW-N6F4G-GP8W7-GGHRC-86BWK"
-  "Enterprise-LTSC_2024|M7XTQ-FN8P6-TTKYV-9D4CC-J462D"
-  "IoT-Enterprise-LTSC_2024|6G99N-FBXGH-8X39X-G4XBR-3GHVR"
-  "Server-2022-Standard|VDNW8-C886R-JX8CP-M3CDX-639TB"
-  "Server-2022-Datacenter|WX4NM-KYWYW-QJJR4-XV3QB-6VM33"
+#  "Home|TX9XD-98N7V-6WMQ6-BX7FG-H8Q99"
+#  "HomeSingleLanguage|7HNRX-D7KGG-3K4RQ-4WPJ4-YTDFH"
+#  "Pro|W269N-WFGWX-YVC9B-4J6C9-T83GX"
+#  "Pro-Education|6TP4R-GNPTD-KYYHQ-7B7DP-JWBTM"
+#  "Pro-Workstation|NRG8B-V9WV7-BCY92-WRCYJ-TWR9J"
+#  "Enterprise|NPPR9-FWDCX-D2C8J-H872K-2YT43"
+#  "Enterprise-G|YYVX9-NTFWV-6MDM3-9PT4T-4M68B"
+#  "Education|NW6C2-QMPVW-D7KKK-3GKT6-VCFB2"
+#  "IoT-Enterprise|XQQYW-N6F4G-GP8W7-GGHRC-86BWK"
+#  "Enterprise-LTSC_2024|M7XTQ-FN8P6-TTKYV-9D4CC-J462D"
+#  "IoT-Enterprise-LTSC_2024|6G99N-FBXGH-8X39X-G4XBR-3GHVR"
+#  "Server-2022-Standard|VDNW8-C886R-JX8CP-M3CDX-639TB"
+#  "Server-2022-Datacenter|WX4NM-KYWYW-QJJR4-XV3QB-6VM33"
 )
 
 # --- LOG ---
@@ -489,7 +495,7 @@ main() {
   validar_entrada
   carregar_cache
   executar_matriz
-  escrever_menu
+  #escrever_menu
   finalizar_execucao
 }
 
