@@ -35,14 +35,14 @@ MAX_JOBS=4
 # Vetor global de handlers executados após geração de cada XML
 declare -a HOOK_HANDLERS=()
 
-# Buffer em memória do menu Ventoy (.cfg)
+# Buffer em memória do menu Ventoy (.lst)
 MENU_BUFFER=""
 
 # Arquivo temporário para agregação paralela segura
 MENU_TMP_FILE="$(mktemp)"
 
 # Caminho do arquivo final do menu
-VENTOY_MENU_FILE="$DIR_SAIDA/menu.cfg"
+VENTOY_MENU_FILE="$DIR_SAIDA/menu.lst"
 
 # Executa todos handlers registrados
 executar_hooks() {
