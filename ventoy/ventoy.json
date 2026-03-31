@@ -202,37 +202,40 @@
       "class": "linux"
     }
   ],
+
   "auto_install": [
     {
+      "parent": "/boot/ISOs/Installs/Windows",
+      "template": "/boot/autonome/windows/autounattend/Default/Target.xml",
       "control": [
         {
           "item": "VNTY_SERIAL_WIN_PRODUCTKEYTAG",
-          "value": "<ProductKey>XQQYW-N6F4Q-V3BT8-YBWK2-PTPBT</ProductKey>",
+          "value": " ",
           "menu": [
-            "|Confirma? OEM - Windows Original do Equipamento",
-            "<ProductKey>YTMG3-N6DKC-DKB77-7M9GH-8HVX7</ProductKey>|Home",
-            "<ProductKey>4CPRK-NM3K3-X6XXQ-RXX86-MTFDY</ProductKey>|Home N",
-            "<ProductKey>VK7JG-NPHTM-C97JM-9MPGT-3V66T</ProductKey>|Pro",
-            "<ProductKey>2B87N-8KFHP-DKV6R-Y2C8J-PKCKT</ProductKey>|Pro N",
-            "<ProductKey>BT79Q-G7N6G-PGBYW-4YWX6-6F4BT</ProductKey>|Home Single Language",
-            "<ProductKey>NPPR9-FWDCX-D2C8J-H872K-2YT43</ProductKey>|Enterprise",
-            "<ProductKey>XQQYW-N6F4Q-V3BT8-YBWK2-PTPBT</ProductKey>|IoT Enterprise",
-            "<ProductKey>XGVPP-NMH47-7TTHJ-W3FW7-8HV2C</ProductKey>|IoT Enterprise Subscription",
-            "<ProductKey>CPWHC-NT2C7-VYW78-WH8QH-889MM</ProductKey>|Enterprise multi-session",
-            "<ProductKey>NW6C2-QMPVW-D7KKK-3GKT6-VCFB2</ProductKey>|Education",
-            "<ProductKey>6TP4R-GNPTD-KYYHQ-7B7DP-J447Y</ProductKey>|Pro Education",
-            "<ProductKey>DXG7C-N36C4-C4HTG-X4T3X-2YV77</ProductKey>|Pro for Workstations",
-            "<ProductKey>DPH2V-TTNVB-4X9Q3-TJR4H-KHJW4</ProductKey>|Enterprise N",
-            "<ProductKey>2WH4N-8QGBV-H22JP-CT43Q-MDWWJ</ProductKey>|Education N",
-            "<ProductKey>YVWGF-BXNMC-HTVAY-H9Y97-G9PPH</ProductKey>|Pro Education N",
-            "<ProductKey>WYPNQ-8C467-V2W6J-TX4WX-WT2RQ</ProductKey>|Pro N for Workstations"
+            " |Confirma? OEM - Windows Original do Equipamento",
+            "<ProductKey><Key>YTMG3-N6DKC-DKB77-7M9GH-8HVX7</Key></ProductKey>|Home",
+            "<ProductKey><Key>4CPRK-NM3K3-X6XXQ-RXX86-MTFDY</Key></ProductKey>|Home N",
+            "<ProductKey><Key>VK7JG-NPHTM-C97JM-9MPGT-3V66T</Key></ProductKey>|Pro",
+            "<ProductKey><Key>2B87N-8KFHP-DKV6R-Y2C8J-PKCKT</Key></ProductKey>|Pro N",
+            "<ProductKey><Key>BT79Q-G7N6G-PGBYW-4YWX6-6F4BT</Key></ProductKey>|Home Single Language",
+            "<ProductKey><Key>NPPR9-FWDCX-D2C8J-H872K-2YT43</Key></ProductKey>|Enterprise",
+            "<ProductKey><Key>XQQYW-N6F4Q-V3BT8-YBWK2-PTPBT</Key></ProductKey>|IoT Enterprise",
+            "<ProductKey><Key>XGVPP-NMH47-7TTHJ-W3FW7-8HV2C</Key></ProductKey>|IoT Enterprise Subscription",
+            "<ProductKey><Key>CPWHC-NT2C7-VYW78-WH8QH-889MM</Key></ProductKey>|Enterprise multi-session",
+            "<ProductKey><Key>NW6C2-QMPVW-D7KKK-3GKT6-VCFB2</Key></ProductKey>|Education",
+            "<ProductKey><Key>6TP4R-GNPTD-KYYHQ-7B7DP-J447Y</Key></ProductKey>|Pro Education",
+            "<ProductKey><Key>DXG7C-N36C4-C4HTG-X4T3X-2YV77</Key></ProductKey>|Pro for Workstations",
+            "<ProductKey><Key>DPH2V-TTNVB-4X9Q3-TJR4H-KHJW4</Key></ProductKey>|Enterprise N",
+            "<ProductKey><Key>2WH4N-8QGBV-H22JP-CT43Q-MDWWJ</Key></ProductKey>|Education N",
+            "<ProductKey><Key>YVWGF-BXNMC-HTVAY-H9Y97-G9PPH</Key></ProductKey>|Pro Education N",
+            "<ProductKey><Key>WYPNQ-8C467-V2W6J-TX4WX-WT2RQ</Key></ProductKey>|Pro N for Workstations"
           ]
         },
         {
           "item": "VNTY_SERIAL_WIN_KEYTAG",
-          "value": "<Key>XQQYW-N6F4Q-V3BT8-YBWK2-PTPBT</Key>",
+          "value": " ",
           "menu": [
-            "|Confirma? OEM - Windows Original do Equipamento",
+            " |Confirma? OEM - Windows Original do Equipamento",
             "<Key>YTMG3-N6DKC-DKB77-7M9GH-8HVX7</Key>|Confirma? Home",
             "<Key>4CPRK-NM3K3-X6XXQ-RXX86-MTFDY</Key>|Confirma? Home N",
             "<Key>VK7JG-NPHTM-C97JM-9MPGT-3V66T</Key>|Confirma? Pro",
@@ -255,8 +258,8 @@
           "item": "VNTY_PERFIL_CONFIG_install_cru",
           "value": "Basico",
           "menu": [
-            "|Sistema Limpo (Sem extras)",
-            "Essenciais|Essênciais: Codecs e utilitários base (incluso em todos)",
+            " |Sistema Limpo (Sem extras)",
+            "Essenciais|Essênciais: Codecs e utilitários base",
             "Básico|Dia a dia: Navegadores, libreOffice, etc",
             "Designer|Criativo: apenas ferramentas criativas",
             "Designer+|Dia a dia + Criativo",
@@ -269,9 +272,7 @@
             "Full|Pacote Completo (Todos)"
           ]
         }
-      ],
-      "parent": "/boot/ISOs/Installs/Windows",
-      "template": "/boot/autonome/windows/autounattend/Default/Target.xml"
+      ]
     }
   ]
 }

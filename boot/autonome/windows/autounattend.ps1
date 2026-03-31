@@ -113,18 +113,25 @@ $apps_list_dir = "apps-list"
 $script:winget_timeout = "" # BUG: manter isso vazio
 Write-Host " "
 # modo full
-if ("$Env:install_mode" -eq "dev") {
-  $url_apps_lst = "$url_apps_lst/apps-list/apps.dev.lst"
+# Normaliza a variável: remove espaços e converte para minúsculo
+switch ($($Env:install_mode).Trim().ToLower()) {
+  "essenciais" { $___file_apps = "essenciais.lst" }
+  "basico" { $___file_apps = "basico.lst" }
+  "designer" { $___file_apps = "designer.lst" }
+  "designer+" { $___file_apps = "designer.plus.lst" }
+  "gamer" { $___file_apps = "gamer.lst" }
+  "gamer+" { $___file_apps = "gamer.plus.lst" }
+  "gamer++" { $___file_apps = "gamer.plus.plus.lst" }
+  "dev" { $___file_apps = "dev.lst" }
+  "dev+" { $___file_apps = "dev.plus.lst" }
+  "dev++" { $___file_apps = "dev.plus.plus.lst" }
+  "full" { $___file_apps = "full.lst" }
+  default { $___file_apps = $null } # Caso não combine com nenhum
 }
-elseif ("$Env:install_mode" -eq "gamer") {
-  $url_apps_lst = "$url_apps_lst/apps-list/apps.gamer.lst"
-}
-elseif ("$Env:install_mode" -eq "designer") {
-  $url_apps_lst = "$url_apps_lst/apps-list/apps.designer.lst"
-}
-elseif ("$Env:install_mode" -eq "basic") {
-  $url_apps_lst = "$url_apps_lst/apps-list/apps.basic.lst"
-  # modo dev
+
+# Atualiza a URL apenas se uma correspondência válida foi encontrada
+if ($___file_apps) {
+  $url_apps_lst = "$url_apps_lst/$apps_list_dir/$___file_apps"
 }
 try {
   $currentIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
