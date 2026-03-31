@@ -205,8 +205,6 @@
 
   "auto_install": [
     {
-      "parent": "/boot/ISOs/Installs/Windows",
-      "template": "/boot/autonome/windows/autounattend/Default/Target.xml",
       "control": [
         {
           "item": "VNTY_SERIAL_WIN_PRODUCTKEYTAG",
@@ -255,7 +253,7 @@
           ]
         },
         {
-          "item": "VNTY_PERFIL_CONFIG_install_cru",
+          "item": "VNTY_PERFIL_CONFIG_INSTALL_CRU",
           "value": "Basico",
           "menu": [
             " |Sistema Limpo (Sem extras)",
@@ -272,7 +270,9 @@
             "Full|Pacote Completo (Todos)"
           ]
         }
-      ]
+      ],
+      "parent": "/boot/ISOs/Installs/Windows",
+      "template": "/boot/autonome/windows/Instalar/Automatizado.xml"
     }
   ]
 }

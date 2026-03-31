@@ -24,7 +24,7 @@ IFS=$'\n\t'
 trap 'log ERROR "Falha inesperada linha=$LINENO cmd=${BASH_COMMAND:-unknown}"' ERR
 
 # --- CONFIGURAÇÕES ---
-DIR_SAIDA="./autounattend"
+DIR_SAIDA="./"
 ARQUIVO_MODELO="./autounattend.model.xml"
 ARQUIVO_SCRIPT="./modelo_script_embutido.ps1"
 MAX_JOBS=4
@@ -100,7 +100,7 @@ else
 fi
 
 TARGETS=(
-  "Target"
+  "Automatizado"
 #  "Basico"
 #  "Designer"
 #  "Gamer"
@@ -111,7 +111,7 @@ TARGETS=(
 CHAVE_SENTINELA="VK7JG-NPHTM-C97JM-9MPGT-3V66T"
 
 # Nome lógico da edição OEM baseada em BIOS
-EDICAO_OEM_NOME="Default"
+EDICAO_OEM_NOME="Instalar"
 
 # --- MATRIZ ---
 EDICOES=(
