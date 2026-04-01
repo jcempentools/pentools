@@ -167,6 +167,40 @@ def hash_file(filename, label):
         show_message(f"Erro ao calcular hash de {filename}: {e}", "e")
         return None
 
+def resolve_filename_from_url(url, fallback_path=None):
+    """Resolve nome de arquivo a partir de URL, header ou fallback (.syncdownload)"""
+    filename = None
+
+    # 1. URL
+    url_name = os.path.basename(url.split("?")[0])
+    if url_name:
+        filename = url_name
+
+    # 2. Header
+    try:
+        import urllib.request
+        req = urllib.request.Request(url, method='HEAD')
+        with urllib.request.urlopen(req) as response:
+            content_disposition = response.headers.get('Content-Disposition')
+            if content_disposition:
+                match = re.search(r'filename="?([^"]+)"?', content_disposition)
+                if match:
+                    filename = match.group(1)
+    except Exception:
+        pass
+
+    # 3. Fallback
+    if not filename and fallback_path:
+        base = os.path.basename(fallback_path)
+        if base.lower().endswith(".syncdownload"):
+            filename = base[:-len(".syncdownload")]
+
+    return filename     
+
+def normalize_tokens(s):
+    """Quebra string em tokens normalizados"""
+    return [t for t in re.split(r'[^a-z0-9]+', s.lower()) if t] 
+
 def destination_cleanup(root, dry_run=False):
     """Remove arquivos/pastas no destino que não existem na origem"""
     for item in os.listdir(root):
@@ -196,32 +230,7 @@ def destination_cleanup(root, dry_run=False):
 
                     expected_name = None
 
-                    # 1. Tenta extrair da URL
-                    url_name = os.path.basename(first_line.split("?")[0])
-                    if url_name:
-                        expected_name = url_name
-
-                    # 2. Tenta extrair do header (Content-Disposition)
-                    try:
-                        import urllib.request
-
-                        req = urllib.request.Request(first_line, method='HEAD')
-                        with urllib.request.urlopen(req) as response:
-                            content_disposition = response.headers.get('Content-Disposition')
-
-                            if content_disposition:
-                                match = re.search(r'filename="?([^"]+)"?', content_disposition)
-                                if match:
-                                    expected_name = match.group(1)
-                    except Exception:
-                        # Falha silenciosa — mantém comportamento atual
-                        pass
-
-                    # 3. FALLBACK: usa o nome do .syncdownload removendo a extensão
-                    if not expected_name:
-                        sync_name = os.path.basename(origin_equivalent_sync)
-                        if sync_name.lower().endswith(".syncdownload"):
-                            expected_name = sync_name[:-len(".syncdownload")]
+                    expected_name = resolve_filename_from_url(first_line, origin_equivalent_sync)
 
                     # Se o nome bate com o arquivo atual, NÃO remove
                     if expected_name and os.path.basename(dest_full_path) == expected_name:
@@ -266,31 +275,115 @@ def origin_to_destination(path, retry, dry_run):
                     url = lines[0]
                     expected_hash = lines[1] if len(lines) > 1 else None
 
-                    # Nome do arquivo (mesma lógica do cleanup)
+                    # --- NOVO: SUPORTE A GITHUB RELEASE (ext | url) ---
+                    # Detecta padrão "extensão | url"
+                    # --- NOVO: SUPORTE A GITHUB RELEASE (ext[, arch] | url) ---
+                    github_match = re.match(r'^\s*([^|]+)\|\s*(https?://github\.com/[^/]+/[^/]+)\s*$', url, re.IGNORECASE)
+
+                    if github_match:
+                        try:
+                            raw_spec = github_match.group(1)
+                            repo_url = github_match.group(2).rstrip('/')
+
+                            # --- PARSE DOS PARÂMETROS ---
+                            parts = [p.strip().lower() for p in raw_spec.split(",") if p.strip()]
+
+                            ext = None
+                            arch = None
+                            extra_filters = []  # NOVO: filtros adicionais livres
+
+                            for p in parts:
+                                if p.startswith("."):
+                                    ext = p[1:]
+                                elif p in ("x86", "x64", "arm64"):
+                                    arch = p
+                                else:
+                                    extra_filters.append(p)  # qualquer outro termo vira filtro
+
+                            if not ext:
+                                show_message("Extensão não informada no padrão GitHub (.ext obrigatório)", "e")
+                                return
+
+                            # Monta endpoint da API
+                            api_url = repo_url.replace("github.com", "api.github.com/repos") + "/releases/latest"
+
+                            import urllib.request
+                            import json
+
+                            show_message(f"Detectado padrão GitHub: .{ext}" + (f", {arch}" if arch else ""), "d")
+
+                            with urllib.request.urlopen(api_url) as response:
+                                data = json.loads(response.read().decode())
+
+                            assets = data.get("assets", [])
+
+                            if not assets:
+                                show_message("Release não possui assets", "e")
+                                return                            
+
+                            # --- MATCH ESTRITO: TODOS OS CRITÉRIOS DEVEM CASAR ---
+                            selected_candidates = []
+
+                            for asset in assets:
+                                name = asset.get("name", "")
+                                tokens = normalize_tokens(name)
+
+                                # 1. Extensão (obrigatória)
+                                clean_name = name.lower().split('?')[0].split('#')[0]
+                                if not clean_name.endswith(f".{ext}"):
+                                    continue
+
+                                match_ok = True
+
+                                # 2. Arquitetura (se informada → obrigatória)
+                                if arch:
+                                    if arch not in tokens:
+                                        match_ok = False
+
+                                # 3. Filtros adicionais (TODOS obrigatórios)
+                                for f in extra_filters:
+                                    if not any(f in t for t in tokens):
+                                        match_ok = False
+                                        break
+
+                                if match_ok:
+                                    selected_candidates.append(asset)
+
+                            # Seleção final
+                            if len(selected_candidates) == 1:
+                                selected_asset = selected_candidates[0]
+
+                            elif len(selected_candidates) > 1:
+                                # Critério simples e determinístico: maior arquivo
+                                selected_asset = max(selected_candidates, key=lambda a: a.get("size", 0))
+                                show_message(f"Múltiplos matches encontrados, selecionado maior arquivo", "w")
+
+                            else:
+                                selected_asset = None
+                            # --- FIM DO MATCH ---
+
+                            if selected_asset:
+                                url = selected_asset.get("browser_download_url")
+                                filename = selected_asset.get("name")
+
+                                show_message(f"Asset encontrado: {filename}", "s")
+
+                                # IMPORTANTE: desabilita hash nesse modo
+                                expected_hash = None
+                            else:
+                                show_message(f"Nenhum asset compatível encontrado (.{ext}" + (f", {arch}" if arch else "") + ")", "e")
+                                return
+
+                        except Exception as e:
+                            show_message(f"Erro ao resolver GitHub release: {e}", "e")
+                            return
+                    # --- FIM DO BLOCO ---                    
+
+                    # Nome do arquivo (mesma lógica do cleanup)                    
+                    # PRESERVA nome vindo do GitHub (se existir)                    
                     filename = None
-
-                    # 1. URL
-                    url_name = os.path.basename(url.split("?")[0])
-                    if url_name:
-                        filename = url_name
-
-                    # 2. Header
-                    try:
-                        import urllib.request
-                        req = urllib.request.Request(url, method='HEAD')
-                        with urllib.request.urlopen(req) as response:
-                            content_disposition = response.headers.get('Content-Disposition')
-                            if content_disposition:
-                                match = re.search(r'filename="?([^"]+)"?', content_disposition)
-                                if match:
-                                    filename = match.group(1)
-                    except Exception:
-                        pass
-
-                    # 3. Fallback
                     if not filename:
-                        base = os.path.basename(path)
-                        filename = base[:-len(".syncdownload")]
+                        filename = resolve_filename_from_url(url, path)
 
                     final_dest_path = os.path.join(os.path.dirname(dest_path), filename)
 
