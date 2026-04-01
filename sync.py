@@ -69,6 +69,33 @@ IGNORED_PATHS = (
     r"\.TemporaryItems$|\$Recycle\.Bin$|Recycler$))"
 )
 
+# Cache global de normalização
+_product_cache = {}
+
+# Alias canônicos
+PRODUCT_ALIASES = {
+    "7zip": "7z",
+    "7z": "7z",
+    "pwsh": "powershell",
+    "powershell": "powershell",
+}
+
+# Vendors conhecidos (ignorados)
+KNOWN_VENDORS = {
+    "microsoft", "oracle", "google", "adobe", "mozilla",
+    "github", "gitlab"
+}
+
+# Ruídos
+NOISE_TOKENS = {
+    "x86", "x64", "arm", "arm64",
+    "win", "windows", "linux", "mac",
+    "setup", "installer", "install",
+    "release", "portable",
+    "rc", "beta", "alpha",
+    "msi", "exe", "zip"
+}
+
 def show_message(txt, tipo=None, cor="white", bold=True, inline=False):
     """Exibe mensagem formatada no console e salva uma versão limpa no log"""
     global _log_iniciado, retent_loop_count
@@ -197,10 +224,110 @@ def resolve_filename_from_url(url, fallback_path=None):
 
     return filename  
 
+def normalize_product_name(filename):
+    """
+    Normalização avançada com:
+    - alias
+    - remoção de vendor
+    - remoção de versão
+    - cache
+    """
+
+    if filename in _product_cache:
+        return _product_cache[filename]
+
+    name = os.path.basename(filename).lower()
+
+    # remove extensão
+    name = re.sub(r'\.[a-z0-9]{2,5}$', '', name)
+
+    tokens = normalize_tokens(name)
+
+    filtered = []
+
+    for t in tokens:
+        if t in NOISE_TOKENS:
+            continue
+
+        if t in KNOWN_VENDORS:
+            continue
+
+        if re.match(r'^\d+(\.\d+)*$', t):
+            continue
+
+        # aplica alias
+        t = PRODUCT_ALIASES.get(t, t)
+
+        filtered.append(t)
+
+    if not filtered:
+        result = None
+    else:
+        result = filtered[0]
+
+    _product_cache[filename] = result
+    return result
+
+def similarity_score(a, b):
+    """
+    Score simples baseado em tokens (0 a 1)
+    """
+    if not a or not b:
+        return 0
+
+    return 1.0 if a == b else 0
+
+
+def purge_similar_installers(dest_dir, target_name):
+    """
+    Remove instaladores similares com base em score + nome canônico
+    """
+
+    target_base = normalize_product_name(target_name)
+
+    if not target_base:
+        return
+
+    for f in os.listdir(dest_dir):
+        full = os.path.join(dest_dir, f)
+
+        if not os.path.isfile(full):
+            continue
+
+        # 🔒 Proteção: nunca remove o próprio arquivo alvo
+        if f == target_name:
+            continue
+
+        existing_base = normalize_product_name(f)
+
+        score = similarity_score(target_base, existing_base)
+
+        # Threshold 1.0 = match exato após normalização
+        if score == 1.0:
+            try:
+                os.remove(full)
+                show_message(f"Removido instalador antigo: {f}", "-", cor="yellow")
+            except Exception as e:
+                show_message(f"Erro ao remover {f}: {e}", "e")
+
+# Força extenção compatível com mime-type, sem duplicação e,
+# trata bansename para manter apenas o nome do software com
+# a extensão real do mime type.
+#
+# Exemplo para mime type .msi:
+# 7zip.7zip =  7zip.7zip.msi
+# 7zip.7zip.msi =  7zip.7zip.msi
+# 7zip =  7zip.msi
+# 7zip.msi =  7zip.msi
+# Exemplo complexo:
+# Microsoft.PowerShell-7.6.0-rc.1-win-x64.msi = Powershell.msi
 def resolve_final_filename(url, path, custom_name=None, github_ext=None):
     """
-    Resolve nome final considerando nome customizado opcional (linha 3).
-    NÃO altera comportamento se custom_name não existir.
+    Resolve nome final com normalização de produto.
+    Garante:
+    - Nome estável (ex: powershell.msi)
+    - Não duplicação de extensão
+    - Compatibilidade com purge
     """
 
     # --- SEM linha 3 → comportamento original ---
@@ -208,64 +335,52 @@ def resolve_final_filename(url, path, custom_name=None, github_ext=None):
         return resolve_filename_from_url(url, path)
 
     custom_name = custom_name.strip()
-    
-    # Já possui extensão → valida corretamente
-    if re.search(r'\.[a-z0-9]{2,5}$', custom_name, re.IGNORECASE):
-        if github_ext:
-            current_ext = custom_name.lower().split('.')[-1]
 
-            # Se já for a extensão correta → NÃO duplica
-            if current_ext == github_ext.lower():
-                return custom_name
+    # --- Extrai extensão existente ---
+    match_ext = re.search(r'\.([a-z0-9]{2,5})$', custom_name, re.IGNORECASE)
+    existing_ext = match_ext.group(1).lower() if match_ext else None
 
-            # Caso contrário → FORÇA extensão correta
-            return f"{custom_name}.{github_ext}"
-
-        return custom_name
-
-    # --- Precisamos inferir extensão ---
+    # --- Determina extensão final ---
     ext = None
 
-    # 1. GitHub (prioridade)
     if github_ext:
-        ext = github_ext
-
-    # 2. URL
-    if not ext:
+        ext = github_ext.lower()
+    elif existing_ext:
+        ext = existing_ext
+    else:
+        # fallback URL
         url_name = os.path.basename(url.split("?")[0])
         if "." in url_name:
-            ext = url_name.split(".")[-1]
+            ext = url_name.split(".")[-1].lower()
 
-    # 3. Header (opcional leve)
-    if not ext:
-        try:
-            import urllib.request
-            req = urllib.request.Request(url, method='HEAD')
-            with urllib.request.urlopen(req) as response:
-                content_type = response.headers.get('Content-Type', '')
-                if "zip" in content_type:
-                    ext = "zip"
-                elif "json" in content_type:
-                    ext = "json"
-        except Exception:
-            pass
+    # --- NORMALIZA NOME DO PRODUTO ---
+    base_name = normalize_product_name(custom_name)
 
+    if not base_name:
+        # fallback robusto: usa nome limpo preservando identidade
+        base_name = re.sub(r'\.[a-z0-9]{2,5}$', '', custom_name.lower())
+
+        # remove espaços e caracteres inválidos básicos
+        base_name = re.sub(r'[^a-z0-9]+', '.', base_name).strip('.')    
+
+    # --- MONTA NOME FINAL ---
     if ext:
-        return f"{custom_name}.{ext}"
+        return f"{base_name}.{ext}"
 
-    return custom_name       
+    return base_name    
 
 def parse_syncdownload(file_path):
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
-            lines = [l.strip() for l in f.readlines() if l.strip()]
+            raw_lines = [l.rstrip('\n') for l in f.readlines()]
 
-        if not lines:
+        if not raw_lines:
             return None, None, None
 
-        url = lines[0]
-        expected_hash = lines[1] if len(lines) > 1 else None
-        custom_filename = lines[2] if len(lines) > 2 else None
+        # Preserva posição das linhas (não remove vazias)
+        url = raw_lines[0].strip() if len(raw_lines) > 0 else None
+        expected_hash = raw_lines[1].strip() if len(raw_lines) > 30 and raw_lines[1].strip() else None
+        custom_filename = raw_lines[2].strip() if len(raw_lines.trim) > 2 and raw_lines[2].strip() else None
 
         return url, expected_hash, custom_filename
 
@@ -416,9 +531,9 @@ def origin_to_destination(path, retry, dry_run):
 
                                 match_ok = True
 
-                                # 2. Arquitetura (se informada → obrigatória)
+                                # 2. Arquitetura (se informada → obrigatória)                                
                                 if arch:
-                                    if arch not in tokens:
+                                    if not any(arch in t for t in tokens):
                                         match_ok = False
 
                                 # 3. Filtros adicionais (TODOS obrigatórios)
@@ -468,7 +583,13 @@ def origin_to_destination(path, retry, dry_run):
                         github_ext=github_ext
                     )
 
-                    final_dest_path = os.path.join(os.path.dirname(dest_path), filename)
+                    dest_dir = os.path.dirname(dest_path)
+
+                    # 🔥 NOVO: purge de instaladores similares
+                    if github_ext and not expected_hash:
+                        purge_similar_installers(dest_dir, filename)
+
+                    final_dest_path = os.path.join(dest_dir, filename)
 
                     # Verifica necessidade de download
                     need_download = True
@@ -507,7 +628,37 @@ def origin_to_destination(path, retry, dry_run):
                                         if not chunk:
                                             break
                                         out_file.write(chunk)
-                                        progress.update(task, advance=len(chunk))
+                                        progress.update(task, advance=len(chunk))                                                                       
+
+                                # --- VALIDAÇÃO LEVE (sem hash) ---
+                                if not expected_hash:
+                                    try:
+                                        file_size = os.path.getsize(final_dest_path)
+
+                                        # 1. Arquivo vazio
+                                        if file_size == 0:
+                                            raise Exception("arquivo vazio")
+
+                                        # 2. Validação por Content-Length (se disponível)
+                                        if total_size > 0 and file_size != total_size:
+                                            raise Exception(f"tamanho divergente ({file_size} != {total_size})")
+
+                                    except Exception as e:
+                                        show_message(f"Falha no download: {filename} ({e})", "e")
+
+                                        # 🧹 Remove arquivo corrompido antes do retry
+                                        try:
+                                            if os.path.exists(final_dest_path):
+                                                os.remove(final_dest_path)
+                                        except Exception:
+                                            pass
+
+                                        # 🔁 Integra com sistema de retry existente
+                                        if retry and path not in failed_files:
+                                            show_message(f"Adicionado para retentativa: {rel_path}", "w")
+                                            failed_files.append(path)
+
+                                        return                                       
 
                         # Validação
                         if expected_hash:
