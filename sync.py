@@ -208,9 +208,19 @@ def resolve_final_filename(url, path, custom_name=None, github_ext=None):
         return resolve_filename_from_url(url, path)
 
     custom_name = custom_name.strip()
+    
+    # Já possui extensão → valida corretamente
+    if re.search(r'\.[a-z0-9]{2,5}$', custom_name, re.IGNORECASE):
+        if github_ext:
+            current_ext = custom_name.lower().split('.')[-1]
 
-    # Já possui extensão → usa direto
-    if "." in os.path.basename(custom_name):
+            # Se já for a extensão correta → NÃO duplica
+            if current_ext == github_ext.lower():
+                return custom_name
+
+            # Caso contrário → FORÇA extensão correta
+            return f"{custom_name}.{github_ext}"
+
         return custom_name
 
     # --- Precisamos inferir extensão ---
@@ -245,6 +255,24 @@ def resolve_final_filename(url, path, custom_name=None, github_ext=None):
 
     return custom_name       
 
+def parse_syncdownload(file_path):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            lines = [l.strip() for l in f.readlines() if l.strip()]
+
+        if not lines:
+            return None, None, None
+
+        url = lines[0]
+        expected_hash = lines[1] if len(lines) > 1 else None
+        custom_filename = lines[2] if len(lines) > 2 else None
+
+        return url, expected_hash, custom_filename
+
+    except Exception as e:
+        show_message(f"Erro ao ler .syncdownload {file_path}: {e}", "e")
+        return None, None, None
+
 def normalize_tokens(s):
     """Quebra string em tokens normalizados"""
     return [t for t in re.split(r'[^a-z0-9]+', s.lower()) if t] 
@@ -273,19 +301,15 @@ def destination_cleanup(root, dry_run=False):
             # Verifica se existe um .syncdownload correspondente na origem
             if os.path.exists(origin_equivalent_sync):
                 try:
-                    with open(origin_equivalent_sync, 'r', encoding='utf-8') as f:
-                        lines = [l.strip() for l in f.readlines() if l.strip()]
+                    url, expected_hash, custom_filename = parse_syncdownload(origin_equivalent_sync)
 
-                    if not lines:
+                    if not url:
                         continue
-
-                    url = lines[0]
-                    custom_name = lines[2] if len(lines) > 2 else None
 
                     expected_name = resolve_final_filename(
                         url=url,
                         path=origin_equivalent_sync,
-                        custom_name=custom_name
+                        custom_name=custom_filename
                     )
 
                     # Se o nome bate com o arquivo atual, NÃO remove
@@ -322,17 +346,12 @@ def origin_to_destination(path, retry, dry_run):
             # --- TRATAMENTO PARA .syncdownload ---
             if path.lower().endswith(".syncdownload"):
                 try:
-                    with open(path, 'r', encoding='utf-8') as f:
-                        lines = [l.strip() for l in f.readlines() if l.strip()]
+                    url, expected_hash, custom_filename = parse_syncdownload(path)
 
-                    if not lines:
+                    if not url:
                         return
-
-                    url = lines[0]
-                    expected_hash = lines[1] if len(lines) > 1 else None
-                    custom_filename = lines[2].strip() if len(lines) > 2 else None
-                    github_ext = None
-                    custom_name = lines[2] if len(lines) > 2 else None
+                                                            
+                    github_ext = None                    
 
                     # --- NOVO: SUPORTE A GITHUB RELEASE (ext | url) ---
                     # Detecta padrão "extensão | url"
@@ -426,9 +445,8 @@ def origin_to_destination(path, retry, dry_run):
 
                             if selected_asset:
                                 url = selected_asset.get("browser_download_url")
-                                filename = selected_asset.get("name")
 
-                                show_message(f"Asset encontrado: {filename}", "s")
+                                show_message(f"Asset encontrado: {selected_asset.get('name')}", "s")
 
                                 # IMPORTANTE: desabilita hash nesse modo
                                 expected_hash = None
@@ -446,7 +464,7 @@ def origin_to_destination(path, retry, dry_run):
                     filename = resolve_final_filename(
                         url=url,
                         path=path,
-                        custom_name=custom_name,
+                        custom_name=custom_filename,
                         github_ext=github_ext
                     )
 
