@@ -6,6 +6,8 @@
 # Ignorar .sha256 que contenham "BB" ou "Crack" (Case-insensitive manual)
 *[Bb][Bb]*
 *[Cc][Rr][Aa][Cc][Kk]*
+*[Aa][Cc][Tt][Ii][Vv][Aa][Tt][Ee]*
+*[Aa][Tt][Ii][Vv][Aa][Dd][Oo]*
 
 # === Imagens de Disco e Instaladores ===
 *.iso
@@ -43,6 +45,6 @@ Drivers/
 
 # Exceções específicas da pasta autonome
 !/boot/autonome/windows/apps/7-Zip/*
-!/boot/autonome/**/.syncdownload
+!/boot/autonome/**/*.syncdownload
 !/boot/autonome/**/Drivers.*
 !/boot/autonome/windows/apps/Adobe/bloquear.ps1

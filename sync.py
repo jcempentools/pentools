@@ -195,7 +195,55 @@ def resolve_filename_from_url(url, fallback_path=None):
         if base.lower().endswith(".syncdownload"):
             filename = base[:-len(".syncdownload")]
 
-    return filename     
+    return filename  
+
+def resolve_final_filename(url, path, custom_name=None, github_ext=None):
+    """
+    Resolve nome final considerando nome customizado opcional (linha 3).
+    NÃO altera comportamento se custom_name não existir.
+    """
+
+    # --- SEM linha 3 → comportamento original ---
+    if not custom_name:
+        return resolve_filename_from_url(url, path)
+
+    custom_name = custom_name.strip()
+
+    # Já possui extensão → usa direto
+    if "." in os.path.basename(custom_name):
+        return custom_name
+
+    # --- Precisamos inferir extensão ---
+    ext = None
+
+    # 1. GitHub (prioridade)
+    if github_ext:
+        ext = github_ext
+
+    # 2. URL
+    if not ext:
+        url_name = os.path.basename(url.split("?")[0])
+        if "." in url_name:
+            ext = url_name.split(".")[-1]
+
+    # 3. Header (opcional leve)
+    if not ext:
+        try:
+            import urllib.request
+            req = urllib.request.Request(url, method='HEAD')
+            with urllib.request.urlopen(req) as response:
+                content_type = response.headers.get('Content-Type', '')
+                if "zip" in content_type:
+                    ext = "zip"
+                elif "json" in content_type:
+                    ext = "json"
+        except Exception:
+            pass
+
+    if ext:
+        return f"{custom_name}.{ext}"
+
+    return custom_name       
 
 def normalize_tokens(s):
     """Quebra string em tokens normalizados"""
@@ -226,11 +274,19 @@ def destination_cleanup(root, dry_run=False):
             if os.path.exists(origin_equivalent_sync):
                 try:
                     with open(origin_equivalent_sync, 'r', encoding='utf-8') as f:
-                        first_line = f.readline().strip()
+                        lines = [l.strip() for l in f.readlines() if l.strip()]
 
-                    expected_name = None
+                    if not lines:
+                        continue
 
-                    expected_name = resolve_filename_from_url(first_line, origin_equivalent_sync)
+                    url = lines[0]
+                    custom_name = lines[2] if len(lines) > 2 else None
+
+                    expected_name = resolve_final_filename(
+                        url=url,
+                        path=origin_equivalent_sync,
+                        custom_name=custom_name
+                    )
 
                     # Se o nome bate com o arquivo atual, NÃO remove
                     if expected_name and os.path.basename(dest_full_path) == expected_name:
@@ -274,6 +330,9 @@ def origin_to_destination(path, retry, dry_run):
 
                     url = lines[0]
                     expected_hash = lines[1] if len(lines) > 1 else None
+                    custom_filename = lines[2].strip() if len(lines) > 2 else None
+                    github_ext = None
+                    custom_name = lines[2] if len(lines) > 2 else None
 
                     # --- NOVO: SUPORTE A GITHUB RELEASE (ext | url) ---
                     # Detecta padrão "extensão | url"
@@ -285,6 +344,8 @@ def origin_to_destination(path, retry, dry_run):
                             raw_spec = github_match.group(1)
                             repo_url = github_match.group(2).rstrip('/')
 
+                            github_ext = None 
+
                             # --- PARSE DOS PARÂMETROS ---
                             parts = [p.strip().lower() for p in raw_spec.split(",") if p.strip()]
 
@@ -295,6 +356,7 @@ def origin_to_destination(path, retry, dry_run):
                             for p in parts:
                                 if p.startswith("."):
                                     ext = p[1:]
+                                    github_ext = ext 
                                 elif p in ("x86", "x64", "arm64"):
                                     arch = p
                                 else:
@@ -381,9 +443,12 @@ def origin_to_destination(path, retry, dry_run):
 
                     # Nome do arquivo (mesma lógica do cleanup)                    
                     # PRESERVA nome vindo do GitHub (se existir)                    
-                    filename = None
-                    if not filename:
-                        filename = resolve_filename_from_url(url, path)
+                    filename = resolve_final_filename(
+                        url=url,
+                        path=path,
+                        custom_name=custom_name,
+                        github_ext=github_ext
+                    )
 
                     final_dest_path = os.path.join(os.path.dirname(dest_path), filename)
 
