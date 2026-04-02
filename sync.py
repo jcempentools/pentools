@@ -388,6 +388,96 @@ def parse_syncdownload(file_path):
         show_message(f"Erro ao ler .syncdownload {file_path}: {e}", "e")
         return None, None, None
 
+def manage_sync_metadata(final_dest_path, url, expected_hash, custom_filename, github_ext):
+    """
+    Gerencia validação e geração de arquivos auxiliares (.sha256 / .sync)
+
+    Responsabilidades:
+    - Verificar se download é necessário
+    - Validar integridade via hash
+    - Validar nome original via .sync
+    - Gerar arquivos auxiliares quando necessário
+
+    NÃO reimplementa:
+    - resolução de nome
+    - leitura de header
+    - parsing de URL
+    """
+
+    sha_file = final_dest_path + ".sha256"
+    sync_file = final_dest_path + ".sync"
+
+    need_download = True
+
+    # --- VALIDAÇÃO ---
+    if os.path.exists(final_dest_path):
+
+        # --- GitHub mode ---
+        if github_ext and os.path.exists(sha_file):
+            try:
+                with open(sha_file, "r", encoding="utf-8") as f:
+                    saved_hash = f.read().strip()
+
+                current_hash = hash_file(final_dest_path, "Destino")
+
+                name_ok = True
+
+                if os.path.exists(sync_file):
+                    with open(sync_file, "r", encoding="utf-8") as f:
+                        original_name = f.read().strip()
+
+                    resolved_name = resolve_filename_from_url(url)
+
+                    if resolved_name and original_name != resolved_name:
+                        name_ok = False
+
+                if current_hash == saved_hash and name_ok:
+                    need_download = False
+                    show_message(f"GitHub: download desnecessário (arquivo já atualizado): {os.path.basename(final_dest_path)}", "k")
+
+            except Exception as e:
+                show_message(f"Falha na verificação prévia: {e}", "w")
+
+        # --- fluxo tradicional ---
+        elif expected_hash:
+            current_hash = hash_file(final_dest_path, "Destino")
+            if current_hash == expected_hash:
+                need_download = False
+
+    return need_download
+
+
+def generate_sync_metadata(final_dest_path, url, custom_filename, github_ext):
+    """
+    Gera arquivos auxiliares (.sha256 / .sync)
+    """
+
+    try:
+        if not github_ext:
+            return
+
+        show_message(f"Gerando arquivos auxiliares: {os.path.basename(final_dest_path)}", "d")
+
+        # SHA256
+        sha256_hash = hashlib.sha256()
+        with open(final_dest_path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                sha256_hash.update(chunk)
+
+        with open(final_dest_path + ".sha256", "w", encoding="utf-8") as f:
+            f.write(sha256_hash.hexdigest())
+
+        # .sync
+        if custom_filename:
+            original_name = resolve_filename_from_url(url)
+
+            if original_name:
+                with open(final_dest_path + ".sync", "w", encoding="utf-8") as f:
+                    f.write(original_name)
+
+    except Exception as e:
+        show_message(f"Erro ao gerar arquivos auxiliares: {e}", "w") 
+
 def normalize_tokens(s):
     """Quebra string em tokens normalizados"""
     return [t for t in re.split(r'[^a-z0-9]+', s.lower()) if t] 
@@ -595,47 +685,14 @@ def origin_to_destination(path, retry, dry_run):
 
                     final_dest_path = os.path.join(dest_dir, filename)
                     
-                    # Verifica necessidade de download
-                    need_download = True
-
-                    sha_file = final_dest_path + ".sha256"
-                    sync_file = final_dest_path + ".sync"
-
-                    if os.path.exists(final_dest_path):
-
-                        # --- NOVO: validação avançada para GitHub ---
-                        if github_ext and os.path.exists(sha_file):
-
-                            try:
-                                # 1. Lê hash salvo
-                                with open(sha_file, "r", encoding="utf-8") as f:
-                                    saved_hash = f.read().strip()
-
-                                current_hash = hash_file(final_dest_path, "Destino")
-
-                                # 2. Se tiver .sync, valida nome real
-                                name_ok = True
-                                if os.path.exists(sync_file):
-                                    with open(sync_file, "r", encoding="utf-8") as f:
-                                        original_name = f.read().strip()
-
-                                    resolved_name = resolve_filename_from_url(url)
-
-                                    if resolved_name and original_name != resolved_name:
-                                        name_ok = False
-
-                                    if current_hash == saved_hash and name_ok:
-                                        need_download = False
-                                        show_message(f"GitHub: download desnecessário (arquivo já atualizado): {filename}", "k")
-
-                            except Exception as e:
-                                show_message(f"Falha na verificação prévia: {e}", "w")
-
-                        # --- fluxo tradicional ---
-                        elif expected_hash:
-                            current_hash = hash_file(final_dest_path, "Destino")
-                            if current_hash == expected_hash:
-                                need_download = False
+                    # Verifica necessidade de download (centralizado)
+                    need_download = manage_sync_metadata(
+                        final_dest_path=final_dest_path,
+                        url=url,
+                        expected_hash=expected_hash,
+                        custom_filename=custom_filename,
+                        github_ext=github_ext
+                    )
 
                     # --- NOVO: log explícito de decisão ---
                     if github_ext and need_download:
@@ -697,7 +754,7 @@ def origin_to_destination(path, retry, dry_run):
                                             show_message(f"Adicionado para retentativa: {rel_path}", "w")
                                             failed_files.append(path)
 
-                                        return                                       
+                                        return                                                               
 
                         # Validação
                         if expected_hash:
@@ -707,28 +764,12 @@ def origin_to_destination(path, retry, dry_run):
                             else:
                                 show_message(f"Download validado: {filename}", "s")
 
-                        # --- NOVO: geração de arquivos auxiliares (.sha256 / .sync) ---
-                        try:
-                            if github_match:
-                                # calcula hash SHA256 sempre
-                                sha256_hash = hashlib.sha256()
-                                with open(final_dest_path, "rb") as f:
-                                    for chunk in iter(lambda: f.read(65536), b""):
-                                        sha256_hash.update(chunk)
-
-                                with open(final_dest_path + ".sha256", "w", encoding="utf-8") as f:
-                                    f.write(sha256_hash.hexdigest())
-
-                                # cria .sync somente se houver nome fixo (linha 3)
-                                if custom_filename:
-                                    original_name = resolve_filename_from_url(url)
-
-                                    if original_name:
-                                        with open(final_dest_path + ".sync", "w", encoding="utf-8") as f:
-                                            f.write(original_name)
-
-                        except Exception as e:
-                            show_message(f"Erro ao gerar arquivos auxiliares: {e}", "w")                                
+                        generate_sync_metadata(
+                            final_dest_path=final_dest_path,
+                            url=url,
+                            custom_filename=custom_filename,
+                            github_ext=github_ext
+                        )                        
 
                 except Exception as e:
                     show_message(f"Erro no .syncdownload {rel_path}: {e}", "e")
