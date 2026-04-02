@@ -1,91 +1,153 @@
-# =========================================================
-# AUTONOME INSTALL SCRIPT
-# =========================================================
-# Objetivo:
-# Preparar ambiente Windows de forma automática,
-# previsível e rastreável.
-#
-# Comportamento adicional (offline-first avançado):
-# - O pendrive pode conter apps para instalação offline
-#   no caminho padrão: unidade:\boot\autonome\windows\apps\
-# - Se existir "unidade:\apps\", seu conteúdo será mesclado
-#   ao cache local em "${CACHE}\boot\autonome\windows\apps\",
-#   sobrescrevendo arquivos existentes.
-# - Se existir "unidade:\Drivers\", será mesclado à pasta de
-#   Drivers local (mesmo após extração de .7z/zip), permitindo
-#   sobrescrever versões ou adicionar drivers manualmente.
-#
-# Princípios:
-# - Idempotente: não tenta instala o que já foi instalado
-#   (checklist global)
-# - Híbrido: prioriza offline (pendrive/cache), usa online
-#   como fallback
-# - Resiliente: múltiplos métodos de execução e verificação
-# - Rastreável: cada execução gera log isolado
-# - Compatível: funciona em PS antigo com fallback
-#   automático para PS7+
-#
-# Logs:
-# - Raiz: %SystemDrive%\autonome-install-LOG
-# - Execução: ID-MMDD-HHMM-MODE (SYSTEM|USER)
-# - Conteúdo:
-#     auto-install.log  → log geral (transcript)
-#     /apps/            → logs por aplicação
-#
-# Checklist:
-# - Arquivo global: installed_apps.json
-# - Evita reinstalações
-# - Persistente entre execuções
-# - Apenas uma versão do software, não deve-se controlar
-#   versões (Ex. Adobe Photoshop, ignore-se a versão)
-#
-# Fluxo:
-# 0. Totalmente síncrono, com apenas uma única exceção
-#    (drivers)
-# 1. Detecta contexto (SYSTEM/USER)
-# 2. Garante PowerShell 7+
-# 3. Prepara cache local (TEMP persistente via registry)
-# 4. Merge de Drivers externos (unidade:\Drivers) e instalação (assíncrono)
-# 5. Configura ambiente (energia, wallpaper, etc)
-# 6. Atualiza winget
-# 7. Instala apps:
-#    - offline (merge de unidade:\apps + cache)
-#    - URL direta
-#    - winget (fallback)
-# 8. Lista de app externa e recursiva (@), expandida até resolução
-#    completa; includes inválidos são ignorados (sem resíduos de "@")
-#
-# Detecção de instalação:
-# - winget list
-# - registry (Uninstall)
-# - PATH (Get-Command)
-#
-# Cache:
-# - %SystemRoot%\Temp\<ID_RANDOM>
-# - Controlado via HKLM:\SOFTWARE\AutonomeInstall
-# - Sincronização incremental via robocopy (incluindo pastas externas)
-#
-# Execução:
-# - Padrão: cmd.exe
-# - Fallback: PowerShell 7
-# - Execução síncrona para etapas críticas
-#
-# Diretrizes:
-# - Espera privilégio administrativo
-# - Ambiente controlado (ex: pendrive)
-# - Foco em confiabilidade e previsibilidade
-# - Falhas pontuais não devem interromper o fluxo
-#
-# Codificação:
-# - Mudanças mínimas para implementar correções e melhorias
-# - Garantir rastreabilidade com git
-#
-# Boas práticas de CORRÇÕES E APRIMORAMENTOS:
-# Toda e qualquer alteração de primar por alterações
-# minimas objetivando um fácil rastreo git, mas com bom 
-# senso, afim de obter eficiência e gestão de código.
-#
-# =========================================================
+<#
+===============================================================================
+AUTONOME INSTALL SCRIPT — SPEC HEADER
+===============================================================================
+
+[OBJETIVO]
+Provisionamento automatizado, resiliente e idempotente de ambiente Windows,
+com suporte offline-first e fallback online, executável em contexto USER ou SYSTEM.
+
+-------------------------------------------------------------------------------
+[REGRAS DE NEGÓCIO]
+- Execução determinística, sequencial e bloqueante (sync-first).
+- Cada etapa deve validar seu próprio sucesso antes de prosseguir.
+- Estado final deve ser verificável (confirmação real, não apenas exit code).
+- Operações devem ser idempotentes (seguro reexecutar múltiplas vezes).
+- Preferência absoluta por fontes offline → fallback online quando necessário.
+- Instalações devem evitar duplicidade (checklist + detecção real).
+- Execução tolerante a falhas transitórias (retry obrigatório).
+- Compatível com ambiente sem interface gráfica (headless).
+
+-------------------------------------------------------------------------------
+[DIRETRIZES]
+- Priorizar RESILIÊNCIA > VELOCIDADE.
+- Preferir comandos nativos do Windows (cmd, msiexec, pnputil, robocopy).
+- Evitar dependência de módulos externos ou modernos.
+- Compatível com PowerShell 2.0+ (bootstrap) e execução plena em PS 7.6+.
+- Suporte completo a execução como SYSTEM.
+- Código deve ser modular (micro-funções reutilizáveis).
+- Evitar lógica duplicada (centralizar comportamento em funções).
+- Logging deve ser detalhado e persistente em arquivo.
+- Toda operação crítica deve possuir fallback.
+
+-------------------------------------------------------------------------------
+[RESTRIÇÕES / VEDAÇÕES]
+- ❌ Não executar operações assíncronas (exceto instalação de drivers).
+- ❌ Não depender de interface gráfica.
+- ❌ Não confiar apenas em ExitCode como validação.
+- ❌ Não assumir conectividade de rede.
+- ❌ Não usar módulos PowerShell externos.
+- ❌ Não executar etapas sem validação posterior.
+- ❌ Não permitir execução paralela (mutex obrigatório).
+- ❌ Não prosseguir com sistema em estado inconsistente (DISM/CBS ativo).
+
+-------------------------------------------------------------------------------
+[MODUS OPERANDI]
+1. Inicialização segura (ExecutionPolicy, TLS, contexto).
+2. Garantia de ambiente (logs, diretórios, mutex global).
+3. Prevenção de interferência externa (shutdown/sleep).
+4. Upgrade/control de runtime (PS7 fallback).
+5. Descoberta de origem offline (pendrive/cache).
+6. Preparação de cache local (robocopy incremental).
+7. Execução de tarefas base:
+   - drivers (assíncrono controlado)
+   - regionalização
+   - wallpapers
+8. Preparação e validação do winget.
+9. Instalação de aplicações:
+   - offline (prioritário)
+   - online (fallback)
+10. Execução de hooks finais (scripts externos).
+11. Validação global.
+12. Finalização segura (log + reboot controlado).
+
+-------------------------------------------------------------------------------
+[ETAPAS OBRIGATÓRIAS]
+- Todas as etapas devem:
+  - ser síncronas e bloqueantes
+  - possuir retry com backoff progressivo
+  - validar resultado antes de continuar
+  - registrar log detalhado
+
+EXCEÇÃO:
+- Instalação de drivers pode ser assíncrona (background controlado),
+  mas extração/preparação deve ser síncrona.
+
+-------------------------------------------------------------------------------
+[CARACTERÍSTICAS TÉCNICAS]
+- Mutex global anti-paralelismo (uma execução por máquina).
+- Barreira DISM/CBS: aguardar ausência de operações pendentes.
+- Retry automático com backoff progressivo.
+- Timeout controlado para operações críticas.
+- Logging estruturado em diretório por execução.
+- Execução compatível com:
+  - Windows Setup
+  - First Logon
+  - RunOnce
+  - SYSTEM context
+- Cache local persistente (TEMP controlado + registry).
+- Detecção inteligente de instaladores (offline matching).
+- Suporte a include recursivo em listas (.lst).
+- Sistema de hooks (scripts externos extensíveis).
+
+-------------------------------------------------------------------------------
+[ESTILO DE IMPLEMENTAÇÃO]
+- Funções pequenas, específicas e reutilizáveis.
+- Nomeação consistente e descritiva.
+- Evitar side-effects implícitos.
+- Evitar hardcode desnecessário.
+- Centralizar lógica crítica (download, execução, validação).
+- Logs devem ser humanos + machine-readable.
+- Código deve ser autoexplicativo (baixo acoplamento).
+
+-------------------------------------------------------------------------------
+[FAIL-SAFE / RESILIÊNCIA]
+- Falhas não críticas → log + continuar.
+- Falhas críticas → retry → fallback → log → abort seguro.
+- Downloads devem validar:
+  - existência
+  - tamanho mínimo
+  - conteúdo (evitar HTML inválido)
+- Execuções devem ter fallback:
+  - PowerShell → CMD → PowerShell 7
+- Sistema deve se auto-recuperar de:
+  - falhas de rede
+  - corrupção parcial
+  - execuções interrompidas
+
+-------------------------------------------------------------------------------
+[HOOKS / EXTENSIBILIDADE]
+- Suporte a scripts externos:
+  - .ps1 / .cmd / .bat / .reg
+- Execução ordenada e validada.
+- Nome baseado em contexto (ex: in.system, in.useronce).
+- Totalmente opcional e desacoplado.
+
+-------------------------------------------------------------------------------
+[LOGGING]
+- Transcript global + logs individuais por operação.
+- Logs devem conter:
+  - timestamp
+  - comando executado
+  - resultado (exit + validação)
+- Logs persistentes em:
+  %SystemDrive%\autonome-install-LOG\
+
+-------------------------------------------------------------------------------
+[COMPATIBILIDADE]
+- PowerShell 2.0+ (bootstrap obrigatório)
+- PowerShell 7.6+ (execução preferencial)
+- Windows 10/11
+- Windows Setup / WinPE parcial
+- Execução como SYSTEM e USER
+
+-------------------------------------------------------------------------------
+[RESUMO OPERACIONAL]
+SCRIPT = ORQUESTRADOR RESILIENTE, OFFLINE-FIRST, IDEMPOTENTE
+FOCO = CONFIABILIDADE, RECUPERAÇÃO E EXECUÇÃO DETERMINÍSTICA
+
+===============================================================================
+#>
 Param(
   [string]$is_test
 )
@@ -1889,7 +1951,10 @@ if (-not ([string]::IsNullOrEmpty($cache_root))) {
   $appsinstall_folder = $script:appsinstall_folder
   show_log "Usando cache TEMP: '$appsinstall_folder'"
 }
+# INSTALAÇãO DE DRIVER
 install_offline_drivers_async
+# FORCA PT-BR (para evitar confusão de formatação de números, datas, etc. em outros idiomas)
+./scripts/force-pt-br.ps1
 #######################################################
 #######################################################
 #####
