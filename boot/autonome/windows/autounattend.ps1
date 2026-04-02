@@ -171,6 +171,8 @@ $url_apps_lst = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/mast
 $url_lockscreen = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/$pendrive_autonome_root/WallPapers/lockscreen.lst".Replace("\", "/")
 $url_defWallPaper = "raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/$pendrive_autonome_root/WallPapers/default.lst".Replace("\", "/")
 $appsinstall_folder = "" # manter vazio
+$autonome_scripts = "scripts"
+$autonome_hooks = "$autonome_scripts/hooks";
 $apps_list_dir = "apps-list"
 $script:winget_timeout = "" # BUG: manter isso vazio
 Write-Host " "
@@ -2275,27 +2277,27 @@ function main {
   #####
   ##### FORCA PT-BR
   #####
-  "./scripts/force-pt-br.ps1"
+  "./$autonome_scripts/force-pt-br.ps1"
   
   #####
   ##### BAIXA WallPaperS
   #####
-  . "./scripts/get-wallpapers.ps1"
+  . "./$autonome_scripts/get-wallpapers.ps1"
 
   #####
   ##### WINGET
   #####
-  . "./scrips/fix-winget.ps1"
+  . "./$autonome_scripts/fix-winget.ps1"
   
   #####
   ##### REALIZA INSTALAÇÕES
   #####
-  . "./scrips/default-installs.ps1"
+  . "./$autonome_scripts/default-installs.ps1"
   
   #####
   ##### INVOCA GATILHHOS (HOOKS)
   #####
-  . "./scripts/invoke-hooks.ps1"
+  . "./$autonome_scripts/invoke-hooks.ps1"
   
   #####
   ##### FINALIZAÇÃO

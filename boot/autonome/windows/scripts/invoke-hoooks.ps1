@@ -7,20 +7,19 @@ try {
     return
   }
 
-  $scriptsPath = Join-Path $script:appsinstall_folder "scripts"
+  $scriptsPath = Join-Path $script:appsinstall_folder "$autonome_hooks"  
 
   if (-not (Test-Path $scriptsPath)) {
     show_log "Pasta de scripts não encontrada."
     return
   }
 
-  $baseName = "in.$local_exec"
+  $baseName = "in.$local_exec"  
 
   $orderedExt = @("reg", "ps1", "cmd", "bat")
 
-  foreach ($ext in $orderedExt) {
-
-    $file = Join-Path $scriptsPath "$baseName.$ext"
+  foreach ($ext in $orderedExt) {    
+    $file = Join-Path $$scriptsPath "$baseName.$ext"
 
     if (-not (Test-Path $file)) {
       continue
