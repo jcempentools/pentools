@@ -2230,10 +2230,19 @@ function main {
   catch {
     show_warn "Falha ao iniciar loop anti-shutdown."
   }
+  #####
+  ##### Instala e relança script no PS7 quando necessário.
+  #####    
   Ensure-PS7
   Start-Sleep -Seconds 1
+
   $appsinstall_folder = $script:appsinstall_folder
   Write-Host "Pendrive?: '$appsinstall_folder'"
+
+  #####
+  ##### Desabilitando Hibernação
+  #####    
+
   show_log_title "Desabilitando Hibernação."
   try {
     if (-not $script:is_test_mode) {
@@ -2246,6 +2255,10 @@ function main {
   catch {
     show_log "Falha ao desabilitar hibernação."
   }
+
+  #####
+  ##### Initialize-AutonomeCache
+  #####      
   $cache_root = Initialize-AutonomeCache
 
   if (-not ([string]::IsNullOrEmpty($cache_root))) {
@@ -2253,47 +2266,41 @@ function main {
     $appsinstall_folder = $script:appsinstall_folder
     show_log "Usando cache TEMP: '$appsinstall_folder'"
   }
-  #######################################################
+  
   #####
   ##### INSTALAÇãO DE DRIVER
   #####
-  #######################################################
   install_offline_drivers_async
-  #######################################################
+  
   #####
   ##### FORCA PT-BR
   #####
-  #######################################################
   "./scripts/force-pt-br.ps1"
-  #######################################################
+  
   #####
   ##### BAIXA WallPaperS
   #####
-  #######################################################
   . "./scripts/get-wallpapers.ps1"
-  #######################################################
+
   #####
   ##### WINGET
   #####
-  #######################################################
   . "./scrips/fix-winget.ps1"
-  #######################################################
+  
   #####
   ##### REALIZA INSTALAÇÕES
   #####
-  #######################################################
   . "./scrips/default-installs.ps1"
-  #######################################################
+  
   #####
   ##### INVOCA GATILHHOS (HOOKS)
   #####
-  #######################################################
   . "./scripts/invoke-hooks.ps1"
-  #######################################################
+  
   #####
   ##### FINALIZAÇÃO
   #####
-  #######################################################
+  
   write-host ""
   write-host "CONCLUIDO"
   write-host ""
