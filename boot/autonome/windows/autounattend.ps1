@@ -293,14 +293,17 @@ if (-not $in_system_context) {
     }
   }
 }
-#######################################################
-#######################################################
-#####
-##### FUNCOES
-#####
-#######################################################
-#######################################################
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Exibe um título destacado no console.
+
+.DESCRIPTION
+Imprime uma mensagem formatada com fundo colorido e separadores
+para indicar início de seção no log visual.
+
+.PARAMETER str_menssagem
+Texto a ser exibido como título.
+#>
 function show_log_title {
   param(
     [string]$str_menssagem
@@ -313,7 +316,17 @@ function show_log_title {
   write-host ""
   write-host ""
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Exibe mensagem de erro.
+
+.DESCRIPTION
+Imprime mensagem formatada com destaque em vermelho
+indicando erro no fluxo de execução.
+
+.PARAMETER str_menssagem
+Mensagem de erro a ser exibida.
+#>
 function show_error {
   param(
     [string]$str_menssagem
@@ -321,14 +334,34 @@ function show_error {
   Write-Host "[ERROR]:" -BackgroundColor Red
   Write-Host "[ERROR]: $str_menssagem" -BackgroundColor Red
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Exibe mensagem de log padrão.
+
+.DESCRIPTION
+Imprime mensagem informativa com formatação neutra
+para acompanhamento do fluxo de execução.
+
+.PARAMETER str_menssagem
+Mensagem a ser exibida.
+#>
 function show_log {
   param(
     [string]$str_menssagem
   )
   Write-Host "---> $str_menssagem" -BackgroundColor DarkGray
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Exibe comando a ser executado.
+
+.DESCRIPTION
+Imprime o comando com separadores visuais
+para facilitar rastreamento de execução.
+
+.PARAMETER str_menssagem
+Comando ou texto a ser exibido.
+#>
 function show_cmd {
   param(
     [string]$str_menssagem
@@ -338,7 +371,17 @@ function show_cmd {
   Write-Host "$str_menssagem" -BackgroundColor Cyan -ForegroundColor Black
   Write-Host "---------------------------------------------"
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Exibe mensagem de aviso.
+
+.DESCRIPTION
+Imprime mensagem formatada com destaque amarelo
+indicando condição não crítica.
+
+.PARAMETER str_menssagem
+Mensagem de aviso.
+#>
 function show_warn {
   param(
     [string]$str_menssagem
@@ -346,14 +389,38 @@ function show_warn {
   Write-Host "[WARN] " -BackgroundColor Yellow -ForegroundColor Black
   Write-Host "[WARN]: $str_menssagem" -BackgroundColor Yellow -ForegroundColor Black
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Exibe mensagem informativa.
+
+.DESCRIPTION
+Imprime mensagem com destaque leve
+para observações não críticas.
+
+.PARAMETER str_menssagem
+Texto a ser exibido.
+#>
 function show_nota {
   param(
     [string]$str_menssagem
   )
   Write-Host "[NOTA]: $str_menssagem" -BackgroundColor Gray -ForegroundColor Black
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+rand_name
+<#
+.SYNOPSIS
+Gera string aleatória.
+
+.DESCRIPTION
+Retorna string com caracteres alfabéticos aleatórios
+com tamanho configurável.
+
+.PARAMETER num
+Tamanho da string gerada. Default: 18.
+
+.OUTPUTS
+String aleatória.
+#>
 function rand_name {
   param(
     [AllowNull()][int]$num
@@ -363,6 +430,23 @@ function rand_name {
   }
   return -join ((65..90) + (97..122) | Get-Random -Count $num | ForEach-Object { [char]$_ })
 }
+<#
+.SYNOPSIS
+Resolve argumentos silenciosos de instalador.
+
+.DESCRIPTION
+Busca parâmetros de instalação em mapa local, online
+ou utiliza heurística para determinar switches silenciosos.
+
+.PARAMETER filePath
+Caminho do instalador.
+
+.PARAMETER type
+Tipo do instalador (exe ou msi).
+
+.OUTPUTS
+String com argumentos de instalação.
+#>
 function Resolve-InstallerArgs {
   param(
     [string]$filePath,
@@ -443,7 +527,22 @@ function Resolve-InstallerArgs {
 
   return ""
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Define valor em chave de registro.
+
+.DESCRIPTION
+Cria a chave caso não exista e define o valor informado.
+
+.PARAMETER regKey
+Caminho da chave.
+
+.PARAMETER keyName
+Nome do valor.
+
+.PARAMETER value
+Valor a ser atribuído.
+#>
 function setrgkey() {
   Param(
     [string]$regKey,
@@ -456,7 +555,19 @@ function setrgkey() {
   }
   Set-ItemProperty -Path $regKey -Name $keyName -Value $value -Force
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Calcula hash SHA256.
+
+.DESCRIPTION
+Gera hash SHA256 a partir de string informada.
+
+.PARAMETER ClearString
+Texto a ser convertido.
+
+.OUTPUTS
+String com hash SHA256.
+#>
 function sha256 {
   Param (
     [Parameter(Mandatory = $true)]
@@ -467,74 +578,17 @@ function sha256 {
   $hashString = [System.BitConverter]::ToString($hash)
   return $hashString.trim().Replace('-', '')
 }
-function Invoke-AutonomeFinalTriggers {
+<#
+.SYNOPSIS
+Instala aplicativos de lista.
 
-  show_log_title "Executando gatilhos finais (scripts externos)"
+.DESCRIPTION
+Resolve conteúdo da lista e executa instalação
+para cada item único.
 
-  try {
-    if ([string]::IsNullOrEmpty($script:appsinstall_folder)) {
-      show_log "Pasta base não definida."
-      return
-    }
-
-    $scriptsPath = Join-Path $script:appsinstall_folder "scripts"
-
-    if (-not (Test-Path $scriptsPath)) {
-      show_log "Pasta de scripts não encontrada."
-      return
-    }
-
-    $baseName = "in.$local_exec"
-
-    $orderedExt = @("reg", "ps1", "cmd", "bat")
-
-    foreach ($ext in $orderedExt) {
-
-      $file = Join-Path $scriptsPath "$baseName.$ext"
-
-      if (-not (Test-Path $file)) {
-        continue
-      }
-
-      try {
-        $content = Get-Content $file -Raw -ErrorAction SilentlyContinue
-        if ([string]::IsNullOrWhiteSpace($content)) {
-          show_log "Ignorado (vazio): $file"
-          continue
-        }
-      }
-      catch {
-        show_warn "Falha ao ler conteúdo de $file"
-        continue
-      }
-
-      show_log "Executando gatilho: $file"
-
-      switch ($ext) {
-
-        "reg" {
-          run_command "reg.exe import `"$file`""
-        }
-
-        "ps1" {
-          run_command "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$file`""
-        }
-
-        "cmd" {
-          run_command "cmd.exe /c `"$file`""
-        }
-
-        "bat" {
-          run_command "cmd.exe /c `"$file`""
-        }
-      }
-    }
-  }
-  catch {
-    show_warn "Falha ao executar gatilhos finais"
-  }
-}
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+.PARAMETER listPath
+Caminho da lista.
+#>
 function Install-AppList {
   param([string]$listPath)
 
@@ -550,7 +604,23 @@ function Install-AppList {
     isowin_install_app $line.Trim()
   }
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Baixa arquivo.
+
+.DESCRIPTION
+Realiza download com múltiplos fallbacks e validação
+de integridade do arquivo.
+
+.PARAMETER url
+URL do arquivo.
+
+.PARAMETER dest
+Destino local.
+
+.OUTPUTS
+Caminho do arquivo baixado ou vazio.
+#>
 function download_save() {
   param(
     [string]$url,
@@ -672,6 +742,16 @@ function download_save() {
   }
   return ""
 }
+<#
+.SYNOPSIS
+Escreve log de drivers.
+
+.DESCRIPTION
+Adiciona mensagem timestamp no log dedicado de drivers.
+
+.PARAMETER msg
+Mensagem a registrar.
+#>
 function write_driver_log {
   param([string]$msg)
 
@@ -682,7 +762,19 @@ function write_driver_log {
   }
   catch {}
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Baixa conteúdo como string.
+
+.DESCRIPTION
+Realiza download de conteúdo textual com retry.
+
+.PARAMETER url
+URL do conteúdo.
+
+.OUTPUTS
+String com conteúdo baixado.
+#>
 function download_to_string() {
   param(
     [string]$url
@@ -731,7 +823,26 @@ function download_to_string() {
     return ""
   }
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Resolve listas com includes.
+
+.DESCRIPTION
+Expande arquivos .lst com suporte a includes
+recursivos e proteção contra loops.
+
+.PARAMETER filePath
+Caminho da lista.
+
+.PARAMETER visited
+Controle interno de loops.
+
+.PARAMETER depth
+Profundidade de recursão.
+
+.OUTPUTS
+Lista expandida.
+#>
 function Resolve-AppListContent {
   param(
     [string]$filePath,
@@ -850,7 +961,14 @@ function Resolve-AppListContent {
 
   return $result
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Impede sleep do sistema.
+
+.DESCRIPTION
+Configura flags de execução para evitar suspensão
+durante instalação.
+#>
 function prevent_sleep {
   try {
     $ES_CONTINUOUS = 0x80000000
@@ -873,7 +991,16 @@ public class Power {
     show_warn "Falha ao aplicar prevenção de sleep."
   }
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Resolve caminho do winget.
+
+.DESCRIPTION
+Localiza executável winget em diferentes contextos.
+
+.OUTPUTS
+Caminho do winget.
+#>
 function fixWingetLocation {
   $winget = $null
   try {
@@ -906,7 +1033,13 @@ function fixWingetLocation {
   }
   return $winget
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Atualiza pacotes via winget.
+
+.DESCRIPTION
+Executa upgrade global com log dedicado.
+#>
 function isowin_winget_update {
   show_log_title "Atualizando winget..."
   $i = 0
@@ -914,7 +1047,17 @@ function isowin_winget_update {
   $path_log_full = "$script:run_log_dir\apps\winget.update.$i.log"
   winget_run_command "upgrade --all --silent --disable-interactivity --accept-package-agreements --accept-source-agreements 2>&1 | Out-File -FilePath '$path_log_full'"
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Executa comando no PowerShell 7.
+
+.DESCRIPTION
+Executa diretamente se já estiver no PS7
+ou relança comando via pwsh.exe.
+
+.PARAMETER cmd_
+Comando a executar.
+#>
 function runInPWSH7() {
   param(
     [string]$cmd_
@@ -958,12 +1101,22 @@ function runInPWSH7() {
     show_error "Falha ao executar comando via PS7"
   }
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@~
-# run_command faz log apenas no processo principal, em tele.
-# Não cabe a ele fazer log individualizado em arquivo sepado
-# se for o caso de log em arquivo, essa atribuiçÃo cabe ao
-# seu invocador.
-# run_command printa o comanda a ser executado, e o executa.
+<#
+.SYNOPSIS
+Executa comando com fallback.
+
+.DESCRIPTION
+Executa comando com detecção de ambiente,
+captura logs e fallback para PS7.
+run_command faz log apenas no processo principal, em tele.
+Não cabe a ele fazer log individualizado em arquivo sepado
+se for o caso de log em arquivo, essa atribuiçÃo cabe ao
+seu invocador.
+run_command printa o comanda a ser executado, e o executa.
+
+.PARAMETER command_
+Comando a executar.
+#>
 function run_command {
   param(
     [string]$command_
@@ -1051,7 +1204,16 @@ function run_command {
     }
   }
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Executa comando winget.
+
+.DESCRIPTION
+Garante disponibilidade do winget antes da execução.
+
+.PARAMETER command_
+Comando winget.
+#>
 function winget_run_command {
   param(
     [string]$command_
@@ -1079,7 +1241,20 @@ function winget_run_command {
     Start-Sleep -Seconds 1;
   }
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Instala pacote via winget.
+
+.DESCRIPTION
+Executa instalação com parâmetros silenciosos
+e log dedicado.
+
+.PARAMETER name_id
+ID do pacote.
+
+.PARAMETER override
+Parâmetros extras.
+#>
 function isowin_winget_install {
   param(
     [string]$name_id,
@@ -1096,7 +1271,19 @@ function isowin_winget_install {
   $defaut_parameters = "--verbose --scope machine --exact --silent --disable-interactivity --accept-package-agreements --accept-source-agreements $override"
   winget_run_command "install --id '$name_id' $defaut_parameters 2>&1 | Out-File -FilePath '$path_log_full'"
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Normaliza nome de aplicativo.
+
+.DESCRIPTION
+Remove versões, caracteres especiais e gera tokens.
+
+.PARAMETER name
+Nome original.
+
+.OUTPUTS
+Hashtable com tokens e vendor.
+#>
 function Normalize-AppName {
   param([string]$name)
 
@@ -1124,7 +1311,16 @@ function Normalize-AppName {
     Vendor = $vendor
   }
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Localiza pasta offline.
+
+.DESCRIPTION
+Procura pendrive contendo estrutura autonoma.
+
+.OUTPUTS
+Caminho encontrado.
+#>
 function appinstall_find_path {
   if (([string]::IsNullOrEmpty($script:appsinstall_folder)) -or (-not (Test-Path $script:appsinstall_folder))) {
     try {
@@ -1144,8 +1340,13 @@ function appinstall_find_path {
   }
   return $script:appsinstall_folder
 }
+<#
+.SYNOPSIS
+Inicializa cache de instaladores.
 
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+.DESCRIPTION
+Indexa executáveis offline para busca rápida.
+#>
 function Initialize-AppFileCache {
   if ($script:AppFileCache) { return }
 
@@ -1182,7 +1383,16 @@ function Initialize-AppFileCache {
     }
   }
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Encontra melhor correspondência.
+
+.DESCRIPTION
+Seleciona arquivo com maior score baseado em tokens.
+
+.PARAMETER inputTokens
+Tokens de busca.
+#>
 function Find-BestMatch {
   param($inputTokens)
 
@@ -1231,7 +1441,16 @@ function Find-BestMatch {
 
   return $bestMatch
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Extrai tokens de ID.
+
+.DESCRIPTION
+Gera tokens a partir de nome, URL ou caminho.
+
+.PARAMETER name_id
+Identificador.
+#>
 function Resolve-NameIdTokens {
   param([string]$name_id)
 
@@ -1266,7 +1485,16 @@ function Resolve-NameIdTokens {
 
   return $tokens
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Localiza instalador offline.
+
+.DESCRIPTION
+Busca executável MSI/EXE usando sistema de score.
+
+.PARAMETER name_id
+Nome ou identificador.
+#>
 function findExeMsiOnFolders {
   param([string]$name_id)
 
@@ -1306,12 +1534,23 @@ function findExeMsiOnFolders {
 
   return $null
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Retorna caminho do checklist global.
+
+.DESCRIPTION
+Define arquivo JSON com apps instalados.
+#>
 function Get-GlobalChecklistPath {
   return Join-Path $path_log "installed_apps.json"
 }
+<#
+.SYNOPSIS
+Carrega checklist.
 
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+.DESCRIPTION
+Lê JSON de aplicativos instalados.
+#>
 function Load-Checklist {
   $file = Get-GlobalChecklistPath
   if (Test-Path $file) {
@@ -1323,7 +1562,16 @@ function Load-Checklist {
   }
   return @{}
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Salva checklist.
+
+.DESCRIPTION
+Grava estado de apps instalados.
+
+.PARAMETER data
+Dados do checklist.
+#>
 function Save-Checklist {
   param($data)
   $file = Get-GlobalChecklistPath
@@ -1333,8 +1581,16 @@ function Save-Checklist {
   }
   catch {}
 }
+<#
+.SYNOPSIS
+Verifica se app está instalado.
 
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+.DESCRIPTION
+Consulta winget, registry e PATH.
+
+.PARAMETER name
+Nome do aplicativo.
+#>
 function Test-AppInstalled {
   param([string]$name)
 
@@ -1391,7 +1647,19 @@ function Test-AppInstalled {
 
   return $false
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Instala aplicativo.
+
+.DESCRIPTION
+Executa instalação offline, URL ou winget.
+
+.PARAMETER name_id
+Identificador.
+
+.PARAMETER override
+Parâmetros extras.
+#>
 function isowin_install_app {
   param(
     [string]$name_id,
@@ -1514,7 +1782,22 @@ function isowin_install_app {
     isowin_winget_install $id_only $override
   }
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Instala MSI remoto.
+
+.DESCRIPTION
+Baixa arquivo e executa msiexec.
+
+.PARAMETER url
+URL do MSI.
+
+.PARAMETER op
+Parâmetros adicionais.
+
+.PARAMETER to
+Destino opcional.
+#>
 function download_msi_install {
   Param(
     [string]$url,
@@ -1544,7 +1827,13 @@ function download_msi_install {
     show_error "Falha ao instalar da URL: '$url'"
   }
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Instala drivers offline.
+
+.DESCRIPTION
+Extrai drivers e executa pnputil em background.
+#>
 function install_offline_drivers_async {
   <#
     EXECUÇÃO ASSÍNCRONA E SILENCIOSA
@@ -1739,8 +2028,13 @@ function install_offline_drivers_async {
     catch {}
   }
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Garante execução no PowerShell 7.
+
+.DESCRIPTION
+Instala e relança script no PS7 quando necessário.
+#>
 function Ensure-PS7 {
   $pwshPath = "$env:SystemDrive\Program Files\PowerShell\7\pwsh.exe"
 
@@ -1801,7 +2095,13 @@ function Ensure-PS7 {
     }
   }
 }
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+<#
+.SYNOPSIS
+Inicializa cache local.
+
+.DESCRIPTION
+Cria cache TEMP e copia conteúdo do pendrive.
+#>
 function Initialize-AutonomeCache {
 
   $regPath = "HKLM:\SOFTWARE\AutonomeInstall"
@@ -1889,237 +2189,130 @@ function Initialize-AutonomeCache {
 
   return $temp_root
 }
-#######################################################
-#######################################################
-#####
-##### INICIO
-#####
-#######################################################
-#######################################################
-write-host "Iniciando..."
-prevent_sleep
-try {
-  shutdown.exe /a 2>$null
-}
-catch {}
+<#
+.SYNOPSIS
+Função principal.
 
-# trava tentativas futuras (loop leve em background)
-$timeout = (Get-Date).AddMinutes(30)
+.DESCRIPTION
+Controla fluxo principal da instalação,
+configura ambiente e inicia execução.
+#>
+function main {
+  write-host "Iniciando..."
+  prevent_sleep
+  try {
+    shutdown.exe /a 2>$null
+  }
+  catch {}
 
-try {
-  if ($in_system_context) {
-    show_log "SYSTEM context: usando processo leve ao invés de Job."
+  # trava tentativas futuras (loop leve em background)
+  $timeout = (Get-Date).AddMinutes(30)
 
-    $cmd = "while ((Get-Date) -lt '$timeout') { shutdown.exe /a 2>nul; timeout /t 2 >nul }"
-    Start-Process -FilePath "cmd.exe" `
-      -ArgumentList "/c $cmd" `
-      -WindowStyle Hidden
-  }
-  else {
-    Start-Job -Name "autonome-anti-shutdown" -ScriptBlock {
-      param($timeout)
-      while ((Get-Date) -lt $timeout) {
-        shutdown.exe /a 2>$null
-        Start-Sleep -Seconds 2
-      }
-    } -ArgumentList $timeout | Out-Null
-  }
-}
-catch {
-  show_warn "Falha ao iniciar loop anti-shutdown."
-}
-Ensure-PS7
-Start-Sleep -Seconds 1
-$appsinstall_folder = $script:appsinstall_folder
-Write-Host "Pendrive?: '$appsinstall_folder'"
-show_log_title "Desabilitando Hibernação."
-try {
-  if (-not $script:is_test_mode) {
-    powercfg.exe /hibernate off
-  }
-  else {
-    show_log "TEST MODE: hibernação não alterada"
-  }
-}
-catch {
-  show_log "Falha ao desabilitar hibernação."
-}
-$cache_root = Initialize-AutonomeCache
+  try {
+    if ($in_system_context) {
+      show_log "SYSTEM context: usando processo leve ao invés de Job."
 
-if (-not ([string]::IsNullOrEmpty($cache_root))) {
-  $script:appsinstall_folder = Join-Path $cache_root $pendrive_autonome_path
+      $cmd = "while ((Get-Date) -lt '$timeout') { shutdown.exe /a 2>nul; timeout /t 2 >nul }"
+      Start-Process -FilePath "cmd.exe" `
+        -ArgumentList "/c $cmd" `
+        -WindowStyle Hidden
+    }
+    else {
+      Start-Job -Name "autonome-anti-shutdown" -ScriptBlock {
+        param($timeout)
+        while ((Get-Date) -lt $timeout) {
+          shutdown.exe /a 2>$null
+          Start-Sleep -Seconds 2
+        }
+      } -ArgumentList $timeout | Out-Null
+    }
+  }
+  catch {
+    show_warn "Falha ao iniciar loop anti-shutdown."
+  }
+  Ensure-PS7
+  Start-Sleep -Seconds 1
   $appsinstall_folder = $script:appsinstall_folder
-  show_log "Usando cache TEMP: '$appsinstall_folder'"
-}
-# INSTALAÇãO DE DRIVER
-install_offline_drivers_async
-# FORCA PT-BR (para evitar confusão de formatação de números, datas, etc. em outros idiomas)
-"./scripts/force-pt-br.ps1"
-#######################################################
-#######################################################
-#####
-##### WallPaperS
-#####
-#######################################################
-#######################################################
-show_log_title "### WallPapers"
-$WallPapers_path = ""
-if (-Not ([string]::IsNullOrEmpty($appsinstall_folder))) {
-  $WallPapers_path = (get-item $appsinstall_folder).Parent.FullName
-  $WallPapers_path = "$WallPapers_path\WallPapers\images"
-}
-if ([string]::IsNullOrEmpty($image_folder)) { $image_folder = "$env:SystemDrive\Users\Default\Pictures" }
-$image_folder = "$image_folder\WallPapers"
-$img_count = 0
-if ((-Not ([string]::IsNullOrEmpty($WallPapers_path))) -And (Test-Path -Path "$WallPapers_path")) {
-  show_log "Obtendo WallPapers do pendrive, se exitir..."
-  foreach ($ee in @('png', 'jpg')) {
-    Get-ChildItem -Path "$WallPapers_path" -Filter "*.$ee" -Recurse -File | ForEach-Object {
-      try {
-        $nome = $_.BaseName
-        Copy-Item $_ "$image_folder\$nome.$ee" -Force
-        $img_count = $img_count + 1
-      }
-      catch {
-        # ignore
-      }
-    }
-  }
-  show_log "'$img_count' WallPaper(s) obdito(s) offline."
-}
-if (("$Env:install_mode" -ne "cru") -And ($img_count -le 0)) {
-  show_log "Obtendo WallPapers ONLINE..."
-  if (-Not (Test-Path -Path "$image_folder")) {
-    New-Item -Path "$image_folder" -Force -ItemType Directory
-  }
-  download_save "$url_WallPapers_lst" "$image_folder\download.lst"
-  if (Test-Path "$image_folder\download.lst") {
-    $i = 0
-    $ext = "png"
-    foreach ($line in Get-Content "$image_folder\download.lst") {
-      $line = $line.trim()
-      if (
-        [string]::IsNullOrEmpty($line) -or
-        ($line -match '^\s*$') -or
-        ($line -match '^\s*#')
-      ) {
-        continue
-      }
-      #$destname = $i
-      $destname = sha256($line)
-      #$destname = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($line))
-      download_save "$line" "$image_folder\$destname.$ext"
-      #$shaname = (Get-FileHash "$image_folder\$i.$ext" -Algorithm SHA256).Hash
-      #try {
-      #  if (Test-Path "$image_folder\$shaname.$ext") {
-      #    Remove-Item "$image_folder\$shaname.$ext" -Force
-      #  }
-      #  Move-Item -Path "$image_folder\$i.$ext" "$image_folder\$shaname.$ext"
-      #}
-      #catch {
-      #}
-      $i = $i + 1
-    }
-  }
-  show_log_title "Definindo tela de bloqueio personalizada"
-  # now set the registry entry
-  $nome = download_to_string($url_lockscreen)
-  show_log "A setar '$nome'."
-  if (-Not (Test-Path "$image_folder\$nome.png")) {
-    show_warn "O WallPaper '$nome' não existe."
-  }
-  elseif (-Not ([string]::IsNullOrEmpty($nome) -Or ($nome -match '^\s*$'))) {
-    try {
-      setrgkey 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP' 'LockScreenImagePath' "$image_folder\$nome.png"
-      rundll32.exe user32.dll, UpdatePerUserSystemParameters
-      show_log "Definido."
-    }
-    catch {
-      show_error "FALHA ao definir tela de bloqueio."
-    }
-  }
-  ## DEFINIR WALLPAPPER APENAS SE ESTIVER EM USUÁRIO
-  if (-not $in_system_context) {
-    show_log_title "Definindo WallPaper"
-    # now set the registry entry
-    $nome = download_to_string($url_defWallPaper)
-    show_log "A setar '$nome'."
-    if (-Not (Test-Path "$image_folder\$nome.png")) {
-      show_warn "O WallPaper '$nome' não existe."
-    }
-    elseif (-Not ([string]::IsNullOrEmpty($nome) -Or ($nome -match '^\s*$'))) {
-      try {
-        setrgkey 'HKCU:\Control Panel\Desktop' 'WallPaper' "$image_folder\$nome.png"
-        setrgkey 'HKCU:\Control Panel\Desktop' 'WallPaperStyle' 10
-        setrgkey 'HKCU:\Control Panel\Desktop' 'TileWallpaper' 0
-        rundll32.exe user32.dll, UpdatePerUserSystemParameters
-        show_log "Definido."
-      }
-      catch {
-        show_error "FALHA ao definir WallPaper."
-      }
-    }
-  }
-}
-#######################################################
-#######################################################
-#####
-##### WINGET
-#####
-#######################################################
-#######################################################
-if (-not $in_system_context) {
-  show_log_title "Fix winget, forçando disponibilização de winget no contexto do sistema"
+  Write-Host "Pendrive?: '$appsinstall_folder'"
+  show_log_title "Desabilitando Hibernação."
   try {
-    Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe | write-host
+    if (-not $script:is_test_mode) {
+      powercfg.exe /hibernate off
+    }
+    else {
+      show_log "TEST MODE: hibernação não alterada"
+    }
   }
   catch {
-    show_error "Falha ao executar Add-AppxPackage "
+    show_log "Falha ao desabilitar hibernação."
   }
-  show_log_title "Winget setup fix 1"
-  try {
-    $ResolveWingetPath = Resolve-Path "$env:SystemDrive\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe"
-    if ($ResolveWingetPath) {
-      $WingetPath = $ResolveWingetPath[-1].Path
-    }
-    Write-Host "-> winget: '$wingetpath'"
-    Set-Location "$wingetpath"
-  }
-  catch {
-    show_error "FALHA ao executar FIX 1"
-  }
-  write-host "Atual: $pwd"
-  if (-not $script:is_test_mode) {
-    isowin_winget_update
-  }
-  else {
-    show_log "TEST MODE: winget upgrade ignorado"
-  }
-}
-#######################################################
-#####
-##### INSTALAÇÕES
-#####
-#######################################################
-. "./scrips/default-installs.ps1"
-Invoke-AutonomeFinalTriggers
-write-host ""
-write-host "CONCLUIDO"
-write-host ""
-show_log_title "Reiniciando..."
-try {
-  Stop-Transcript
-}
-catch {}
+  $cache_root = Initialize-AutonomeCache
 
-try {
-  [Power]::SetThreadExecutionState(0x80000000) | Out-Null
-}
-catch {}
-if (-not $in_system_context) {
-  if ([string]::IsNullOrEmpty($Env:autonome_test)) {
-    Start-Sleep -Seconds 1
-    Start-Sleep -Seconds 2
-    Restart-Computer
+  if (-not ([string]::IsNullOrEmpty($cache_root))) {
+    $script:appsinstall_folder = Join-Path $cache_root $pendrive_autonome_path
+    $appsinstall_folder = $script:appsinstall_folder
+    show_log "Usando cache TEMP: '$appsinstall_folder'"
+  }
+  #######################################################
+  #####
+  ##### INSTALAÇãO DE DRIVER
+  #####
+  #######################################################
+  install_offline_drivers_async
+  #######################################################
+  #####
+  ##### FORCA PT-BR
+  #####
+  #######################################################
+  "./scripts/force-pt-br.ps1"
+  #######################################################
+  #####
+  ##### BAIXA WallPaperS
+  #####
+  #######################################################
+  . "./scripts/get-wallpapers.ps1"
+  #######################################################
+  #####
+  ##### WINGET
+  #####
+  #######################################################
+  . "./scrips/fix-winget.ps1"
+  #######################################################
+  #####
+  ##### REALIZA INSTALAÇÕES
+  #####
+  #######################################################
+  . "./scrips/default-installs.ps1"
+  #######################################################
+  #####
+  ##### INVOCA GATILHHOS (HOOKS)
+  #####
+  #######################################################
+  . "./scripts/invoke-hooks.ps1"
+  #######################################################
+  #####
+  ##### FINALIZAÇÃO
+  #####
+  #######################################################
+  write-host ""
+  write-host "CONCLUIDO"
+  write-host ""
+  show_log_title "Reiniciando..."
+  try {
+    Stop-Transcript
+  }
+  catch {}
+
+  try {
+    [Power]::SetThreadExecutionState(0x80000000) | Out-Null
+  }
+  catch {}
+  if (-not $in_system_context) {
+    if ([string]::IsNullOrEmpty($Env:autonome_test)) {
+      Start-Sleep -Seconds 1
+      Start-Sleep -Seconds 2
+      Restart-Computer
+    }
   }
 }
+main
