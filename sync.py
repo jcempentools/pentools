@@ -390,12 +390,12 @@ def parse_syncdownload(file_path):
 
 def manage_sync_metadata(final_dest_path, url, expected_hash, custom_filename, github_ext):
     """
-    Gerencia validação e geração de arquivos auxiliares (.sha256 / .sync)
+    Gerencia validação e geração de arquivos auxiliares (.sha256 / .syncado)
 
     Responsabilidades:
     - Verificar se download é necessário
     - Validar integridade via hash
-    - Validar nome original via .sync
+    - Validar nome original via .syncado
     - Gerar arquivos auxiliares quando necessário
 
     NÃO reimplementa:
@@ -405,7 +405,7 @@ def manage_sync_metadata(final_dest_path, url, expected_hash, custom_filename, g
     """
 
     sha_file = final_dest_path + ".sha256"
-    sync_file = final_dest_path + ".sync"
+    sync_file = final_dest_path + ".syncado"
 
     need_download = True
 
@@ -449,7 +449,7 @@ def manage_sync_metadata(final_dest_path, url, expected_hash, custom_filename, g
 
 def generate_sync_metadata(final_dest_path, url, custom_filename, github_ext):
     """
-    Gera arquivos auxiliares (.sha256 / .sync)
+    Gera arquivos auxiliares (.sha256 / .syncado)
     """
 
     try:
@@ -467,12 +467,12 @@ def generate_sync_metadata(final_dest_path, url, custom_filename, github_ext):
         with open(final_dest_path + ".sha256", "w", encoding="utf-8") as f:
             f.write(sha256_hash.hexdigest())
 
-        # .sync
+        # .syncado
         if custom_filename:
             original_name = resolve_filename_from_url(url)
 
             if original_name:
-                with open(final_dest_path + ".sync", "w", encoding="utf-8") as f:
+                with open(final_dest_path + ".syncado", "w", encoding="utf-8") as f:
                     f.write(original_name)
 
     except Exception as e:
@@ -496,7 +496,7 @@ def destination_cleanup(root, dry_run=False):
             continue
 
         # --- NOVO: protege arquivos auxiliares de sync ---
-        if dest_full_path.lower().endswith((".sha256", ".sync")):
+        if dest_full_path.lower().endswith((".sha256", ".syncado")):
             continue
 
         if re.search(IGNORED_PATHS, dest_full_path, re.IGNORECASE):
