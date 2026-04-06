@@ -51,8 +51,9 @@ destination_path = "?"
 ORIGIN_PATH = os.path.normpath(SCRIPT_DIR).rstrip(os.path.sep) + os.path.sep
 
 # Atribui uma regex à variável IGNORED_PATHS
-IGNORED_PATHS = (        
-    r"(\.((git|vscode|trunk|github)(\\|/|$)(log|tmp)$)|"    
+IGNORED_PATHS = (            
+    r"(\.((git|vscode|trunk|github)(\\|/|$)(log|tmp)$)|"
+    r"(\.(eslintrc.json|gitattributes|gitignore|prettierrc|prettierignore)$)"
     r"(\.fseventsd$|\.Trashes$|\.Spotlight$|\.AppleDouble$|"
     r"\.TemporaryItems$|\$Recycle\.Bin$|Recycler$))"
     + "|" +
@@ -64,7 +65,8 @@ IGNORED_PATHS = (
     )
     if any(arg.startswith("ignore=") for arg in sys.argv)
     else
-    r"(\.((git|vscode|trunk|github)(\\|/|$)|(log|tmp)$)|"    
+    r"(\.((git|vscode|trunk|github)(\\|/|$)|(log|tmp)$)|"  
+    r"(\.(eslintrc.json|gitattributes|gitignore|prettierrc|prettierignore)$)"
     r"(\.fseventsd$|\.Trashes$|\.Spotlight$|\.AppleDouble$|"
     r"\.TemporaryItems$|\$Recycle\.Bin$|Recycler$))"
 )
