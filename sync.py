@@ -51,8 +51,8 @@ destination_path = "?"
 ORIGIN_PATH = os.path.normpath(SCRIPT_DIR).rstrip(os.path.sep) + os.path.sep
 
 # Atribui uma regex à variável IGNORED_PATHS
-IGNORED_PATHS = (
-    r"(\.(git(\\|/|$)|vscode|trunk|github|(log|tmp)$)|"    
+IGNORED_PATHS = (        
+    r"(\.((git|vscode|trunk|github)(\\|/|$)(log|tmp)$)|"    
     r"(\.fseventsd$|\.Trashes$|\.Spotlight$|\.AppleDouble$|"
     r"\.TemporaryItems$|\$Recycle\.Bin$|Recycler$))"
     + "|" +
@@ -64,7 +64,7 @@ IGNORED_PATHS = (
     )
     if any(arg.startswith("ignore=") for arg in sys.argv)
     else
-    r"(\.(git(\\|/|$)|(log|tmp)$)|"    
+    r"(\.((git|vscode|trunk|github)(\\|/|$)|(log|tmp)$)|"    
     r"(\.fseventsd$|\.Trashes$|\.Spotlight$|\.AppleDouble$|"
     r"\.TemporaryItems$|\$Recycle\.Bin$|Recycler$))"
 )
@@ -277,10 +277,17 @@ def similarity_score(a, b):
 
     return 1.0 if a == b else 0
 
-
 def purge_similar_installers(dest_dir, target_name):
     """
-    Remove instaladores similares com base em score + nome canônico
+    Remove versões antigas de um mesmo produto, preservando:
+    - o arquivo alvo (recém baixado ou selecionado)
+    - exatamente 1 versão final válida
+
+    Estratégia:
+    - agrupa por nome canônico
+    - filtra apenas instaladores válidos
+    - preserva o target
+    - remove apenas excedentes
     """
 
     target_base = normalize_product_name(target_name)
@@ -288,27 +295,45 @@ def purge_similar_installers(dest_dir, target_name):
     if not target_base:
         return
 
+    candidates = []
+
     for f in os.listdir(dest_dir):
         full = os.path.join(dest_dir, f)
 
         if not os.path.isfile(full):
             continue
 
-        # 🔒 Proteção: nunca remove o próprio arquivo alvo
-        if f == target_name:
+        # 🔒 Nunca tocar em metadata
+        if f.lower().endswith((".sha256", ".syncado")):
             continue
 
-        existing_base = normalize_product_name(f)
+        base = normalize_product_name(f)
 
-        score = similarity_score(target_base, existing_base)
+        if base != target_base:
+            continue
 
-        # Threshold 1.0 = match exato após normalização
-        if score == 1.0:
-            try:
-                os.remove(full)
-                show_message(f"Removido instalador antigo: {f}", "-", cor="yellow")
-            except Exception as e:
-                show_message(f"Erro ao remover {f}: {e}", "e")
+        candidates.append(f)
+
+    # 🔒 Segurança: precisa ter mais de 1 candidato
+    if len(candidates) <= 1:
+        return
+
+    # 🔒 Garante que o target está presente
+    if target_name not in candidates:
+        show_message(f"Purga abortada: alvo não encontrado entre candidatos ({target_name})", "w")
+        return
+
+    # 🔒 Mantém o target SEMPRE
+    to_remove = [f for f in candidates if f != target_name]
+
+    for f in to_remove:
+        full = os.path.join(dest_dir, f)
+
+        try:
+            os.remove(full)
+            show_message(f"Removido instalador antigo: {f}", "-", cor="yellow")
+        except Exception as e:
+            show_message(f"Erro ao remover {f}: {e}", "e")
 
 # Força extenção compatível com mime-type, sem duplicação e,
 # trata bansename para manter apenas o nome do software com
@@ -388,7 +413,7 @@ def parse_syncdownload(file_path):
         show_message(f"Erro ao ler .syncdownload {file_path}: {e}", "e")
         return None, None, None
 
-def manage_sync_metadata(final_dest_path, url, expected_hash, custom_filename, github_ext):
+def manage_sync_metadata(final_dest_path, url, expected_hash, github_ext):    
     """
     Gerencia validação e geração de arquivos auxiliares (.sha256 / .syncado)
 
@@ -407,7 +432,7 @@ def manage_sync_metadata(final_dest_path, url, expected_hash, custom_filename, g
     sha_file = final_dest_path + ".sha256"
     sync_file = final_dest_path + ".syncado"
 
-    need_download = True
+    need_download = True    
 
     # --- VALIDAÇÃO ---
     if os.path.exists(final_dest_path):
@@ -416,7 +441,14 @@ def manage_sync_metadata(final_dest_path, url, expected_hash, custom_filename, g
         if github_ext and os.path.exists(sha_file):
             try:
                 with open(sha_file, "r", encoding="utf-8") as f:
-                    saved_hash = f.read().strip()
+                    line = f.readline().strip()
+                    saved_hash = line.split()[0] if line else None
+
+                    parts = line.split()
+                    if len(parts) < 2:
+                        raise Exception("Formato inválido de .sha256")
+
+                    saved_hash = parts[0]                    
 
                 current_hash = hash_file(final_dest_path, "Destino")
 
@@ -450,7 +482,7 @@ def manage_sync_metadata(final_dest_path, url, expected_hash, custom_filename, g
 def generate_sync_metadata(final_dest_path, url, custom_filename, github_ext):
     """
     Gera arquivos auxiliares (.sha256 / .syncado)
-    """
+    """    
 
     try:
         if not github_ext:
@@ -464,8 +496,11 @@ def generate_sync_metadata(final_dest_path, url, custom_filename, github_ext):
             for chunk in iter(lambda: f.read(65536), b""):
                 sha256_hash.update(chunk)
 
+        filename_only = os.path.basename(final_dest_path)
+        sha_line = f"{sha256_hash.hexdigest()} *{filename_only}"
+
         with open(final_dest_path + ".sha256", "w", encoding="utf-8") as f:
-            f.write(sha256_hash.hexdigest())
+            f.write(sha_line + "\n")
 
         # .syncado
         if custom_filename:
@@ -494,10 +529,21 @@ def destination_cleanup(root, dry_run=False):
         if root == destination_path and item in ("apps", "Drivers"):
             show_message(f"Remoção ignorada: {item}", "w")
             continue
-
-        # --- NOVO: protege arquivos auxiliares de sync ---
+        
+        # protege arquivos auxiliares de sync vinculados a arquivo existente
         if dest_full_path.lower().endswith((".sha256", ".syncado")):
-            continue
+            base_file = re.sub(r'\.(sha256|syncado)$', '', dest_full_path, flags=re.IGNORECASE)
+
+            # mantém se o arquivo principal existir
+            if os.path.exists(base_file):
+                continue
+
+            # fallback: tenta validar via .syncdownload correspondente
+            origin_equivalent_sync = origin_equivalent + ".syncdownload"
+            if os.path.exists(origin_equivalent_sync):
+                continue
+
+            # caso contrário, pode remover (metadata órfã)
 
         if re.search(IGNORED_PATHS, dest_full_path, re.IGNORECASE):
             show_message(f"Remoção ignorada [regex]: {dest_full_path}", "w")
@@ -679,22 +725,17 @@ def origin_to_destination(path, retry, dry_run):
 
                     dest_dir = os.path.dirname(dest_path)
 
-                    # 🔥 NOVO: purge de instaladores similares
-                    if github_ext and not expected_hash:
-                        purge_similar_installers(dest_dir, filename)
-
                     final_dest_path = os.path.join(dest_dir, filename)
                     
                     # Verifica necessidade de download (centralizado)
                     need_download = manage_sync_metadata(
                         final_dest_path=final_dest_path,
                         url=url,
-                        expected_hash=expected_hash,
-                        custom_filename=custom_filename,
+                        expected_hash=expected_hash,                        
                         github_ext=github_ext
                     )
 
-                    # --- NOVO: log explícito de decisão ---
+                    # log explícito de decisão ---
                     if github_ext and need_download:
                         show_message(f"GitHub: download necessário (arquivo ausente/desatualizado): {filename}", "i")                                
 
@@ -769,7 +810,9 @@ def origin_to_destination(path, retry, dry_run):
                             url=url,
                             custom_filename=custom_filename,
                             github_ext=github_ext
-                        )                        
+                        )             
+                    
+                        purge_similar_installers(dest_dir, filename)                                   
 
                 except Exception as e:
                     show_message(f"Erro no .syncdownload {rel_path}: {e}", "e")
