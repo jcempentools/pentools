@@ -242,11 +242,40 @@ else {
 
 $mode = $local_exec.ToUpper()
 
-# ID incremental baseado em diretórios existentes
-$dirs = Get-ChildItem -Path $path_log -Directory -ErrorAction SilentlyContinue
-$id = 1
-while (Test-Path (Join-Path $path_log "$id-*")) {
-  $id++
+# ID incremental baseado em diretórios existentes (O(n), determinístico)
+$maxId = 0
+
+try {
+  $dirs = Get-ChildItem -Path $path_log -Directory -ErrorAction Stop
+}
+catch {
+  show_warn "Falha ao listar diretórios em '$path_log'"
+  $dirs = @()
+}
+
+foreach ($d in $dirs) {
+  try {
+    if ($null -ne $d -and $d.Name -match '^(\d+)-') {
+      $num = 0
+
+      if ([int]::TryParse($matches[1], [ref]$num)) {
+        if ($num -gt $maxId) {
+          $maxId = $num
+        }
+      }
+    }
+  }
+  catch {
+    show_warn "Falha ao processar diretório: $($d.FullName)"
+  }
+}
+
+$id = $maxId + 1
+
+# validação defensiva final
+if ($id -le 0) {
+  show_warn "ID inválido detectado, resetando para 1"
+  $id = 1
 }
 
 # DATA
@@ -408,7 +437,6 @@ function show_nota {
   )
   Write-Host "[NOTA]: $str_menssagem" -BackgroundColor Gray -ForegroundColor Black
 }
-rand_name
 <#
 .SYNOPSIS
 Gera string aleatória.
@@ -1205,6 +1233,89 @@ function run_command {
       show_error "[$id_] Falha definitiva"
     }
   }
+}
+<#
+.SYNOPSIS
+Executa script externo de forma isolada, resiliente e validada.
+
+.DESCRIPTION
+Executa script em novo processo (isolado), com retry, validação
+de existência e logging padronizado. Compatível com PS 2.0+ e PS7.
+
+.PARAMETER relativePath
+Caminho relativo ao diretório do script principal.
+
+.PARAMETER validateScriptBlock
+ScriptBlock opcional para validação pós-execução.
+
+.PARAMETER maxRetries
+Número máximo de tentativas (default: 3).
+#>
+function invoke_external_script {
+  param(
+    [Parameter(Mandatory = $true)][string]$relativePath,
+    [ScriptBlock]$validateScriptBlock = $null,
+    [int]$maxRetries = 3
+  )
+
+  # resolve base path compatível PS 2.0+
+  $basePath = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+
+  $scriptPath = Join-Path $basePath $relativePath
+
+  if (-not (Test-Path $scriptPath)) {
+    show_warn "Script não encontrado: $scriptPath"
+    return $false
+  }
+
+  # define executor correto (PS7 ou legacy)
+  $psExec = if ($PSVersionTable.PSVersion.Major -ge 7) { "pwsh.exe" } else { "powershell.exe" }
+
+  $attempt = 0
+  $success = $false
+
+  while ($attempt -lt $maxRetries -and -not $success) {
+    $attempt++
+
+    show_log "Executando script externo (tentativa $attempt): $relativePath"
+
+    try {
+      run_command "$psExec -NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
+
+      # validação opcional
+      if ($null -ne $validateScriptBlock) {
+        try {
+          $valid = & $validateScriptBlock
+          if ($valid) {
+            $success = $true
+          }
+          else {
+            show_warn "Validação falhou: $relativePath"
+          }
+        }
+        catch {
+          show_warn "Erro na validação: $relativePath"
+        }
+      }
+      else {
+        # fallback mínimo: considera sucesso se chegou aqui
+        $success = $true
+      }
+    }
+    catch {
+      show_warn "Falha ao executar script: $relativePath"
+    }
+
+    if (-not $success) {
+      Start-Sleep -Seconds (2 * $attempt) # backoff progressivo
+    }
+  }
+
+  if (-not $success) {
+    show_error "Falha definitiva ao executar: $relativePath"
+  }
+
+  return $success
 }
 <#
 .SYNOPSIS
@@ -2238,8 +2349,7 @@ function main {
   Ensure-PS7
   Start-Sleep -Seconds 1
 
-  $appsinstall_folder = $script:appsinstall_folder
-  Write-Host "Pendrive?: '$appsinstall_folder'"
+  Write-Host "Pendrive?: '$script:appsinstall_folder'"
 
   #####
   ##### Desabilitando Hibernação
@@ -2276,8 +2386,8 @@ function main {
   
   #####
   ##### FORCA PT-BR
-  #####
-  "./$autonome_scripts/force-pt-br.ps1"
+  #####  
+  invoke_external_script "$autonome_scripts/force-pt-br.ps1"
   
   #####
   ##### BAIXA WallPaperS
