@@ -78,6 +78,7 @@ handler_ventoy_menu() {
 
 # Mapa futuro para substituições baseadas em chave da BIOS do Windows
 # (Mantido para extensões posteriores — não remover)
+
 WINDOWS_DA_BIOS_MAPA_SUBSTITUICAO=(    
   # 1. WillShowUI (qualquer conteúdo interno, multiline seguro)
   '<WillShowUI>[^<]*</WillShowUI>|<WillShowUI>Never</WillShowUI>'
