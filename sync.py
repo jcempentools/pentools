@@ -53,7 +53,7 @@ ORIGIN_PATH = os.path.normpath(SCRIPT_DIR).rstrip(os.path.sep) + os.path.sep
 # Padrões fixos que a ignorar
 DEFAULT_IGNORED = (
     r"(\.(git|vscode|trunk|github)(\\|/|$))|"          # Pastas de dev
-    r"(\.(log|tmp|eslintrc\.json|gitattributes|gitignore|prettierrc|prettierignore)$)|" # Extensões/Arquivos
+    r"(\.(log|tmp|iso|img|eslintrc\.json|gitattributes|gitignore|prettierrc|prettierignore)$)|" # Extensões/Arquivos
     r"(\.fseventsd$|\.Trashes$|\.Spotlight$|\.AppleDouble$|" # Pastas de sistema
     r"\.TemporaryItems$|\$Recycle\.Bin$|Recycler$)"
 )
@@ -175,8 +175,10 @@ def hash_file(filename, label):
     try:
         file_size = os.path.getsize(filename)
         with open(filename, 'rb') as file:
-            ext = Path(filename).suffix.lower()
-            hasher = hashlib.sha256() if ext in ('.iso', '.img') else xxhash.xxh3_64()
+            # Detecta se deve usar SHA256 (quando houver metadata ou validação crítica)
+            use_sha256 = filename.lower().endswith((".iso", ".img")) or os.path.exists(filename + ".sha256")
+
+            hasher = hashlib.sha256() if use_sha256 else xxhash.xxh3_64()
             file_name = os.path.basename(filename)  
             with Progress(
                 TextColumn("[bold lightmagenta]→ Hash {task.fields[label]}: {task.fields[name]}"),
@@ -190,7 +192,7 @@ def hash_file(filename, label):
                     progress.update(task, advance=len(chunk))
         res = hasher.hexdigest()
         hash_cache[filename] = res
-        return res
+        return res.lower()
     except Exception as e:
         show_message(f"Erro ao calcular hash de {filename}: {e}", "e")
         return None
@@ -416,70 +418,85 @@ def parse_syncdownload(file_path):
 
 def manage_sync_metadata(final_dest_path, url, expected_hash, github_ext):    
     """
-    Gerencia validação e geração de arquivos auxiliares (.sha256 / .syncado)
+    Decisão unificada de download (independente da origem)
 
-    Responsabilidades:
-    - Verificar se download é necessário
-    - Validar integridade via hash
-    - Validar nome original via .syncado
-    - Gerar arquivos auxiliares quando necessário
-
-    NÃO reimplementa:
-    - resolução de nome
-    - leitura de header
-    - parsing de URL
+    Ordem:
+    1. Arquivo existe?
+    2. .syncado existe?
+    3. Nome confere?
+    4. Hash confere?
     """
 
     sha_file = final_dest_path + ".sha256"
     sync_file = final_dest_path + ".syncado"
 
-    need_download = True    
+    # =========================================================
+    # 1. ARQUIVO NÃO EXISTE → DOWNLOAD
+    # =========================================================
+    if not os.path.exists(final_dest_path):
+        show_message("Arquivo não existe → download necessário", "d")
+        return True
 
-    # --- VALIDAÇÃO ---
-    if os.path.exists(final_dest_path):
+    # =========================================================
+    # 2. SEM .syncado → NÃO SABE QUAL VERSÃO → DOWNLOAD
+    # =========================================================
+    if not os.path.exists(sync_file):
+        show_message("Sem .syncado → download necessário", "d")
+        return True
 
-        # --- GitHub mode ---
-        if github_ext and os.path.exists(sha_file):
-            try:
-                with open(sha_file, "r", encoding="utf-8") as f:
-                    line = f.readline().strip()
-                    saved_hash = line.split()[0] if line else None
+    try:
+        # =====================================================
+        # 3. COMPARAÇÃO DE NOME (VERSÃO)
+        # =====================================================
+        with open(sync_file, "r", encoding="utf-8") as f:
+            stored_name = f.read().strip()
 
-                    parts = line.split()
-                    if len(parts) < 2:
-                        raise Exception("Formato inválido de .sha256")
+        current_name = resolve_filename_from_url(url)
 
-                    saved_hash = parts[0]                    
+        if not current_name:
+            show_message("Não foi possível resolver nome atual → download", "w")
+            return True
 
-                current_hash = hash_file(final_dest_path, "Destino")
+        if stored_name.lower() != current_name.lower():
+            show_message(
+                f"Novo release detectado: {stored_name} -> {current_name}",
+                "i"
+            )
+            return True
 
-                name_ok = True
+        show_message(f"Mesmo release detectado: {current_name}", "d")
 
-                if os.path.exists(sync_file):
-                    with open(sync_file, "r", encoding="utf-8") as f:
-                        original_name = f.read().strip()
+        # =====================================================
+        # 4. VALIDAÇÃO DE HASH (INTEGRIDADE)
+        # =====================================================
+        if not os.path.exists(sha_file):
+            show_message("Sem .sha256 → download necessário", "d")
+            return True
 
-                    resolved_name = resolve_filename_from_url(url)
+        with open(sha_file, "r", encoding="utf-8") as f:
+            line = f.readline().strip()
+            saved_hash = line.split()[0] if line else None
 
-                    if resolved_name and original_name != resolved_name:
-                        name_ok = False
+        if not saved_hash:
+            show_message("Hash inválido no .sha256 → download", "w")
+            return True
 
-                if current_hash == saved_hash and name_ok:
-                    need_download = False
-                    show_message(f"GitHub: download desnecessário (arquivo já atualizado): {os.path.basename(final_dest_path)}", "k")
+        current_hash = hash_file(final_dest_path, "Destino")
 
-            except Exception as e:
-                show_message(f"Falha na verificação prévia: {e}", "w")
+        if current_hash == saved_hash:
+            show_message(
+                f"Arquivo íntegro (sem download): {os.path.basename(final_dest_path)}",
+                "k"
+            )
+            return False
 
-        # --- fluxo tradicional ---
-        elif expected_hash:
-            current_hash = hash_file(final_dest_path, "Destino")
-            if current_hash == expected_hash:
-                need_download = False
+        show_message(f"Hash atual {current_hash} != {saved_hash}", "w")
+        return True
 
-    return need_download
-
-
+    except Exception as e:
+        show_message(f"Erro na validação: {e}", "w")
+        return True
+    
 def generate_sync_metadata(final_dest_path, url, custom_filename, github_ext):
     """
     Gera arquivos auxiliares (.sha256 / .syncado)
@@ -498,7 +515,7 @@ def generate_sync_metadata(final_dest_path, url, custom_filename, github_ext):
                 sha256_hash.update(chunk)
 
         filename_only = os.path.basename(final_dest_path)
-        sha_line = f"{sha256_hash.hexdigest()} *{filename_only}"
+        sha_line = f"{sha256_hash.hexdigest()}  {filename_only}"
 
         with open(final_dest_path + ".sha256", "w", encoding="utf-8") as f:
             f.write(sha_line + "\n")
@@ -704,8 +721,8 @@ def origin_to_destination(path, retry, dry_run):
 
                                 show_message(f"Asset encontrado: {selected_asset.get('name')}", "s")
 
-                                # IMPORTANTE: desabilita hash nesse modo
-                                expected_hash = None
+                                # Mantém hash se fornecido externamente (mais confiável que heurística de asset)
+                                # expected_hash NÃO deve ser sobrescrito aqui
                             else:
                                 show_message(f"Nenhum asset compatível encontrado (.{ext}" + (f", {arch}" if arch else "") + ")", "e")
                                 return
@@ -726,7 +743,7 @@ def origin_to_destination(path, retry, dry_run):
 
                     dest_dir = os.path.dirname(dest_path)
 
-                    final_dest_path = os.path.join(dest_dir, filename)
+                    final_dest_path = os.path.join(dest_dir, filename)                    
                     
                     # Verifica necessidade de download (centralizado)
                     need_download = manage_sync_metadata(
