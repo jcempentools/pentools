@@ -50,26 +50,25 @@ hash_cache = {}
 destination_path = "?"
 ORIGIN_PATH = os.path.normpath(SCRIPT_DIR).rstrip(os.path.sep) + os.path.sep
 
-# Atribui uma regex à variável IGNORED_PATHS
-IGNORED_PATHS = (            
-    r"(\.((git|vscode|trunk|github)(\\|/|$)(log|tmp)$)|"
-    r"(\.(eslintrc.json|gitattributes|gitignore|prettierrc|prettierignore)$)"
-    r"(\.fseventsd$|\.Trashes$|\.Spotlight$|\.AppleDouble$|"
-    r"\.TemporaryItems$|\$Recycle\.Bin$|Recycler$))"
-    + "|" +
-    '|'.join(
+# Padrões fixos que a ignorar
+DEFAULT_IGNORED = (
+    r"(\.(git|vscode|trunk|github)(\\|/|$))|"          # Pastas de dev
+    r"(\.(log|tmp|eslintrc\.json|gitattributes|gitignore|prettierrc|prettierignore)$)|" # Extensões/Arquivos
+    r"(\.fseventsd$|\.Trashes$|\.Spotlight$|\.AppleDouble$|" # Pastas de sistema
+    r"\.TemporaryItems$|\$Recycle\.Bin$|Recycler$)"
+)
+
+# Verifica se há argumentos via CLI
+if any(arg.startswith("ignore=") for arg in sys.argv):
+    cli_ignored = '|'.join(
         re.escape(item) + r"$"
         for arg in sys.argv
         if arg.startswith("ignore=")
         for item in arg.split('=', 1)[1].split(',')
     )
-    if any(arg.startswith("ignore=") for arg in sys.argv)
-    else
-    r"(\.((git|vscode|trunk|github)(\\|/|$)|(log|tmp)$)|"  
-    r"(\.(eslintrc.json|gitattributes|gitignore|prettierrc|prettierignore)$)"
-    r"(\.fseventsd$|\.Trashes$|\.Spotlight$|\.AppleDouble$|"
-    r"\.TemporaryItems$|\$Recycle\.Bin$|Recycler$))"
-)
+    IGNORED_PATHS = f"({DEFAULT_IGNORED}|{cli_ignored})"
+else:
+    IGNORED_PATHS = DEFAULT_IGNORED
 
 # Cache global de normalização
 _product_cache = {}
