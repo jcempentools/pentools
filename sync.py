@@ -1,3 +1,78 @@
+# ==============================================================================
+# SYNC ENGINE — CONTRATO OPERACIONAL E DIRETRIZES
+# ==============================================================================
+#
+# OBJETIVO
+# - Sincronizar origem → destino com suporte a cópia local e downloads declarativos
+# - Detectar releases remotos, atualizar automaticamente e garantir integridade
+# - Manter destino limpo, determinístico, idempotente e resiliente
+#
+# FAIL-SAFE / RESILIÊNCIA / AUTO-RECUPERAÇÃO
+# - Execução idempotente e determinística
+# - Nunca remover dados sem validação lógica
+# - Download apenas quando necessário
+# - Validação pós-download (hash/tamanho)
+# - Retry automático para falhas transitórias
+# - Metadata persistente (.sha256 / .syncado) para recuperação de estado
+# - Abort seguro em inconsistências
+# - Execução ordenada e validada por etapas
+#
+# PIPELINE OBRIGATÓRIO
+# 1. Limpeza controlada do destino
+# 2. Sincronização origem → destino
+# 3. Processamento .syncdownload (downloads)
+# 4. Retentativa de falhas
+# 5. Pós-processamento (atributos)
+#
+# REGRAS DE NEGÓCIO
+# - .syncdownload define downloads declarativos
+# - Normalização de nomes para deduplicação
+# - Preservar apenas versão válida mais recente
+# - Remover instaladores redundantes do mesmo produto
+# - Ignorar paths conforme regex configurável
+#
+# ABSTRAÇÃO DE ORIGENS (OBRIGATÓRIO)
+# - Diferentes provedores devem expor interface lógica equivalente
+# - Mesma lógica de decisão, validação e metadata
+# - Preferir APIs oficiais sempre
+# - Evitar parsing HTML/XML heurístico
+#
+# GUI / UX (REQUISITO)
+# - Preservar progressbar inline (rich.progress)
+# - Atualização em linha (sem flooding)
+# - Feedback visual para hash, download, retry e cópia
+#
+# ESTILO DE IMPLEMENTAÇÃO (OBRIGATÓRIO)
+# - Funções pequenas, específicas e reutilizáveis (microfunções com bom senso)
+# - NÃO duplicar lógica em nenhuma parte do código
+# - Qualquer regra reutilizável deve existir em uma única função central
+# - Exemplos obrigatórios de centralização:
+#   • normalização de nomes de aplicativos
+#   • decisão de versão mais recente
+#   • resolução de nome final de arquivo
+#   • validação de integridade
+#   • lógica de download
+# - Nomeação consistente e descritiva
+# - Evitar side-effects implícitos
+# - Evitar hardcode desnecessário
+# - Centralizar lógica crítica (download, execução, validação, decisão)
+# - Logs humanos + machine-readable
+# - Código autoexplicativo e baixo acoplamento
+#
+# DIRETRIZES TÉCNICAS
+# - Hash rápido para comparação + SHA256 para integridade
+# - Cache em memória para performance
+# - Metadata persistente para decisão incremental
+# - Logging rotativo
+# - Retry controlado e execução incremental
+#
+# RESTRIÇÕES
+# - Não duplicar lógica (qualquer domínio)
+# - Não usar parsing HTML se API existir
+# - Não remover arquivos sem validação
+# - Não alterar UX da progressbar sem decisão explícita
+# - Não quebrar compatibilidade de metadata
+# ==============================================================================
 import os
 import sys
 import codecs
