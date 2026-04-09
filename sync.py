@@ -302,6 +302,40 @@ def resolve_filename_from_url(url, fallback_path=None):
 
     return filename  
 
+def resolve_effective_remote_name(url):
+    """
+    Resolve nome REAL do arquivo após redirects (SourceForge, etc).
+    Prioriza:
+    1. URL final após redirect
+    2. Content-Disposition
+    3. Fallback padrão
+    """
+    try:
+        import urllib.request
+
+        req = urllib.request.Request(url, method="HEAD")
+
+        with urllib.request.urlopen(req) as response:
+            # 1. URL final (após redirect)
+            final_url = response.geturl()
+            name = os.path.basename(final_url.split("?")[0])
+
+            if name and name.lower() != "download":
+                return name
+
+            # 2. Header
+            cd = response.headers.get("Content-Disposition")
+            if cd:
+                match = re.search(r'filename="?([^"]+)"?', cd)
+                if match:
+                    return match.group(1)
+
+    except Exception:
+        pass
+
+    # 3. fallback existente
+    return resolve_filename_from_url(url)
+
 def normalize_product_name(filename):
     """
     Normalização avançada com:
@@ -452,9 +486,9 @@ def resolve_final_filename(url, path, custom_name=None, github_ext=None):
         ext = existing_ext
     else:
         # fallback URL
-        url_name = os.path.basename(url.split("?")[0])
-        if "." in url_name:
-            ext = url_name.split(".")[-1].lower()
+        remote_name = resolve_effective_remote_name(url)
+        if remote_name and "." in remote_name:
+            ext = remote_name.split(".")[-1].lower()
 
     # --- NORMALIZA NOME DO PRODUTO ---
     base_name = normalize_product_name(custom_name)
@@ -526,7 +560,7 @@ def manage_sync_metadata(final_dest_path, url, expected_hash, github_ext):
         with open(sync_file, "r", encoding="utf-8") as f:
             stored_name = f.read().strip()
 
-        current_name = resolve_filename_from_url(url)
+        current_name = resolve_effective_remote_name(url)
 
         if not current_name:
             show_message("Não foi possível resolver nome atual → download", "w")
@@ -597,7 +631,7 @@ def generate_sync_metadata(final_dest_path, url, custom_filename, github_ext):
 
         # .syncado
         if custom_filename:
-            original_name = resolve_filename_from_url(url)
+            original_name = resolve_effective_remote_name(url)
 
             if original_name:
                 with open(final_dest_path + ".syncado", "w", encoding="utf-8") as f:
@@ -718,16 +752,19 @@ def origin_to_destination(path, retry, dry_run):
 
                             ext = None
                             arch = None
-                            extra_filters = []  # NOVO: filtros adicionais livres
+                            include_filters = []
+                            exclude_filters = []
 
                             for p in parts:
                                 if p.startswith("."):
                                     ext = p[1:]
-                                    github_ext = ext 
+                                    github_ext = ext
                                 elif p in ("x86", "x64", "arm64"):
                                     arch = p
+                                elif p.startswith("!"):
+                                    exclude_filters.append(p[1:])
                                 else:
-                                    extra_filters.append(p)  # qualquer outro termo vira filtro
+                                    include_filters.append(p)
 
                             if not ext:
                                 show_message("Extensão não informada no padrão GitHub (.ext obrigatório)", "e")
@@ -761,19 +798,26 @@ def origin_to_destination(path, retry, dry_run):
                                 clean_name = name.lower().split('?')[0].split('#')[0]
                                 if not clean_name.endswith(f".{ext}"):
                                     continue
-
+                                
                                 match_ok = True
 
-                                # 2. Arquitetura (se informada → obrigatória)                                
+                                # 2. Arquitetura (se informada → obrigatória)
                                 if arch:
                                     if not any(arch in t for t in tokens):
                                         match_ok = False
 
-                                # 3. Filtros adicionais (TODOS obrigatórios)
-                                for f in extra_filters:
+                                # 3. Filtros positivos (TODOS obrigatórios)
+                                for f in include_filters:
                                     if not any(f in t for t in tokens):
                                         match_ok = False
                                         break
+
+                                # 4. Filtros negativos (NENHUM pode existir)
+                                if match_ok:
+                                    for f in exclude_filters:
+                                        if any(f in t for t in tokens):
+                                            match_ok = False
+                                            break
 
                                 if match_ok:
                                     selected_candidates.append(asset)
