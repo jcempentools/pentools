@@ -341,127 +341,6 @@ def resolve_effective_remote_name(url):
     # 3. fallback existente
     return resolve_filename_from_url(url)
 
-def resolve_sourceforge_asset(url, spec):
-    """
-    Resolve arquivo real do SourceForge via endpoint JSON.
-    Suporta navegação recursiva em diretórios.
-
-    Retorna:
-    - download_url
-    - filename
-    """
-
-    import urllib.request
-    import json
-
-    # Extrai partes da URL
-    m = re.match(r'https://sourceforge\.net/projects/([^/]+)/files/(.+)', url)
-    if not m:
-        return None, None
-
-    project, path = m.group(1), m.group(2).rstrip('/')
-
-    # Parse spec (reaproveita padrão GitHub)
-    parts = [p.strip().lower() for p in spec.split(",")] if spec else []
-
-    ext = None
-    arch = None
-    include_filters = []
-    exclude_filters = []
-
-    for p in parts:
-        if p.startswith("."):
-            ext = p[1:]
-        elif p in ("x86", "x64", "arm64"):
-            arch = p
-        elif p.startswith("!"):
-            exclude_filters.append(p[1:])
-        else:
-            include_filters.append(p)
-    
-    def walk(sf_path):
-        from urllib.parse import quote
-
-        encoded_path = quote(sf_path)
-
-        api_url = f"https://sourceforge.net/rest/p/{project}/files/{encoded_path}"
-
-        try:
-            show_message(f"Consultando SourceForge API: {api_url}", "d")
-
-            req = urllib.request.Request(
-                api_url,
-                headers={
-                    "User-Agent": "sync-engine",
-                    "Accept": "application/json"
-                }
-            )
-
-            with urllib.request.urlopen(req) as response:
-                data = json.loads(response.read().decode())
-
-        except Exception:
-            return None
-
-        files = data.get("children", [])
-
-        candidates = []
-
-        for f in files:
-            name = f.get("name", "")
-            if not name:
-                continue
-
-            # diretório → recursão
-            if f.get("type") == "folder":
-                res = walk(f"{sf_path}/{name}")
-                if res:
-                    return res
-                continue
-
-            tokens = normalize_tokens(name)
-            clean_name = name.lower()
-
-            # extensão
-            if ext and not clean_name.endswith(f".{ext}"):
-                continue
-
-            match_ok = True
-
-            if arch and not any(arch in t for t in tokens):
-                match_ok = False
-
-            for f_in in include_filters:
-                if not any(f_in in t for t in tokens):
-                    match_ok = False
-                    break
-
-            if match_ok:
-                for f_ex in exclude_filters:
-                    if any(f_ex in t for t in tokens):
-                        match_ok = False
-                        break
-
-            if match_ok:
-                candidates.append(f)
-
-        if not candidates:
-            return None
-
-        selected = max(candidates, key=lambda x: x.get("size", 0))
-
-        download_url = selected.get("download_url")
-
-        if not download_url:
-            download_url = (
-                f"https://downloads.sourceforge.net/project/"
-                f"{project}/{sf_path}/{selected.get('name')}"
-            )
-
-        return download_url, selected.get("name")
-          
-    return walk(path)    
-
 def resolve_effective_download_url(url):
     """
     Resolve URL final real do arquivo (especialmente SourceForge).
@@ -1042,15 +921,6 @@ def resolve_syncdownload_cached(sync_path):
         except Exception:
             spec = None
 
-    # --- SourceForge ---
-    if "sourceforge.net" in url.lower():
-        try:
-            resolved_url, resolved_name = resolve_sourceforge_asset(url, spec)
-            if resolved_url:
-                url = resolved_url
-        except Exception:
-            pass
-
     # --- GitHub ---
     github_ext = None
 
@@ -1264,24 +1134,7 @@ def origin_to_destination(path, retry, dry_run):
                             spec = None                    
 
                     if not url:
-                        return
-
-                    # --- RESOLUÇÃO SOURCEFORGE VIA API (evita HTML) ---
-                    if "sourceforge.net" in url.lower():
-                        try:
-                            resolved_url, resolved_name = resolve_sourceforge_asset(url, spec)
-
-                            if resolved_url:
-                                show_message(f"SourceForge asset resolvido: {resolved_name}", "s")
-                                url = resolved_url
-                            else:
-                                show_message("Nenhum asset válido encontrado no SourceForge", "e")
-                                return
-
-                        except Exception as e:
-                            show_message(f"Erro ao resolver SourceForge: {e}", "e")
-                            return
-                    # --- FIM ---                        
+                        return                  
                                                             
                     github_ext = None                    
 
