@@ -521,7 +521,8 @@ def normalize_product_name(filename):
     if not filtered:
         result = None
     else:
-        result = filtered[0]
+        # Usa até 2 tokens para melhorar robustez sem quebrar compatibilidade
+        result = ".".join(filtered[:2])
 
     _product_cache[filename] = result
     return result
@@ -567,7 +568,36 @@ def purge_similar_installers(dest_dir, target_name):
 
         base = normalize_product_name(f)
 
-        if base != target_base:
+        same_product = (base == target_base)
+
+        # --- fallback controlado por hash ---
+        if not same_product:
+            try:
+                ext = os.path.splitext(full)[1].lower()
+
+                # apenas tipos relevantes (instaladores / imagens grandes)
+                ALLOWED_HASH_DEDUP_EXT = {
+                    ".exe", ".msi", ".zip", ".7z", ".rar",
+                    ".iso", ".img"
+                }
+
+                if ext in ALLOWED_HASH_DEDUP_EXT:
+                    size = os.path.getsize(full)
+
+                    # evita falso positivo em arquivos pequenos (boot, configs embutidos, etc.)
+                    MIN_SIZE_BYTES = 10 * 1024 * 1  # 10MB
+
+                    if size >= MIN_SIZE_BYTES:
+                        target_full = os.path.join(dest_dir, target_name)
+
+                        if os.path.exists(target_full):
+                            if hash_file(full, "Destino") == hash_file(target_full, "Destino"):
+                                same_product = True
+
+            except Exception:
+                pass
+
+        if not same_product:
             continue
 
         candidates.append(f)
@@ -662,6 +692,20 @@ def parse_syncdownload(file_path):
 
         # Preserva posição das linhas (não remove vazias)
         url = raw_lines[0].strip() if len(raw_lines) > 0 else None
+
+        # --- Parser DSL resolution ---
+        try:
+            if has_parser_expression(url):
+                resolved = resolve_parser_expression(url)
+
+                if not isinstance(resolved, str):
+                    raise Exception("Parser DSL não retornou URL válida")
+
+                url = resolved
+        except Exception as e:
+            show_message(f"Erro ao resolver parser DSL: {e}", "e")
+            return None, None, None
+        
         expected_hash = raw_lines[1].strip() if len(raw_lines) > 1 and raw_lines[1].strip() else None
         custom_filename = raw_lines[2].strip() if len(raw_lines) > 2 and raw_lines[2].strip() else None
 
@@ -808,6 +852,159 @@ def normalize_tokens(s):
     """Quebra string em tokens normalizados"""
     return [t for t in re.split(r'[^a-z0-9]+', s.lower()) if t] 
 
+# --- [Parser DSL Detection / URL Abstraction] ---
+
+def has_parser_expression(value):
+    """Detecta presença de expressão parser ${"..."}"""
+    if not value:
+        return False
+    return bool(re.search(r'\$\{\s*["\']https?://[^"\']+["\']\s*\}', value))
+
+
+def extract_parser_url(value):
+    """Extrai URL base de expressão parser"""
+    if not value:
+        return None
+    m = re.search(r'\$\{\s*["\'](https?://[^"\']+)["\']\s*\}', value)
+    return m.group(1) if m else None
+
+
+def has_resolvable_url(value):
+    """Detecta URL direta OU indireta (parser DSL)"""
+    if not value:
+        return False
+
+    if has_parser_expression(value):
+        return True
+
+    return bool(re.search(r'https?://', value)) 
+
+def resolve_url_source(value):
+    """
+    Resolve origem da URL:
+    - direta
+    - parser DSL
+    """
+
+    if not value:
+        return None, None
+
+    if has_parser_expression(value):
+        return "parser", extract_parser_url(value)
+
+    m = re.search(r'(https?://[^\s]+)', value)
+    if m:
+        return "direct", m.group(1)
+
+    return None, None   
+
+# --- [Parser DSL Resolver] ---
+
+__PARSER_CACHE = {}
+PARSER_CACHE_TTL = 60  # segundos
+
+
+def _parser_cache_get(url):
+    entry = __PARSER_CACHE.get(url)
+    if not entry:
+        return None
+
+    ts, data = entry
+    if time.time() - ts > PARSER_CACHE_TTL:
+        return None
+
+    return data
+
+
+def _parser_cache_set(url, data):
+    __PARSER_CACHE[url] = (time.time(), data)
+
+
+def fetch_and_parse(url):
+    """
+    Fetch + parse automático (JSON/YAML fallback JSON only)
+    """
+
+    cached = _parser_cache_get(url)
+    if cached is not None:
+        return cached
+
+    import urllib.request
+    import json
+
+    req = urllib.request.Request(url, headers={"User-Agent": "sync-engine"})
+
+    with urllib.request.urlopen(req) as response:
+        raw = response.read()
+
+        content_type = response.headers.get("Content-Type", "").lower()
+
+        if "json" in content_type:
+            data = json.loads(raw.decode())
+        else:
+            # fallback seguro → tenta JSON
+            try:
+                data = json.loads(raw.decode())
+            except Exception:
+                raise Exception("Parser DSL: formato não suportado")
+
+    _parser_cache_set(url, data)
+    return data
+
+
+def resolve_data_path(obj, path):
+    """
+    Resolve caminho tipo:
+    users[0].name
+    """
+
+    current = obj
+
+    tokens = re.split(r'\.(?![^\[]*\])', path)
+
+    for token in tokens:
+        m = re.match(r'([a-zA-Z0-9_\-]+)(\[(\d+)\])?', token)
+
+        if not m:
+            raise Exception(f"Parser DSL inválido: {token}")
+
+        key = m.group(1)
+        index = m.group(3)
+
+        if isinstance(current, dict):
+            current = current.get(key)
+        else:
+            raise Exception("Parser DSL: estrutura inválida")
+
+        if index is not None:
+            current = current[int(index)]
+
+    return current
+
+
+def resolve_parser_expression(expr):
+    """
+    Resolve expressão completa:
+    ${"url"}.path.to.value
+    """
+
+    url = extract_parser_url(expr)
+
+    if not url:
+        raise Exception("Parser DSL: URL inválida")
+
+    # extrai path após }
+    path_match = re.search(r'\}\.(.+)$', expr)
+
+    if not path_match:
+        return fetch_and_parse(url)
+
+    path = path_match.group(1)
+
+    data = fetch_and_parse(url)
+
+    return resolve_data_path(data, path)       
+
 def destination_cleanup(root, dry_run=False):
     """Remove arquivos/pastas no destino que não existem na origem"""
     for item in os.listdir(root):
@@ -891,6 +1088,8 @@ def origin_to_destination(path, retry, dry_run):
 
             # --- TRATAMENTO PARA .syncdownload ---
             if path.lower().endswith(".syncdownload"):
+                show_message(f"Sincronização online: {os.path.splitext(os.path.basename(path))[0]}")
+
                 try:
                     url, expected_hash, custom_filename = parse_syncdownload(path)
 
