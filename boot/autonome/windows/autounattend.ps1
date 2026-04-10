@@ -1338,34 +1338,27 @@ function Normalize-AppName {
     Vendor = $vendor
   }
 }
-<#
-.SYNOPSIS
-Localiza pasta offline.
+function Resolve-PentoolsPath {
 
-.DESCRIPTION
-Procura pendrive contendo estrutura autonoma.
+  if ($script:appsinstall_folder -and (Test-Path $script:appsinstall_folder)) {
+    return $script:appsinstall_folder
+  }
 
-.OUTPUTS
-Caminho encontrado.
-#>
-function appinstall_find_path {
-  if (([string]::IsNullOrEmpty($script:appsinstall_folder)) -or (-not (Test-Path $script:appsinstall_folder))) {
-    try {
-      foreach ($Drive in (Get-PSDrive -PSProvider 'FileSystem' | Where-Object { $_.Root -match '^[A-Z]:\\$' })) {
-        $root = "${Drive.Root}"
-        # CORREÇÃO: Removido o "Path" solto e a redundância da pasta .pentools
-        if ((Test-Path -Path (Join-Path $root $pendrive_autonome_checker)) -and (Test-Path -Path (Join-Path $root $pendrive_autonome_path))) {
-          $script:appsinstall_folder = Join-Path $root $pendrive_autonome_path
-          break
-        }
-      }
-    }
-    catch {
-      show_nota 'Falha ao localizar pasta de instalação offline'
-      return ""
+  $envInfo = Get-PentoolsEnvironment -LogCallback {
+    param($m, $l) show_log "DISCOVERY [$l] $m"
+  }
+
+  if ($envInfo) {
+    $drive = $envInfo.PENTOOLS_ROOT_DRIVE
+    $path = Join-Path $drive $pendrive_autonome_path
+
+    if (Test-Path $path) {
+      $script:appsinstall_folder = $path
+      return $path
     }
   }
-  return $script:appsinstall_folder
+
+  return ""
 }
 <#
 .SYNOPSIS
@@ -1377,7 +1370,7 @@ Indexa executáveis offline para busca rápida.
 function Initialize-AppFileCache {
   if ($script:AppFileCache) { return }
 
-  $path = appinstall_find_path
+  $path = Resolve-PentoolsPath
   if (-not $path -or -not (Test-Path $path)) {
     $script:AppFileCache = @()
     return
@@ -2170,7 +2163,7 @@ function Initialize-AutonomeCache {
     New-Item -Path $dest -ItemType Directory -Force | Out-Null
   }
 
-  $src = appinstall_find_path
+  $src = Resolve-PentoolsPath
 
   if ([string]::IsNullOrEmpty($src)) {
     show_warn "Pendrive não encontrado para cache."
