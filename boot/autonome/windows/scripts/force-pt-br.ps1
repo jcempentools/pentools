@@ -75,6 +75,17 @@
 #
 # =====================================================================
 
+param(
+  [ScriptBlock]$LogCallback
+)
+
+# ---------------- LOG WRAPPER ----------------
+function __log($msg, $type = "l") {
+  if ($LogCallback) {
+    try { & $LogCallback $msg $type } catch {}
+  }
+}
+
 # ---------------- CONFIG ----------------
 $Script:TargetLang = "pt-BR"
 $Script:TargetKeyboard = "00010416"
@@ -82,46 +93,42 @@ $Script:TargetGeoId = 32
 $Script:TargetTimeZone = "E. South America Standard Time"
 $Script:MaxRetries = 5
 $Script:RetryDelay = 5
-$Script:LogFile = "$env:SystemRoot\Temp\ptbr-language.log"
-
-# garante diretório de log
-$logDir = Split-Path $Script:LogFile
-if (-not (Test-Path $logDir)) {
-  New-Item -ItemType Directory -Path $logDir -Force | Out-Null
-}
-
-# ---------------- LOG ----------------
-function Write-Log {
-  param([string]$Message)
-  $time = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-  try { Add-Content $Script:LogFile "$time - $Message" } catch {}
-}
 
 # ---------------- MUTEX ----------------
 function Enter-ScriptMutex {
-  # Mutex compatível WinPE/SYSTEM
+  __log "Aguardando mutex global" "i"
+
   $global:ScriptMutex = New-Object System.Threading.Mutex($false, "PTBRLanguageScript")
-  if (-not $global:ScriptMutex.WaitOne(1800000)) { exit 1 }
+
+  if (-not $global:ScriptMutex.WaitOne(1800000)) {
+    __log "Timeout ao adquirir mutex" "e"
+    exit 1
+  }
+
+  __log "Mutex adquirido" "i"
 }
 
 function Exit-ScriptMutex {
-  try { $global:ScriptMutex.ReleaseMutex() } catch {}
+  try {
+    $global:ScriptMutex.ReleaseMutex()
+    __log "Mutex liberado" "i"
+  }
+  catch {}
 }
 
 # ---------------- WAITERS ----------------
 function Wait-DismIdle {
-  # Evita loop infinito caso DISM trave
-  $timeout = 1800 # 30 min
+  $timeout = 1800
   $start = Get-Date
 
-  while ($true) {
+  __log "Aguardando DISM/CBS idle" "i"
 
+  while ($true) {
     $busy = Get-Process dism, TiWorker, TrustedInstaller -ErrorAction SilentlyContinue
     if (-not $busy) { break }
 
-    # Compatível PS2
     if ((New-TimeSpan -Start $start -End (Get-Date)).TotalSeconds -gt $timeout) {
-      Write-Log "Wait-DismIdle timeout"
+      __log "Timeout DISM idle" "w"
       break
     }
 
@@ -131,17 +138,21 @@ function Wait-DismIdle {
 
 function Wait-Services {
   $services = "TrustedInstaller", "wuauserv", "bits"
+
   foreach ($svc in $services) {
     try {
       $s = Get-Service $svc -ErrorAction SilentlyContinue
       if ($s -and $s.Status -eq "StartPending") {
+
+        __log "Aguardando serviço $svc" "i"
+
         $timeout = 300
         $start = Get-Date
 
         while ((Get-Service $svc).Status -ne "Running") {
 
           if ((New-TimeSpan -Start $start -End (Get-Date)).TotalSeconds -gt $timeout) {
-            Write-Log "Service $svc timeout"
+            __log "Timeout serviço $svc" "w"
             break
           }
 
@@ -155,36 +166,44 @@ function Wait-Services {
 
 function Flush-Registry { Start-Sleep 500 }
 
-# ---------------- SYNC PROCESS ----------------
+# ---------------- PROCESS ----------------
 function Invoke-SyncProcess {
   param($File, $Args)
 
-  # Execução síncrona compatível PS2
+  __log "Exec: $File $Args" "l"
+
   $p = Start-Process $File -ArgumentList $Args -PassThru -NoNewWindow
   $p.WaitForExit()
 
-  if ($p.ExitCode -ne 0) { throw "$File failed ($($p.ExitCode))" }
+  if ($p.ExitCode -ne 0) {
+    throw "$File failed ($($p.ExitCode))"
+  }
 }
 
-# ---------------- RETRY SYNC ----------------
+# ---------------- RETRY ----------------
 function Invoke-SyncRetry {
   param([scriptblock]$Code, [string]$Name)
 
   for ($i = 1; $i -le $Script:MaxRetries; $i++) {
     try {
-      Write-Log "START $Name try $i"
+      __log "$Name tentativa $i" "l"
+
       & $Code
+
       Wait-DismIdle
       Wait-Services
       Flush-Registry
-      Write-Log "OK $Name"
+
+      __log "$Name concluído" "i"
       return
     }
     catch {
-      Write-Log "FAIL $Name try $i $_"
+      __log "$Name falhou tentativa $i -> $_" "w"
       Start-Sleep ($Script:RetryDelay * $i)
     }
   }
+
+  __log "$Name falhou definitivamente" "e"
   throw "FAILED: $Name"
 }
 
@@ -212,8 +231,8 @@ function Test-IsPtBr {
 # ---------------- NETWORK ----------------
 function Ensure-Network {
   Invoke-SyncRetry {
+    __log "Testando conectividade" "i"
 
-    # Testa conectividade real
     $result = ping -n 1 8.8.8.8 | Select-String "TTL"
     if (-not $result) { throw "Network not ready" }
 
@@ -224,22 +243,25 @@ function Ensure-Network {
 function Download-LanguagePack {
 
   $url = "https://software-download.microsoft.com/download/pr/LanguageExperiencePack.pt-BR.Neutral.appx"
-  # Garante temp válido em SYSTEM
+
   $temp = $env:TEMP
   if (-not (Test-Path $temp)) { $temp = "$env:SystemRoot\Temp" }
 
   $dest = "$temp\lp-ptbr.appx"
 
   Invoke-SyncRetry {
+
+    __log "Download LP iniciado" "i"
+
     $wc = New-Object System.Net.WebClient
     $wc.DownloadFile($url, $dest)
 
-    # valida download mínimo
     if (-not (Test-Path $dest)) { throw "Download failed" }
 
     if ((Get-Item $dest).Length -lt 1000000) {
-      throw "Downloaded file too small"
+      throw "Arquivo inválido"
     }
+
   } "Download LP"
 
   return $dest
@@ -257,8 +279,12 @@ function Install-LanguagePack {
 # ---------------- LANGUAGE ----------------
 function Set-SystemLanguage {
   Invoke-SyncRetry {
-    Set-WinSystemLocale $Script:TargetLang -ErrorAction SilentlyContinue
-    Set-Culture $Script:TargetLang -ErrorAction SilentlyContinue
+
+    __log "Aplicando locale pt-BR" "i"
+
+    try { Set-WinSystemLocale $Script:TargetLang } catch {}
+    try { Set-Culture $Script:TargetLang } catch {}
+
   } "System Language"
 }
 
@@ -272,7 +298,7 @@ function Set-Keyboard {
 # ---------------- REGION ----------------
 function Set-Region {
   Invoke-SyncRetry {
-    Set-WinHomeLocation -GeoId $Script:TargetGeoId -ErrorAction SilentlyContinue
+    try { Set-WinHomeLocation -GeoId $Script:TargetGeoId } catch {}
   } "Region"
 }
 
@@ -293,18 +319,25 @@ function Remove-OtherLanguages {
 
     Get-ChildItem $key | ForEach-Object {
       if ($_.PSChildName -ne $Script:TargetLang -and $_.PSChildName -ne $current) {
+        __log "Removendo idioma $($_.PSChildName)" "i"
         Remove-Item $_.PsPath -Recurse -Force -ErrorAction SilentlyContinue
       }
     }
 
-  } "Remove languages"
+  } "Remove Languages"
 }
 
 # ---------------- VALIDATE ----------------
 function Validate-Configuration {
+
+  __log "Validando configuração final" "i"
+
   if (-not (Test-IsPtBr)) {
+    __log "Validação falhou" "e"
     throw "Validation failed"
   }
+
+  __log "Validação OK" "i"
 }
 
 # ---------------- MAIN ----------------
@@ -314,10 +347,10 @@ function Main {
 
   try {
 
-    Write-Log "==== START ===="
+    __log "Windows Language Enforcement" "t"
 
     if (Test-IsPtBr) {
-      Write-Log "Already PT-BR"
+      __log "Sistema já está em pt-BR" "i"
       return
     }
 
@@ -331,7 +364,7 @@ function Main {
     Remove-OtherLanguages
     Validate-Configuration
 
-    Write-Log "==== END ===="
+    __log "Processo concluído com sucesso" "t"
 
   }
   finally {
