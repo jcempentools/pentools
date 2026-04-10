@@ -98,6 +98,8 @@ from rich.progress import (
     TaskProgressColumn
 )
 
+__IGNORAR_GITHUB = False
+
 # Variável global para o ID da execução
 ID_EXECUCAO = ''.join(random.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in range(3))
 
@@ -335,6 +337,150 @@ def resolve_effective_remote_name(url):
 
     # 3. fallback existente
     return resolve_filename_from_url(url)
+
+def resolve_sourceforge_asset(url, spec):
+    """
+    Resolve arquivo real do SourceForge via endpoint JSON.
+    Suporta navegação recursiva em diretórios.
+
+    Retorna:
+    - download_url
+    - filename
+    """
+
+    import urllib.request
+    import json
+
+    # Extrai partes da URL
+    m = re.match(r'https://sourceforge\.net/projects/([^/]+)/files/(.+)', url)
+    if not m:
+        return None, None
+
+    project, path = m.group(1), m.group(2).rstrip('/')
+
+    # Parse spec (reaproveita padrão GitHub)
+    parts = [p.strip().lower() for p in spec.split(",")] if spec else []
+
+    ext = None
+    arch = None
+    include_filters = []
+    exclude_filters = []
+
+    for p in parts:
+        if p.startswith("."):
+            ext = p[1:]
+        elif p in ("x86", "x64", "arm64"):
+            arch = p
+        elif p.startswith("!"):
+            exclude_filters.append(p[1:])
+        else:
+            include_filters.append(p)
+    
+    def walk(sf_path):
+        from urllib.parse import quote
+
+        encoded_path = quote(sf_path)
+
+        api_url = f"https://sourceforge.net/rest/p/{project}/files/{encoded_path}"
+
+        try:
+            show_message(f"Consultando SourceForge API: {api_url}", "d")
+
+            req = urllib.request.Request(
+                api_url,
+                headers={
+                    "User-Agent": "sync-engine",
+                    "Accept": "application/json"
+                }
+            )
+
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+
+        except Exception:
+            return None
+
+        files = data.get("children", [])
+
+        candidates = []
+
+        for f in files:
+            name = f.get("name", "")
+            if not name:
+                continue
+
+            # diretório → recursão
+            if f.get("type") == "folder":
+                res = walk(f"{sf_path}/{name}")
+                if res:
+                    return res
+                continue
+
+            tokens = normalize_tokens(name)
+            clean_name = name.lower()
+
+            # extensão
+            if ext and not clean_name.endswith(f".{ext}"):
+                continue
+
+            match_ok = True
+
+            if arch and not any(arch in t for t in tokens):
+                match_ok = False
+
+            for f_in in include_filters:
+                if not any(f_in in t for t in tokens):
+                    match_ok = False
+                    break
+
+            if match_ok:
+                for f_ex in exclude_filters:
+                    if any(f_ex in t for t in tokens):
+                        match_ok = False
+                        break
+
+            if match_ok:
+                candidates.append(f)
+
+        if not candidates:
+            return None
+
+        selected = max(candidates, key=lambda x: x.get("size", 0))
+
+        download_url = selected.get("download_url")
+
+        if not download_url:
+            download_url = (
+                f"https://downloads.sourceforge.net/project/"
+                f"{project}/{sf_path}/{selected.get('name')}"
+            )
+
+        return download_url, selected.get("name")
+          
+    return walk(path)    
+
+def resolve_effective_download_url(url):
+    """
+    Resolve URL final real do arquivo (especialmente SourceForge).
+    Segue redirects até obter o binário.
+    """
+    try:
+        import urllib.request
+
+        req = urllib.request.Request(url, method="GET")
+
+        with urllib.request.urlopen(req) as response:
+            final_url = response.geturl()
+            content_type = response.headers.get("Content-Type", "").lower()
+
+            # Se ainda for HTML, tenta fallback (SourceForge edge case)
+            if "text/html" in content_type:
+                return None, content_type
+
+            return final_url, content_type
+
+    except Exception:
+        return None, None    
 
 def normalize_product_name(filename):
     """
@@ -730,20 +876,56 @@ def origin_to_destination(path, retry, dry_run):
                 try:
                     url, expected_hash, custom_filename = parse_syncdownload(path)
 
+                    # --- NORMALIZAÇÃO UNIVERSAL spec | url ---
+                    spec = None
+
+                    if url and "|" in url:
+                        try:
+                            left, right = url.split("|", 1)
+
+                            right = right.strip()
+
+                            # só aceita se lado direito for URL válida
+                            if right.startswith("http://") or right.startswith("https://"):
+                                spec = left.strip()
+                                url = right
+                            else:
+                                spec = None
+
+                        except Exception:
+                            spec = None                    
+
                     if not url:
                         return
+
+                    # --- RESOLUÇÃO SOURCEFORGE VIA API (evita HTML) ---
+                    if "sourceforge.net" in url.lower():
+                        try:
+                            resolved_url, resolved_name = resolve_sourceforge_asset(url, spec)
+
+                            if resolved_url:
+                                show_message(f"SourceForge asset resolvido: {resolved_name}", "s")
+                                url = resolved_url
+                            else:
+                                show_message("Nenhum asset válido encontrado no SourceForge", "e")
+                                return
+
+                        except Exception as e:
+                            show_message(f"Erro ao resolver SourceForge: {e}", "e")
+                            return
+                    # --- FIM ---                        
                                                             
                     github_ext = None                    
 
-                    # --- NOVO: SUPORTE A GITHUB RELEASE (ext | url) ---
-                    # Detecta padrão "extensão | url"
-                    # --- NOVO: SUPORTE A GITHUB RELEASE (ext[, arch] | url) ---
-                    github_match = re.match(r'^\s*([^|]+)\|\s*(https?://github\.com/[^/]+/[^/]+)\s*$', url, re.IGNORECASE)
+                    github_match = None
 
-                    if github_match:
+                    if spec and "github.com" in url.lower():
+                        github_match = True
+
+                    if github_match and not __IGNORAR_GITHUB:
                         try:
-                            raw_spec = github_match.group(1)
-                            repo_url = github_match.group(2).rstrip('/')
+                            raw_spec = spec
+                            repo_url = url.rstrip('/')
 
                             github_ext = None 
 
@@ -776,7 +958,7 @@ def origin_to_destination(path, retry, dry_run):
                             import urllib.request
                             import json
 
-                            show_message(f"Detectado padrão GitHub: .{ext}" + (f", {arch}" if arch else ""), "d")
+                            show_message(f"Detectado padrão GitHub: .{ext}" + (f", {arch}" if arch else ""), "d")                            
 
                             with urllib.request.urlopen(api_url) as response:
                                 data = json.loads(response.read().decode())
@@ -882,27 +1064,51 @@ def origin_to_destination(path, retry, dry_run):
                         show_message(f"Baixando: {rel_path} -> {filename}", "+")
 
                         with urllib.request.urlopen(url) as response:
-                            total_size = int(response.headers.get('Content-Length', 0))
-                            chunk_size = 65536
+                            final_url, content_type = resolve_effective_download_url(url)
 
-                            with Progress(
-                                TextColumn("[bold lightmagenta]→ Download: {task.fields[name]}"),
-                                BarColumn(),
-                                TaskProgressColumn(),
-                                DownloadColumn(),
-                                TransferSpeedColumn(),
-                                TimeRemainingColumn(),
-                                transient=True
-                            ) as progress:
-                                task = progress.add_task("", total=total_size, name=filename)
+                            if not final_url:
+                                show_message(f"Falha ao resolver download real (HTML detectado): {url}", "e")
+                                return
 
-                                with open(final_dest_path, 'wb') as out_file:
-                                    while True:
-                                        chunk = response.read(chunk_size)
-                                        if not chunk:
-                                            break
-                                        out_file.write(chunk)
-                                        progress.update(task, advance=len(chunk))                                                                       
+                            # --- EXTENSÃO VIA CONTENT-TYPE (fallback seguro) ---
+                            def guess_ext_from_content_type(ct):
+                                if "application/x-msdownload" in ct or "application/octet-stream" in ct:
+                                    return None  # não força
+                                if "application/x-msi" in ct:
+                                    return "msi"
+                                if "application/zip" in ct:
+                                    return "zip"
+                                return None
+
+                            ext_from_ct = guess_ext_from_content_type(content_type or "")
+
+                            if "." not in filename and ext_from_ct:
+                                filename = f"{filename}.{ext_from_ct}"
+                                final_dest_path = os.path.join(dest_dir, filename)
+
+                            # --- DOWNLOAD REAL ---
+                            with urllib.request.urlopen(final_url) as response:
+                                total_size = int(response.headers.get('Content-Length', 0))
+                                chunk_size = 65536
+
+                                with Progress(
+                                    TextColumn("[bold lightmagenta]→ Download: {task.fields[name]}"),
+                                    BarColumn(),
+                                    TaskProgressColumn(),
+                                    DownloadColumn(),
+                                    TransferSpeedColumn(),
+                                    TimeRemainingColumn(),
+                                    transient=True
+                                ) as progress:
+                                    task = progress.add_task("", total=total_size, name=filename)
+
+                                    with open(final_dest_path, 'wb') as out_file:
+                                        while True:
+                                            chunk = response.read(chunk_size)
+                                            if not chunk:
+                                                break
+                                            out_file.write(chunk)
+                                            progress.update(task, advance=len(chunk))                                                                    
 
                                 # --- VALIDAÇÃO LEVE (sem hash) ---
                                 if not expected_hash:
@@ -942,14 +1148,17 @@ def origin_to_destination(path, retry, dry_run):
                             else:
                                 show_message(f"Download validado: {filename}", "s")
 
-                        generate_sync_metadata(
-                            final_dest_path=final_dest_path,
-                            url=url,
-                            custom_filename=custom_filename,
-                            github_ext=github_ext
-                        )             
-                    
-                        purge_similar_installers(dest_dir, filename)                                   
+                            generate_sync_metadata(
+                                final_dest_path=final_dest_path,
+                                url=url,
+                                custom_filename=custom_filename,
+                                github_ext=github_ext
+                            )
+
+                            if not dry_run:
+                                pass  # hook intencional (pipeline extensível)
+
+                            purge_similar_installers(dest_dir, filename)                                 
 
                 except Exception as e:
                     show_message(f"Erro no .syncdownload {rel_path}: {e}", "e")
