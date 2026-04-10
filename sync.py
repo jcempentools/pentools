@@ -123,6 +123,9 @@ console = Console()
 # Dicionário para armazenar hashes temporários em RAM
 hash_cache = {}
 
+# Cache de resolução de .syncdownload (pré-processamento)
+sync_resolve_cache = {}
+
 # Caminhos
 destination_path = "?"
 ORIGIN_PATH = os.path.normpath(SCRIPT_DIR).rstrip(os.path.sep) + os.path.sep
@@ -130,7 +133,7 @@ ORIGIN_PATH = os.path.normpath(SCRIPT_DIR).rstrip(os.path.sep) + os.path.sep
 # Padrões fixos que a ignorar
 DEFAULT_IGNORED = (
     r"(\.(git|vscode|trunk|github)(\\|/|$))|"          # Pastas de dev
-    r"(\.(log|tmp|iso|img|eslintrc\.json|gitattributes|gitignore|prettierrc|prettierignore)$)|" # Extensões/Arquivos
+    r"(\.(log|tmp|eslintrc\.json|gitattributes|gitignore|prettierrc|prettierignore)$)|" # Extensões/Arquivos
     r"(\.fseventsd$|\.Trashes$|\.Spotlight$|\.AppleDouble$|" # Pastas de sistema
     r"\.TemporaryItems$|\$Recycle\.Bin$|Recycler$)"
 )
@@ -1005,9 +1008,143 @@ def resolve_parser_expression(expr):
 
     return resolve_data_path(data, path)       
 
+def resolve_syncdownload_cached(sync_path):
+    """
+    Resolve completamente um .syncdownload e cacheia resultado.
+
+    Garante:
+    - URL final resolvida (GitHub/SourceForge)
+    - Nome final determinístico
+    - Reutilização em cleanup + download
+
+    NÃO realiza download
+    """
+
+    if sync_path in sync_resolve_cache:
+        return sync_resolve_cache[sync_path]
+
+    url, expected_hash, custom_filename = parse_syncdownload(sync_path)
+
+    if not url:
+        return None
+
+    spec = None
+
+    # --- split spec | url ---
+    if "|" in url:
+        try:
+            left, right = url.split("|", 1)
+            right = right.strip()
+
+            if right.startswith("http://") or right.startswith("https://"):
+                spec = left.strip()
+                url = right
+        except Exception:
+            spec = None
+
+    # --- SourceForge ---
+    if "sourceforge.net" in url.lower():
+        try:
+            resolved_url, resolved_name = resolve_sourceforge_asset(url, spec)
+            if resolved_url:
+                url = resolved_url
+        except Exception:
+            pass
+
+    # --- GitHub ---
+    github_ext = None
+
+    if spec and "github.com" in url.lower() and not __IGNORAR_GITHUB:
+        try:
+            import urllib.request
+            import json
+
+            parts = [p.strip().lower() for p in spec.split(",") if p.strip()]
+
+            ext = None
+            arch = None
+            include_filters = []
+            exclude_filters = []
+
+            for p in parts:
+                if p.startswith("."):
+                    ext = p[1:]
+                    github_ext = ext
+                elif p in ("x86", "x64", "arm64"):
+                    arch = p
+                elif p.startswith("!"):
+                    exclude_filters.append(p[1:])
+                else:
+                    include_filters.append(p)
+
+            if ext:
+                api_url = url.rstrip('/').replace(
+                    "github.com",
+                    "api.github.com/repos"
+                ) + "/releases/latest"
+
+                with urllib.request.urlopen(api_url) as response:
+                    data = json.loads(response.read().decode())
+
+                assets = data.get("assets", [])
+
+                candidates = []
+
+                for asset in assets:
+                    name = asset.get("name", "")
+                    tokens = normalize_tokens(name)
+                    clean = name.lower()
+
+                    if not clean.endswith(f".{ext}"):
+                        continue
+
+                    ok = True
+
+                    if arch and not any(arch in t for t in tokens):
+                        ok = False
+
+                    for f_in in include_filters:
+                        if not any(f_in in t for t in tokens):
+                            ok = False
+                            break
+
+                    if ok:
+                        for f_ex in exclude_filters:
+                            if any(f_ex in t for t in tokens):
+                                ok = False
+                                break
+
+                    if ok:
+                        candidates.append(asset)
+
+                if candidates:
+                    selected = max(candidates, key=lambda a: a.get("size", 0))
+                    url = selected.get("browser_download_url")
+
+        except Exception:
+            pass
+
+    # --- nome final ---
+    filename = resolve_final_filename(
+        url=url,
+        path=sync_path,
+        custom_name=custom_filename,
+        github_ext=github_ext
+    )
+
+    result = {
+        "url": url,
+        "filename": filename,
+        "expected_hash": expected_hash,
+        "github_ext": github_ext
+    }
+
+    sync_resolve_cache[sync_path] = result
+    return result    
+
 def destination_cleanup(root, dry_run=False):
     """Remove arquivos/pastas no destino que não existem na origem"""
-    for item in os.listdir(root):
+    for item in os.listdir(root):        
         dest_full_path = os.path.join(root, item)
         rel_path = os.path.relpath(dest_full_path, destination_path)
         origin_equivalent = os.path.join(ORIGIN_PATH, rel_path)
@@ -1015,11 +1152,12 @@ def destination_cleanup(root, dry_run=False):
         # --- IGNORA PASTAS RAIZ apps/ e Drivers/ NO DESTINO ---
         # Se estiver na raiz do destino e for uma dessas pastas, ignora completamente
         if root == destination_path and item in ("apps", "Drivers"):
-            show_message(f"Remoção ignorada: {item}", "w")
+            show_message(f"Remoção ignorada: {item}", "i")
             continue
         
         # protege arquivos auxiliares de sync vinculados a arquivo existente
         if dest_full_path.lower().endswith((".sha256", ".syncado")):
+            show_message(f"Remoção protegida: {item}", "D")
             base_file = re.sub(r'\.(sha256|syncado)$', '', dest_full_path, flags=re.IGNORECASE)
 
             # mantém se o arquivo principal existir
@@ -1031,10 +1169,10 @@ def destination_cleanup(root, dry_run=False):
             if os.path.exists(origin_equivalent_sync):
                 continue
 
-            # caso contrário, pode remover (metadata órfã)
+            # caso contrário, pode remover (metadata órfã)                   
 
         if re.search(IGNORED_PATHS, dest_full_path, re.IGNORECASE):
-            show_message(f"Remoção ignorada [regex]: {dest_full_path}", "w")
+            show_message(f"Remoção ignorada [regex]: {dest_full_path}", "W")
             continue
 
         # --- TRATAMENTO PARA ARQUIVOS GERADOS POR .syncdownload ---
@@ -1044,19 +1182,16 @@ def destination_cleanup(root, dry_run=False):
             # Verifica se existe um .syncdownload correspondente na origem
             if os.path.exists(origin_equivalent_sync):
                 try:
-                    url, expected_hash, custom_filename = parse_syncdownload(origin_equivalent_sync)
+                    resolved = resolve_syncdownload_cached(origin_equivalent_sync)
 
-                    if not url:
+                    if not resolved:
                         continue
 
-                    expected_name = resolve_final_filename(
-                        url=url,
-                        path=origin_equivalent_sync,
-                        custom_name=custom_filename
-                    )
+                    expected_name = resolved.get("filename")
 
                     # Se o nome bate com o arquivo atual, NÃO remove
                     if expected_name and os.path.basename(dest_full_path) == expected_name:
+                        show_message(f"Ignorado, pertence ao .syncdownload: {item}", "D") 
                         continue
                 except Exception:
                     pass
@@ -1070,6 +1205,14 @@ def destination_cleanup(root, dry_run=False):
                         os.remove(dest_full_path)
                 except OSError as e:
                     show_message(f"Falha ao remover {dest_full_path}: {e}", "e")
+
+        # --- RECURSÃO CONTROLADA ---
+        # Executa limpeza em subdiretórios existentes (após possíveis remoções)
+        if os.path.isdir(dest_full_path):
+            try:
+                destination_cleanup(dest_full_path, dry_run)
+            except Exception as e:
+                show_message(f"Erro ao acessar subdiretório {dest_full_path}: {e}", "e")
 
 def origin_to_destination(path, retry, dry_run):
     """Sincroniza da origem para o destino com tratamento de erro WinError 1392"""
@@ -1091,7 +1234,15 @@ def origin_to_destination(path, retry, dry_run):
                 show_message(f"Sincronização online: {os.path.splitext(os.path.basename(path))[0]}")
 
                 try:
-                    url, expected_hash, custom_filename = parse_syncdownload(path)
+                    resolved = resolve_syncdownload_cached(path)
+
+                    if not resolved:
+                        return
+
+                    url = resolved["url"]
+                    expected_hash = resolved["expected_hash"]
+                    custom_filename = None  # já incorporado no filename final
+                    github_ext = resolved["github_ext"]
 
                     # --- NORMALIZAÇÃO UNIVERSAL spec | url ---
                     spec = None
@@ -1252,12 +1403,7 @@ def origin_to_destination(path, retry, dry_run):
 
                     # Nome do arquivo (mesma lógica do cleanup)                    
                     # PRESERVA nome vindo do GitHub (se existir)                    
-                    filename = resolve_final_filename(
-                        url=url,
-                        path=path,
-                        custom_name=custom_filename,
-                        github_ext=github_ext
-                    )
+                    filename = resolved["filename"]
 
                     dest_dir = os.path.dirname(dest_path)
 
