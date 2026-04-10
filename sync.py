@@ -1160,26 +1160,53 @@ def origin_to_destination(path, retry, dry_run):
 
                         # Validação
                         # --- VALIDAÇÃO POR HASH EXTERNO (linha 2) ---
+                        valid_download = True
+
                         if expected_hash:
                             downloaded_hash = hash_file(final_dest_path, "Download")
+
                             if downloaded_hash != expected_hash.lower():
                                 show_message(f"Hash inválido: {filename}", "e")
-                                return
+                                valid_download = False
                             else:
                                 show_message(f"Download validado: {filename}", "s")
 
+                        # --- VALIDAÇÃO LEVE (quando não há hash) ---
+                        if not expected_hash:
+                            try:
+                                file_size = os.path.getsize(final_dest_path)
+
+                                if file_size == 0:
+                                    raise Exception("arquivo vazio")
+
+                                if total_size > 0 and file_size != total_size:
+                                    raise Exception(f"tamanho divergente ({file_size} != {total_size})")
+
+                            except Exception as e:
+                                show_message(f"Falha no download: {filename} ({e})", "e")
+                                valid_download = False
+
+                        # --- PIPELINE FINAL ---
+                        if valid_download:
                             if not dry_run:
                                 pass  # hook intencional (pipeline extensível)
 
-                            purge_similar_installers(dest_dir, filename)           
+                            purge_similar_installers(dest_dir, filename)
 
-                        # Metadata SEMPRE gerada (independente de origem)
-                        generate_sync_metadata(
-                            final_dest_path=final_dest_path,
-                            url=url,
-                            custom_filename=custom_filename,
-                            github_ext=github_ext
-                        )                                                  
+                            # Metadata SEMPRE após sucesso
+                            generate_sync_metadata(
+                                final_dest_path=final_dest_path,
+                                url=url,
+                                custom_filename=custom_filename,
+                                github_ext=github_ext
+                            )
+                        else:
+                            # Remove arquivo inválido (fail-safe)
+                            try:
+                                if os.path.exists(final_dest_path):
+                                    os.remove(final_dest_path)
+                            except Exception:
+                                pass                                                
 
                 except Exception as e:
                     show_message(f"Erro no .syncdownload {rel_path}: {e}", "e")
