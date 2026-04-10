@@ -1191,7 +1191,7 @@ def destination_cleanup(root, dry_run=False):
 
                     # Se o nome bate com o arquivo atual, NÃO remove
                     if expected_name and os.path.basename(dest_full_path) == expected_name:
-                        show_message(f"Ignorado, pertence ao .syncdownload: {item}", "D") 
+                        show_message(f"Remoção protegida .syncdownload: {item}", "D") 
                         continue
                 except Exception:
                     pass
