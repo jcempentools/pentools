@@ -14,22 +14,22 @@ mantendo compatibilidade total com o comportamento original.
 - Mantém comportamento e assinatura original
 - PowerShellDoc preservado
 - Sem efeitos colaterais
-
--------------------------------------------------------------------------------
-[FAIL-SAFE]
-- Não depende de variáveis externas
-- Pode ser carregado múltiplas vezes (idempotente)
-
-[SISTEMA DE EVENTOS]
 - Ponto único de saída de logs
 - Compatível com console e arquivos
-- Alta legibilidade para logs extensos em tela e em arquivo
+- Alta legibilidade e rastreabilidade para logs extensos
+  em tela e em arquivo
+- Notação de tipos de mensagem para melhor organização visual:
     - [t] Title: Cabeçalhos de etapa ou seções principais.
     - [s] Subtítulo: Destaques secundários.
     - [l] Log: Registro padrão de fluxo e operações.
     - [i] Info: Detalhes informativos ou diagnósticos.
     - [w] Warn: Alertas de falhas não críticas ou retentativas.
     - [e] Error: Falhas críticas que exigem atenção ou aborto.
+
+-------------------------------------------------------------------------------
+[FAIL-SAFE]
+- Não depende de variáveis externas
+- Pode ser carregado múltiplas vezes (idempotente)
 
 ===============================================================================
 #>
