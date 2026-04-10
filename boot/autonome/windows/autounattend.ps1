@@ -324,141 +324,55 @@ if (-not $in_system_context) {
     }
   }
 }
-<#
-.SYNOPSIS
-Exibe um título destacado no console.
+# IMPORTAÇÃO RESILIENTE DA BIBLIOTECA DE LOG
 
-.DESCRIPTION
-Imprime uma mensagem formatada com fundo colorido e separadores
-para indicar início de seção no log visual.
-
-.PARAMETER str_menssagem
-Texto a ser exibido como título.
-#>
-function show_log_title {
-  param(
-    [string]$str_menssagem
-  )
-  write-host ""
-  write-host ""
-  write-host "################################################" -BackgroundColor DarkCyan
-  write-host "#### $str_menssagem" -BackgroundColor DarkCyan
-  write-host "################################################" -BackgroundColor DarkCyan
-  write-host ""
-  write-host ""
-}
-<#
-.SYNOPSIS
-Exibe mensagem de erro.
-
-.DESCRIPTION
-Imprime mensagem formatada com destaque em vermelho
-indicando erro no fluxo de execução.
-
-.PARAMETER str_menssagem
-Mensagem de erro a ser exibida.
-#>
-function show_error {
-  param(
-    [string]$str_menssagem
-  )
-  Write-Host "[ERROR]:" -BackgroundColor Red
-  Write-Host "[ERROR]: $str_menssagem" -BackgroundColor Red
-}
-<#
-.SYNOPSIS
-Exibe mensagem de log padrão.
-
-.DESCRIPTION
-Imprime mensagem informativa com formatação neutra
-para acompanhamento do fluxo de execução.
-
-.PARAMETER str_menssagem
-Mensagem a ser exibida.
-#>
-function show_log {
-  param(
-    [string]$str_menssagem
-  )
-  Write-Host "---> $str_menssagem" -BackgroundColor DarkGray
-}
-<#
-.SYNOPSIS
-Exibe comando a ser executado.
-
-.DESCRIPTION
-Imprime o comando com separadores visuais
-para facilitar rastreamento de execução.
-
-.PARAMETER str_menssagem
-Comando ou texto a ser exibido.
-#>
-function show_cmd {
-  param(
-    [string]$str_menssagem
-  )
-  Write-Host ""
-  Write-Host "---------------------------------------------"
-  Write-Host "$str_menssagem" -BackgroundColor Cyan -ForegroundColor Black
-  Write-Host "---------------------------------------------"
-}
-<#
-.SYNOPSIS
-Exibe mensagem de aviso.
-
-.DESCRIPTION
-Imprime mensagem formatada com destaque amarelo
-indicando condição não crítica.
-
-.PARAMETER str_menssagem
-Mensagem de aviso.
-#>
-function show_warn {
-  param(
-    [string]$str_menssagem
-  )
-  Write-Host "[WARN] " -BackgroundColor Yellow -ForegroundColor Black
-  Write-Host "[WARN]: $str_menssagem" -BackgroundColor Yellow -ForegroundColor Black
-}
-<#
-.SYNOPSIS
-Exibe mensagem informativa.
-
-.DESCRIPTION
-Imprime mensagem com destaque leve
-para observações não críticas.
-
-.PARAMETER str_menssagem
-Texto a ser exibido.
-#>
-function show_nota {
-  param(
-    [string]$str_menssagem
-  )
-  Write-Host "[NOTA]: $str_menssagem" -BackgroundColor Gray -ForegroundColor Black
-}
-<#
-.SYNOPSIS
-Gera string aleatória.
-
-.DESCRIPTION
-Retorna string com caracteres alfabéticos aleatórios
-com tamanho configurável.
-
-.PARAMETER num
-Tamanho da string gerada. Default: 18.
-
-.OUTPUTS
-String aleatória.
-#>
-function rand_name {
-  param(
-    [AllowNull()][int]$num
-  )  
-  if (-not $num -or $num -le 0) {
-    $num = 18
+function __resolve_base_path {
+  try {
+    if ($PSScriptRoot) { return $PSScriptRoot }
   }
-  return -join ((65..90) + (97..122) | Get-Random -Count $num | ForEach-Object { [char]$_ })
+  catch {}
+
+  try {
+    if ($MyInvocation.MyCommand.Path) {
+      return Split-Path -Parent $MyInvocation.MyCommand.Path
+    }
+  }
+  catch {}
+
+  try {
+    return (Get-Location).Path
+  }
+  catch {}
+
+  return "."
+}
+
+$__base = __resolve_base_path
+$__loglib = Join-Path $__base "autonome-log.ps1"
+
+$__loaded = $false
+
+if (Test-Path $__loglib) {
+  try {
+    . $__loglib
+    $__loaded = $true
+  }
+  catch {}
+}
+
+# fallback adicional (execuções indiretas / SYSTEM)
+if (-not $__loaded) {
+  try {
+    . ".\autonome-log.ps1"
+    $__loaded = $true
+  }
+  catch {}
+}
+
+# validação obrigatória
+if (-not (Get-Command show_log -ErrorAction SilentlyContinue)) {
+  Write-Host "[FATAL] Biblioteca de log não carregada corretamente." -BackgroundColor Red
+  exit 1
 }
 <#
 .SYNOPSIS
