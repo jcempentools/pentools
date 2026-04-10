@@ -722,7 +722,26 @@ def manage_sync_metadata(final_dest_path, url, expected_hash, github_ext):
         show_message(f"Mesmo release detectado: {current_name}", "d")
 
         # =====================================================
-        # 4. VALIDAÇÃO DE HASH (INTEGRIDADE)
+        # 4. VALIDAÇÃO DE HASH EXTERNO (linha 2 do .syncdownload)
+        # =====================================================
+        if expected_hash:
+            current_hash = hash_file(final_dest_path, "Destino")
+
+            if current_hash == expected_hash.lower():
+                show_message(
+                    f"Hash externo válido (sem download): {os.path.basename(final_dest_path)}",
+                    "k"
+                )
+                return False
+
+            show_message(
+                f"Hash externo divergente → download necessário",
+                "w"
+            )
+            return True        
+
+        # =====================================================
+        # 5. VALIDAÇÃO DE HASH LOCAL (.sha256)
         # =====================================================
         if not os.path.exists(sha_file):
             show_message("Sem .sha256 → download necessário", "d")
@@ -755,11 +774,11 @@ def manage_sync_metadata(final_dest_path, url, expected_hash, github_ext):
 def generate_sync_metadata(final_dest_path, url, custom_filename, github_ext):
     """
     Gera arquivos auxiliares (.sha256 / .syncado)
+    Universal (independente da origem)
     """    
 
     try:
-        if not github_ext:
-            return
+        # Sempre gera metadata (regra unificada)
 
         show_message(f"Gerando arquivos auxiliares: {os.path.basename(final_dest_path)}", "d")
 
@@ -775,13 +794,12 @@ def generate_sync_metadata(final_dest_path, url, custom_filename, github_ext):
         with open(final_dest_path + ".sha256", "w", encoding="utf-8") as f:
             f.write(sha_line + "\n")
 
-        # .syncado
-        if custom_filename:
-            original_name = resolve_effective_remote_name(url)
+        # .syncado sempre registra nome remoto real (controle de versão)
+        original_name = resolve_effective_remote_name(url)
 
-            if original_name:
-                with open(final_dest_path + ".syncado", "w", encoding="utf-8") as f:
-                    f.write(original_name)
+        if original_name:
+            with open(final_dest_path + ".syncado", "w", encoding="utf-8") as f:
+                f.write(original_name)
 
     except Exception as e:
         show_message(f"Erro ao gerar arquivos auxiliares: {e}", "w") 
@@ -1141,24 +1159,27 @@ def origin_to_destination(path, retry, dry_run):
                                         return                                                               
 
                         # Validação
+                        # --- VALIDAÇÃO POR HASH EXTERNO (linha 2) ---
                         if expected_hash:
                             downloaded_hash = hash_file(final_dest_path, "Download")
-                            if downloaded_hash != expected_hash:
+                            if downloaded_hash != expected_hash.lower():
                                 show_message(f"Hash inválido: {filename}", "e")
+                                return
                             else:
                                 show_message(f"Download validado: {filename}", "s")
-
-                            generate_sync_metadata(
-                                final_dest_path=final_dest_path,
-                                url=url,
-                                custom_filename=custom_filename,
-                                github_ext=github_ext
-                            )
 
                             if not dry_run:
                                 pass  # hook intencional (pipeline extensível)
 
-                            purge_similar_installers(dest_dir, filename)                                 
+                            purge_similar_installers(dest_dir, filename)           
+
+                        # Metadata SEMPRE gerada (independente de origem)
+                        generate_sync_metadata(
+                            final_dest_path=final_dest_path,
+                            url=url,
+                            custom_filename=custom_filename,
+                            github_ext=github_ext
+                        )                                                  
 
                 except Exception as e:
                     show_message(f"Erro no .syncdownload {rel_path}: {e}", "e")
