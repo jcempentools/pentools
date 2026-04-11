@@ -1,153 +1,109 @@
 <#
-===============================================================================
-AUTONOME INSTALL SCRIPT — SPEC HEADER
-===============================================================================
+.SYNOPSIS
+    AUTONOME INSTALL SCRIPT — Orquestrador Master.
+    Provisionamento automatizado, resiliente e idempotente de ambiente Windows.
 
-[OBJETIVO]
-Provisionamento automatizado, resiliente e idempotente de ambiente Windows,
-com suporte offline-first e fallback online, executável em contexto USER ou SYSTEM.
+.DESCRIPTION
+    Atua como o motor de orquestração principal, coordenando a descoberta de ativos, 
+    preparação de cache e execução de payloads. Projetado para máxima confiabilidade 
+    em cenários de deploy (Setup, OOBE, RunOnce) sob contextos USER ou SYSTEM.
 
--------------------------------------------------------------------------------
-[REGRAS DE NEGÓCIO]
-- Execução determinística, sequencial e bloqueante (sync-first).
-- Cada etapa deve validar seu próprio sucesso antes de prosseguir.
-- Estado final deve ser verificável (confirmação real, não apenas exit code).
-- Operações devem ser idempotentes (seguro reexecutar múltiplas vezes).
-- Preferência absoluta por fontes offline → fallback online quando necessário.
-- Instalações devem evitar duplicidade (checklist + detecção real).
-- Execução tolerante a falhas transitórias (retry obrigatório).
-- Compatível com ambiente sem interface gráfica (headless).
+    ESPECIFICIDADES DE NEGÓCIO (PROJETO):
+    - Offline-First: Prioridade absoluta para fontes locais com fallback dinâmico Online.
+    - Gestão de Drivers: Única exceção ao paralelismo; extração síncrona com 
+      instalação assíncrona controlada (background).
+    - Cache Local: Implementação de espelhamento incremental via Robocopy.
+    - Prevenção de Interferência: Inibição ativa de Shutdown/Sleep durante o ciclo.
+    - Instalação Inteligente: Evita duplicidade através de checklist e detecção real 
+      no sistema, além de suporte a listas recursivas (.lst).
 
--------------------------------------------------------------------------------
-[DIRETRIZES]
-- Priorizar RESILIÊNCIA > VELOCIDADE.
-- Preferir comandos nativos do Windows (cmd, msiexec, pnputil, robocopy).
-- Evitar dependência de módulos externos ou modernos.
-- Compatível com PowerShell 2.0+ (bootstrap) e execução plena em PS 7.6+.
-- Suporte completo a execução como SYSTEM.
-- Código deve ser modular (micro-funções reutilizáveis).
-- Evitar lógica duplicada (centralizar comportamento em funções).
-- Logging deve ser detalhado e persistente em arquivo.
-- Toda operação crítica deve possuir fallback.
+    MODUS OPERANDI (FLUXO DE EXECUÇÃO):
+    1. INICIALIZAÇÃO: Preparação de diretórios, logs e elevação de privilégios.
+    2. DESCOBERTA: Localização de origem (Pendrive/Cache) e montagem de árvore.
+    3. SYNC: Preparação do cache local persistente (TEMP + Registry).
+    4. CORE TASKS: Drivers, Regionalização (PT-BR) e ativos visuais.
+    5. ECOSSISTEMA: Preparação/Validação do Winget e Instalação de AppObjects.
+    6. EXTENSIBILIDADE: Execução de Hooks (.ps1, .cmd, .reg) baseados em contexto.
+    7. FINALIZAÇÃO: Auditoria global, persistência de logs e reboot controlado.
 
--------------------------------------------------------------------------------
-[RESTRIÇÕES / VEDAÇÕES]
-- ❌ Não executar operações assíncronas (exceto instalação de drivers).
-- ❌ Não depender de interface gráfica.
-- ❌ Não confiar apenas em ExitCode como validação.
-- ❌ Não assumir conectividade de rede.
-- ❌ Não usar módulos PowerShell externos.
-- ❌ Não executar etapas sem validação posterior.
-- ❌ Não permitir execução paralela (mutex obrigatório).
-- ❌ Não prosseguir com sistema em estado inconsistente (DISM/CBS ativo).
+    RESTRIÇÕES ESPECÍFICAS DO ORQUESTRADOR:
+    - Validação de Integridade: Downloads devem validar existência e tamanho mínimo 
+      (anti-corrupção/HTML inválido).
+    - Persistência de Auditoria: Transcript global + logs individuais por operação.
+    - Localização de Log: %SystemDrive%\autonome-install-LOG\.
+    - Gestão de Hooks: Execução ordenada de scripts externos totalmente desacoplados.
 
--------------------------------------------------------------------------------
-[MODUS OPERANDI]
-1. Inicialização segura (ExecutionPolicy, TLS, contexto).
-2. Garantia de ambiente (logs, diretórios, mutex global).
-3. Prevenção de interferência externa (shutdown/sleep).
-4. Upgrade/control de runtime (PS7 fallback).
-5. Descoberta de origem offline (pendrive/cache).
-6. Preparação de cache local (robocopy incremental).
-7. Execução de tarefas base:
-   - drivers (assíncrono controlado)
-   - regionalização
-   - wallpapers
-8. Preparação e validação do winget.
-9. Instalação de aplicações:
-   - offline (prioritário)
-   - online (fallback)
-10. Execução de hooks finais (scripts externos).
-11. Validação global.
-12. Finalização segura (log + reboot controlado).
+    [CARACTERÍSTICAS TÉCNICAS DO COMPONENTE]:
+    ✔ Orquestrador Master | ✔ Offline-First & Online-Fallback | ✔ Suporte a Hooks
+    ✔ Cache Robocopy Incremental | ✔ Gestor de Drivers (Mixed Sync/Async)
+    ✔ Compatível com Windows Setup, First Logon e RunOnce.
 
--------------------------------------------------------------------------------
-[ETAPAS OBRIGATÓRIAS]
-- Todas as etapas devem:
-  - ser síncronas e bloqueantes
-  - possuir retry com backoff progressivo
-  - validar resultado antes de continuar
-  - registrar log detalhado
+.NOTES
+    ================================================================================
+    REGRAS DE NEGÓCIO GLOBAIS DO PROJETO
+    POWERSHELL MISSION-CRITICAL FRAMEWORK - ESPECIFICAÇÃO DE EXECUÇÃO
+    ================================================================================
 
-EXCEÇÃO:
-- Instalação de drivers pode ser assíncrona (background controlado),
-  mas extração/preparação deve ser síncrona.
+    [CAPACIDADES GERAIS]
+    Orquestração determinística, resiliente e idempotente para Windows.
+    Compatibilidade Dual-Engine (5.1 + 7.4+) em contextos SYSTEM e USER.
 
--------------------------------------------------------------------------------
-[CARACTERÍSTICAS TÉCNICAS]
-- Mutex global anti-paralelismo (uma execução por máquina).
-- Barreira DISM/CBS: aguardar ausência de operações pendentes.
-- Retry automático com backoff progressivo.
-- Timeout controlado para operações críticas.
-- Logging estruturado em diretório por execução.
-- Execução compatível com:
-  - Windows Setup
-  - First Logon
-  - RunOnce
-  - SYSTEM context
-- Cache local persistente (TEMP controlado + registry).
-- Detecção inteligente de instaladores (offline matching).
-- Suporte a include recursivo em listas (.lst).
-- Sistema de hooks (scripts externos extensíveis).
+    [ESTILO, DESIGN & RASTREABILIDADE]
+    - Design: Imutabilidade, Baixo Acoplamento e suporte a camelCase/snake_case.
+    - Rastreabilidade Diff-Friendly: Alterações de código minimalistas otimizados
+                                     para desempenho aliado a análise visual
+                                     de mudanças.
 
--------------------------------------------------------------------------------
-[ESTILO DE IMPLEMENTAÇÃO]
-- Funções pequenas, específicas e reutilizáveis.
-- Nomeação consistente e descritiva.
-- Evitar side-effects implícitos.
-- Evitar hardcode desnecessário.
-- Centralizar lógica crítica (download, execução, validação).
-- Logs devem ser humanos + machine-readable.
-- Código deve ser autoexplicativo (baixo acoplamento).
+    [CAPACIDADES TÉCNICAS (REAPROVEITÁVEIS)]
+    - COMPATIBILIDADE: Identificação de versão/subversão para comandos adequados.
+    - RESILIÊNCIA: Retry com backoff progressivo e múltiplas formas de tentativa.
+    - OFFLINE-FIRST: Lógica global de priorização de recursos locais vs rede.
+                    configurável para Online-FIRST.
+    - DETERMINISMO: Validação de estado real pós-operação (não apenas ExitCode).
 
--------------------------------------------------------------------------------
-[FAIL-SAFE / RESILIÊNCIA]
-- Falhas não críticas → log + continuar.
-- Falhas críticas → retry → fallback → log → abort seguro.
-- Downloads devem validar:
-  - existência
-  - tamanho mínimo
-  - conteúdo (evitar HTML inválido)
-- Execuções devem ter fallback:
-  - PowerShell → CMD → PowerShell 7
-- Sistema deve se auto-recuperar de:
-  - falhas de rede
-  - corrupção parcial
-  - execuções interrompidas
+    [EVENTOS & TELEMETRIA (CALLBACK)]
+    - DESACOPLAMENTO: Script não gerencia arquivos de log ou console diretamente,
+                    salvo se explicitamente definido.
+    - OBRIGATORIEDADE: Telemetria via ScriptBlock [callback($msg, $type)]
+                    salvo se explicitamente definido.
+    - TIPAGEM DE MENSAGEM (Parâmetro 2):
+        - [t] Title: Título de etapa ou seções principais.
+        - [l] Log: Registro padrão de fluxo e operações.
+        - [i] Info: Detalhes informativos ou diagnósticos.
+        - [w] Warn: Alertas de falhas não críticas ou retentativas.
+        - [e] Error: Falhas críticas que exigem atenção ou interrupção.
 
--------------------------------------------------------------------------------
-[HOOKS / EXTENSIBILIDADE]
-- Suporte a scripts externos:
-  - .ps1 / .cmd / .bat / .reg
-- Execução ordenada e validada.
-- Nome baseado em contexto (ex: in.system, in.useronce).
-- Totalmente opcional e desacoplado.
+    [REGRAS DE ARQUITETURA]
+    - ISOLAMENTO: Mutex Global obrigatório para prevenir paralelismo.
+    - MODULARIDADE: Baseado em micro-funções especialistas e reutilizáveis.
+    - SINCRO: Execução 100% síncrona, bloqueante e sequencial.
+    - ESTADO: Barreira de consistência (DISM/CBS) para operações de sistema.
+    - NATIVO: Uso estrito de comandos nativos do OS, salvo exceção declarada.
 
--------------------------------------------------------------------------------
-[LOGGING]
-- Transcript global + logs individuais por operação.
-- Logs devem conter:
-  - timestamp
-  - comando executado
-  - resultado (exit + validação)
-- Logs persistentes em:
-  %SystemDrive%\autonome-install-LOG\
+    [DIRETRIZES DE IMPLEMENTAÇÃO]
+    - IDEMPOTÊNCIA: Seguro para múltiplas execuções no mesmo ambiente.
+    - HEADLESS: Operação plena sem interface gráfica ou interação de usuário.
+    - TIMEOUT: Limites controlados adequados à capacidade do hardware.
 
--------------------------------------------------------------------------------
-[COMPATIBILIDADE]
-- PowerShell 2.0+ (bootstrap obrigatório)
-- PowerShell 7.6+ (execução preferencial)
-- Windows 10/11
-- Windows Setup / WinPE parcial
-- Execução como SYSTEM e USER
+    [RESTRIÇÕES / VEDAÇÕES]
+    - Não prosseguir com sistema em estado inconsistente ou pendente.
+    - Não assumir conectividade de rede (Offline-First por padrão)
+    configurável para Online-FIRST.
+    - Não depender de módulos externos ou bibliotecas não nativas.
+    - Não executar etapas sem validação de sucesso posterior.
 
--------------------------------------------------------------------------------
-[RESUMO OPERACIONAL]
-SCRIPT = ORQUESTRADOR RESILIENTE, OFFLINE-FIRST, IDEMPOTENTE
-FOCO = CONFIABILIDADE, RECUPERAÇÃO E EXECUÇÃO DETERMINÍSTICA
+    [ESTRUTURA DE EXECUÇÃO]
+    1. Inicialização segura (ExecutionPolicy, TLS, Context Check).
+    2. Garantia de instância única (Global Mutex).
+    3. Validação de pré-requisitos e pilha de manutenção do SO.
+    4. Orquestração modular com validação individual de cada micro-função.
+    5. Finalização auditável com log rastreável e saída determinística.
 
-===============================================================================
+.COMPONENT
+    ORQUESTRADOR RESILIENTE, OFFLINE-FIRST, IDEMPOTENTE.
+    Foco: Confiabilidade, Recuperação e Execução Determinística.
 #>
+
 Param(
   [string]$is_test
 )

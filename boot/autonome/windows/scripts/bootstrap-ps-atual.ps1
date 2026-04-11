@@ -1,70 +1,97 @@
 <#
-===============================================================================
-AUTONOME BOOTSTRAP ENGINE — SPEC HEADER (PS2.0 -> PS7.6+)
-===============================================================================
+.SYNOPSIS
+    Windows 11 Language Enforcer (PT-BR).
+    Especialista em imposição regional e purga de idiomas excedentes.
 
-[OBJETIVO]
-Garantir a transição segura do ambiente legado (PS 2.0-5.1) para o runtime 
-moderno (PS 7.6+), assegurando privilégios SYSTEM/Admin e estabilidade do 
-subsistema antes da execução do payload principal.
+.DESCRIPTION
+    Script focado na conformidade linguística do Windows. Implementa a transição 
+    regional forçada para o padrão brasileiro sob contextos críticos de deploy.
 
--------------------------------------------------------------------------------
-[REGRAS DE NEGÓCIO]
-- Execução estritamente síncrona, sequencial e bloqueante.
-- Cada etapa deve reportar status via Callback tipado antes de prosseguir.
-- Detecção cirúrgica de arquitetura (x64/ARM64) e versão de OS (WinPE/Full).
-- Verificação de integridade do binário PS7 antes da invocação.
-- Falha no Bootstrap = Aborto seguro com notificação imediata via Callback.
+    ESPECIFICIDADES DE NEGÓCIO (PT-BR):
+    - Idioma mandatório: pt-BR.
+    - Teclado padrão: ABNT2 (00010416).
+    - Fuso Horário / Região: Brasília / Brasil.
+    - Purga: Remoção obrigatória de idiomas e layouts não pt-BR.
+    - Persistência: Garantir que as configurações sobrevivam ao Sysprep/OOBE.
 
--------------------------------------------------------------------------------
-[SISTEMA DE EVENTOS / CALLBACK] (OBRIGATÓRIO)
-- O script não gerencia arquivos de log ou saída de console diretamente.
-- Toda telemetria deve ser enviada para um ScriptBlock [callback($msg, $type)].
-- Tipos de Mensagem (Parâmetro 2):
-    - [t] Title: Cabeçalhos de etapa ou seções principais.
-    - [l] Log: Registro padrão de fluxo e operações.
-    - [i] Info: Detalhes informativos ou diagnósticos.
-    - [w] Warn: Alertas de falhas não críticas ou retentativas.
-    - [e] Error: Falhas críticas que exigem atenção ou aborto.
+    OBJETIVOS OPERACIONAIS:
+    - Detecção dinâmica do pacote de idioma local vs. repositório.
+    - Download de Language Pack pt-BR via integração com o Framework (Online-First).
+    - Instalação e definição de idioma padrão via Registro e DISM.
+    - Aplicação de configurações de Localidade (Input, Geo, TimeZone).
+    - Validação de estado final específica (verificação de UI Culture e Input Method).
 
--------------------------------------------------------------------------------
-[DIRETRIZES TÉCNICAS]
-- Código 100% compatível com PowerShell 2.0 (Bootstrap Core).
-- Independência total de Host (WinPE Shell, Task Scheduler, Session 0).
-- Suporte nativo a execução em contexto SYSTEM e TrustedInstaller.
-- Uso exclusivo de comandos nativos (cmd, reg, robocopy, tasklist).
+    RESTRIÇÕES ESPECÍFICAS:    
+    - Sem dependência dos módulos modernos 'WindowsLanguagePack'.
+    - Tolerância a estados de 'DISM lock' durante a fase de instalação do Windows.
+    - Execução segura em WinPE e durante o passo 'Audit Mode'.
 
--------------------------------------------------------------------------------
-[RESTRIÇÕES / VEDAÇÕES]
-- ❌ Não gerenciar instalação de aplicações ou configurações de UI.
-- ❌ Não possuir lógica de escrita direta em disco (Delegado ao Callback).
-- ❌ Não carregar perfis de usuário ($Profile = $null).
-- ❌ Não permitir múltiplas instâncias concorrentes (Mutex Atômico).
+    [CARACTERÍSTICAS TÉCNICAS DO COMPONENTE]:
+    ✔ Especialista Regional | ✔ Purga de Idiomas
+    ✔ Gestor de Layout ABNT2 | ✔ Resistente a falhas de rede no Download
 
--------------------------------------------------------------------------------
-[MODUS OPERANDI (THE BOOTSTRAP PIPELINE)]
-1. Inicialização de Barreira: Configuração de TLS, ExecutionPolicy e Mutex.
-2. Context Discovery: Identifica privilégios e ambiente (WinPE vs Full OS).
-3. Runtime Audit: Localiza PS7.6+ em (1) Pasta de Origem -> (2) Program Files.
-4. Integrity Check: Validação funcional do pwsh.exe (smoke test).
-5. Payload Handoff: Invocação do PS7 passando argumentos e contexto original.
-6. Monitoring: Aguarda o processo filho e repassa o ExitCode via Callback [l].
+.NOTES
+    ================================================================================
+    REGRAS DE NEGÓCIO GLOBAIS DO PROJETO    
+    POWERSHELL MISSION-CRITICAL FRAMEWORK - ESPECIFICAÇÃO DE EXECUÇÃO
+    ================================================================================
 
--------------------------------------------------------------------------------
-[FAIL-SAFE / RESILIÊNCIA]
-- PS7 Ausente/Corrompido: Disparar [e] Error e abortar imediatamente.
-- Barreira DISM/CBS: Aguardar operações pendentes com aviso via [w] Warn.
-- Se Callback ausente: Silêncio operacional (fail-safe para evitar erro de script).
+    [CAPACIDADES GERAIS]
+    Orquestração determinística, resiliente e idempotente para Windows.
+    Compatibilidade Dual-Engine (5.1 + 7.4+) em contextos SYSTEM e USER.
 
--------------------------------------------------------------------------------
-[COMPATIBILIDADE]
-- Host: Windows Setup (Shift+F10), WinPE, Windows 10/11.
-- Engine: PowerShell 2.0 (mínimo) até PowerShell 7.6+ (alvo).
-- Privilégio: SYSTEM, Administrator, TrustedInstaller.
+    [ESTILO, DESIGN & RASTREABILIDADE]
+    - Design: Imutabilidade, Baixo Acoplamento e suporte a camelCase/snake_case.
+    - Rastreabilidade Diff-Friendly: Alterações de código minimalistas otimizados
+                                     para desempenho aliado a análise visual
+                                     de mudanças.
 
--------------------------------------------------------------------------------
-[RESUMO OPERACIONAL]
-SCRIPT = PONTE DE RUNTIME COM EMISSÃO DE EVENTOS TIPADOS
-FOCO = DESCOBERTA, INTEGRIDADE E TRANSIÇÃO PARA PS-CORE
-===============================================================================
+    [CAPACIDADES TÉCNICAS (REAPROVEITÁVEIS)]
+    - COMPATIBILIDADE: Identificação de versão/subversão para comandos adequados.
+    - RESILIÊNCIA: Retry com backoff progressivo e múltiplas formas de tentativa.
+    - OFFLINE-FIRST: Lógica global de priorização de recursos locais vs rede.
+                    configurável para Online-FIRST.
+    - DETERMINISMO: Validação de estado real pós-operação (não apenas ExitCode).
+
+    [EVENTOS & TELEMETRIA (CALLBACK)]
+    - DESACOPLAMENTO: Script não gerencia arquivos de log ou console diretamente,
+                    salvo se explicitamente definido.
+    - OBRIGATORIEDADE: Telemetria via ScriptBlock [callback($msg, $type)]
+                    salvo se explicitamente definido.
+    - TIPAGEM DE MENSAGEM (Parâmetro 2):
+        - [t] Title: Título de etapa ou seções principais.
+        - [l] Log: Registro padrão de fluxo e operações.
+        - [i] Info: Detalhes informativos ou diagnósticos.
+        - [w] Warn: Alertas de falhas não críticas ou retentativas.
+        - [e] Error: Falhas críticas que exigem atenção ou interrupção.
+
+    [REGRAS DE ARQUITETURA]
+    - ISOLAMENTO: Mutex Global obrigatório para prevenir paralelismo.
+    - MODULARIDADE: Baseado em micro-funções especialistas e reutilizáveis.
+    - SINCRO: Execução 100% síncrona, bloqueante e sequencial.
+    - ESTADO: Barreira de consistência (DISM/CBS) para operações de sistema.
+    - NATIVO: Uso estrito de comandos nativos do OS, salvo exceção declarada.
+
+    [DIRETRIZES DE IMPLEMENTAÇÃO]
+    - IDEMPOTÊNCIA: Seguro para múltiplas execuções no mesmo ambiente.
+    - HEADLESS: Operação plena sem interface gráfica ou interação de usuário.
+    - TIMEOUT: Limites controlados adequados à capacidade do hardware.
+
+    [RESTRIÇÕES / VEDAÇÕES]
+    - Não prosseguir com sistema em estado inconsistente ou pendente.
+    - Não assumir conectividade de rede (Offline-First por padrão)
+    configurável para Online-FIRST.
+    - Não depender de módulos externos ou bibliotecas não nativas.
+    - Não executar etapas sem validação de sucesso posterior.
+
+    [ESTRUTURA DE EXECUÇÃO]
+    1. Inicialização segura (ExecutionPolicy, TLS, Context Check).
+    2. Garantia de instância única (Global Mutex).
+    3. Validação de pré-requisitos e pilha de manutenção do SO.
+    4. Orquestração modular com validação individual de cada micro-função.
+    5. Finalização auditável com log rastreável e saída determinística.
+
+.COMPONENT
+    Contexto: Setup Windows / SYSTEM / OOBE / Audit / WinPE.
+    Foco: Padronização regional e linguística determinística.
 #>

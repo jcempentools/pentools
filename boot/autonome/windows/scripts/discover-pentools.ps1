@@ -9,56 +9,105 @@
     a estrutura '/.pentools/' ou '/boot/.pentools/'. O script mapeia a origem e 
     exporta metadados críticos para variáveis de ambiente (ENV) globais.
 
-.PARAMETER LogCallback
-    ScriptBlock opcional para redirecionamento de logs estruturados. 
-    Ex: { param($msg, $type) Write-Host "[$type] $msg" }
+    [BUSINESS_RULES]
+    - DETERMINISMO: Busca sequencial e bloqueante (Sync-first).
+    - IDEMPOTÊNCIA: Seguro para múltiplas chamadas; atualiza ENVs se houver mudança física.
+    - RESILIÊNCIA: Retry com backoff progressivo na leitura de partições "RAW" ou "Busy".
+    - EXCLUSIVIDADE: Uso de Mutex global para impedir descoberta concorrente.
+    - FIDELIDADE: Salva o ID físico do disco para garantir persistência caso a letra 
+      da unidade mude durante o Windows Setup.
+    - RASTREABILIDADE GIT: Priorizar estruturas "Diff-Friendly". Alterações devem ser 
+      atômicas e rastreáveis linha a linha.
 
-.ENVIRONMENT_VARIABLES
-    Para evitar conflitos, utiliza-se o prefixo 'PENTOOLS_':
+    [ENVIRONMENT_VARIABLES (Prefixo 'PENTOOLS_')]
     - PENTOOLS_ROOT_DRIVE: Letra da unidade identificada (ex: 'D:').
     - PENTOOLS_PHYSICAL_ID: ID do disco físico (ex: 'Disk #1').
     - PENTOOLS_PATH_TYPE: Tipo de entrada detectada (Root vs Boot).
     - PENTOOLS_CONTEXT: Contexto de execução detectado (WinPE/System/User).
 
-.BUSINESS_RULES
-    - DETERMINISMO: Busca sequencial e bloqueante (Sync-first).
-    - IDEMPOTÊNCIA: Seguro para múltiplas chamadas; atualiza ENVs se houver mudança física.
-    - RESILIÊNCIA: Retry com backoff progressivo na leitura de partições "RAW" ou "Busy".
-    - EXCLUSIVIDADE: Uso de Mutex global para impedir descoberta concorrente.
-    - FIDELIDADE: Salva o ID físico do disco para garantir persistência caso a letra da unidade mude durante o Windows Setup.
-
-.MODUS_OPERANDI
+    [MODUS_OPERANDI]
     1. BOOTSTRAP: Validação de privilégios e elevação de PS 2.0 para PS 7.6+.
     2. MUTEX: Garantia de instância única de descoberta.
     3. DISCOVERY: Varredura de drives lógicos em busca de assinaturas .pentools.
     4. MAPPING: Correlação entre letra da unidade (Logical) e número do disco (Physical).
     5. EXPORT: Registro das variáveis PENTOOLS_* no escopo de Processo e Máquina.
 
-.TECHNICAL_CONSTRAINTS
+    [TECHNICAL_CONSTRAINTS]
     - DEPENDÊNCIAS: Apenas comandos nativos (WMIC/Get-CimInstance, Diskpart).
     - VEDAÇÕES: Sem operações de escrita/cópia (Read-only discovery).
     - VEDAÇÕES: Sem gestão de energia (Sleep/Shutdown), Reboot ou Hooks externos.
-    - LOGGING: Exclusivamente via callback fornecido ou Stream padrão (vazio por padrão).
+    - LOGGING: Exclusivamente via callback fornecido ou Stream padrão.
 
-.COMPATIBILITY
-    - OS: Windows 10 / 11 / WinPE (Contexto SYSTEM e USER).
-    - Engine: PowerShell 2.0 até 7.6+.
-
--------------------------------------------------------------------------------
-[SISTEMA DE EVENTOS / CALLBACK] (OBRIGATÓRIO)
-- O script não gerencia arquivos de log ou saída de console diretamente.
-- Toda telemetria deve ser enviada para um ScriptBlock [callback($msg, $type)].
-- Tipos de Mensagem (Parâmetro 2):
-    - [t] Title
-    - [l] Log
-    - [i] Info
-    - [w] Warn
-    - [e] Error
+.PARAMETER LogCallback
+    ScriptBlock opcional para redirecionamento de logs estruturados. 
+    Ex: { param($msg, $type) Write-Host "[$type] $msg" }
 
 .NOTES
+    ================================================================================
+    REGRAS DE NEGÓCIO GLOBAIS DO PROJETO
+    POWERSHELL MISSION-CRITICAL FRAMEWORK - ESPECIFICAÇÃO DE EXECUÇÃO
+    ================================================================================
+
+    [CAPACIDADES GERAIS]
+    Orquestração determinística, resiliente e idempotente para Windows.
+    Compatibilidade Dual-Engine (5.1 + 7.4+) em contextos SYSTEM e USER.
+
+    [ESTILO, DESIGN & RASTREABILIDADE]
+    - Design: Imutabilidade, Baixo Acoplamento e suporte a camelCase/snake_case.
+    - Rastreabilidade Diff-Friendly: Alterações de código minimalistas otimizados
+                                     para desempenho aliado a análise visual
+                                     de mudanças.
+
+    [CAPACIDADES TÉCNICAS (REAPROVEITÁVEIS)]
+    - COMPATIBILIDADE: Identificação de versão/subversão para comandos adequados.
+    - RESILIÊNCIA: Retry com backoff progressivo e múltiplas formas de tentativa.
+    - OFFLINE-FIRST: Lógica global de priorização de recursos locais vs rede.
+                    configurável para Online-FIRST.
+    - DETERMINISMO: Validação de estado real pós-operação (não apenas ExitCode).
+
+    [EVENTOS & TELEMETRIA (CALLBACK)]
+    - DESACOPLAMENTO: Script não gerencia arquivos de log ou console diretamente,
+                    salvo se explicitamente definido.
+    - OBRIGATORIEDADE: Telemetria via ScriptBlock [callback($msg, $type)]
+                    salvo se explicitamente definido.
+    - TIPAGEM DE MENSAGEM (Parâmetro 2):
+        - [t] Title: Título de etapa ou seções principais.
+        - [l] Log: Registro padrão de fluxo e operações.
+        - [i] Info: Detalhes informativos ou diagnósticos.
+        - [w] Warn: Alertas de falhas não críticas ou retentativas.
+        - [e] Error: Falhas críticas que exigem atenção ou interrupção.
+
+    [REGRAS DE ARQUITETURA]
+    - ISOLAMENTO: Mutex Global obrigatório para prevenir paralelismo.
+    - MODULARIDADE: Baseado em micro-funções especialistas e reutilizáveis.
+    - SINCRO: Execução 100% síncrona, bloqueante e sequencial.
+    - ESTADO: Barreira de consistência (DISM/CBS) para operações de sistema.
+    - NATIVO: Uso estrito de comandos nativos do OS, salvo exceção declarada.
+
+    [DIRETRIZES DE IMPLEMENTAÇÃO]
+    - IDEMPOTÊNCIA: Seguro para múltiplas execuções no mesmo ambiente.
+    - HEADLESS: Operação plena sem interface gráfica ou interação de usuário.
+    - TIMEOUT: Limites controlados adequados à capacidade do hardware.
+
+    [RESTRIÇÕES / VEDAÇÕES]
+    - Não prosseguir com sistema em estado inconsistente ou pendente.
+    - Não assumir conectividade de rede (Offline-First por padrão)
+    configurável para Online-FIRST.
+    - Não depender de módulos externos ou bibliotecas não nativas.
+    - Não executar etapas sem validação de sucesso posterior.
+
+    [ESTRUTURA DE EXECUÇÃO]
+    1. Inicialização segura (ExecutionPolicy, TLS, Context Check).
+    2. Garantia de instância única (Global Mutex).
+    3. Validação de pré-requisitos e pilha de manutenção do SO.
+    4. Orquestração modular com validação individual de cada micro-função.
+    5. Finalização auditável com log rastreável e saída determinística.
+
+.COMPONENT
     Função Universal: 'Get-PentoolsEnvironment'
     Foco: Localização ultra-resiliente de ativos offline em estágios iniciais de deploy.
 #>
+
 
 function Get-PentoolsEnvironment {
   param(

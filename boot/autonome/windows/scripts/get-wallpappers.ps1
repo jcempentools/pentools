@@ -1,3 +1,105 @@
+<#
+.SYNOPSIS
+    Personalização Visual: Gestor de Wallpapers e LockScreen.
+    Provisionamento de ativos visuais e aplicação de identidade visual no Windows.
+
+.DESCRIPTION
+    Componente responsável pela coleta, sincronização e aplicação de fundos de tela 
+    e imagens de bloqueio. O script implementa uma lógica de busca híbrida 
+    (Offline-First) e aplica as configurações via Registro do Windows.
+
+    ESPECIFICIDADES TÉCNICAS (WALLPAPERS):
+    - Estratégia de Coleta: 
+        1. Busca recursiva em mídia física (Offline) nas extensões .png e .jpg.
+        2. Fallback Online via listas de download (.lst) caso a mídia esteja ausente 
+           ou o modo de instalação não seja 'cru'.
+    - Nomeação e Integridade: Utiliza hashing SHA256 para nomear arquivos baixados, 
+      prevenindo duplicidade e garantindo unicidade no sistema de arquivos.
+    - Local de Destino: Padronização em '%SystemDrive%\Users\Default\Pictures\WallPapers' 
+      para garantir disponibilidade a novos perfis de usuário.
+
+    OBJETIVOS DE PERSONALIZAÇÃO:
+    - Tela de Bloqueio (LockScreen): Aplicação global via 'PersonalizationCSP' em HKLM.
+    - Papel de Parede (Wallpaper): Aplicação em contexto de usuário (HKCU) com 
+      estilo de preenchimento 'Fill' (Style 10).
+    - Refresh de UI: Acionamento de 'UpdatePerUserSystemParameters' via rundll32 
+      para forçar a atualização visual sem necessidade de logoff.
+
+    RESTRIÇÕES ESPECÍFICAS:
+    - Contexto de Usuário: A definição de Wallpaper (HKCU) é ignorada se o script 
+      detectar execução em contexto estritamente SYSTEM ($in_system_context).
+    - Dependências de Funções: Exige 'download_save', 'download_to_string', 'sha256' 
+      e 'setrgkey' para operação plena.
+    - Validação de Existência: O script valida a presença física do arquivo antes 
+      de tentar a aplicação no Registro para evitar telas pretas ou erros de UI.
+
+.NOTES
+    ================================================================================
+    REGRAS DE NEGÓCIO GLOBAIS DO PROJETO
+    POWERSHELL MISSION-CRITICAL FRAMEWORK - ESPECIFICAÇÃO DE EXECUÇÃO
+    ================================================================================
+
+    [CAPACIDADES GERAIS]
+    Orquestração determinística, resiliente e idempotente para Windows.
+    Compatibilidade Dual-Engine (5.1 + 7.4+) em contextos SYSTEM e USER.
+
+    [ESTILO, DESIGN & RASTREABILIDADE]
+    - Design: Imutabilidade, Baixo Acoplamento e suporte a camelCase/snake_case.
+    - Rastreabilidade Diff-Friendly: Alterações de código minimalistas otimizados
+                                     para desempenho aliado a análise visual
+                                     de mudanças.
+
+    [CAPACIDADES TÉCNICAS (REAPROVEITÁVEIS)]
+    - COMPATIBILIDADE: Identificação de versão/subversão para comandos adequados.
+    - RESILIÊNCIA: Retry com backoff progressivo e múltiplas formas de tentativa.
+    - OFFLINE-FIRST: Lógica global de priorização de recursos locais vs rede.
+                    configurável para Online-FIRST.
+    - DETERMINISMO: Validação de estado real pós-operação (não apenas ExitCode).
+
+    [EVENTOS & TELEMETRIA (CALLBACK)]
+    - DESACOPLAMENTO: Script não gerencia arquivos de log ou console diretamente,
+                    salvo se explicitamente definido.
+    - OBRIGATORIEDADE: Telemetria via ScriptBlock [callback($msg, $type)]
+                    salvo se explicitamente definido.
+    - TIPAGEM DE MENSAGEM (Parâmetro 2):
+        - [t] Title: Título de etapa ou seções principais.
+        - [l] Log: Registro padrão de fluxo e operações.
+        - [i] Info: Detalhes informativos ou diagnósticos.
+        - [w] Warn: Alertas de falhas não críticas ou retentativas.
+        - [e] Error: Falhas críticas que exigem atenção ou interrupção.
+
+    [REGRAS DE ARQUITETURA]
+    - ISOLAMENTO: Mutex Global obrigatório para prevenir paralelismo.
+    - MODULARIDADE: Baseado em micro-funções especialistas e reutilizáveis.
+    - SINCRO: Execução 100% síncrona, bloqueante e sequencial.
+    - ESTADO: Barreira de consistência (DISM/CBS) para operações de sistema.
+    - NATIVO: Uso estrito de comandos nativos do OS, salvo exceção declarada.
+
+    [DIRETRIZES DE IMPLEMENTAÇÃO]
+    - IDEMPOTÊNCIA: Seguro para múltiplas execuções no mesmo ambiente.
+    - HEADLESS: Operação plena sem interface gráfica ou interação de usuário.
+    - TIMEOUT: Limites controlados adequados à capacidade do hardware.
+
+    [RESTRIÇÕES / VEDAÇÕES]
+    - Não prosseguir com sistema em estado inconsistente ou pendente.
+    - Não assumir conectividade de rede (Offline-First por padrão)
+    configurável para Online-FIRST.
+    - Não depender de módulos externos ou bibliotecas não nativas.
+    - Não executar etapas sem validação de sucesso posterior.
+
+    [ESTRUTURA DE EXECUÇÃO]
+    1. Inicialização segura (ExecutionPolicy, TLS, Context Check).
+    2. Garantia de instância única (Global Mutex).
+    3. Validação de pré-requisitos e pilha de manutenção do SO.
+    4. Orquestração modular com validação individual de cada micro-função.
+    5. Finalização auditável com log rastreável e saída determinística.
+
+.COMPONENT
+    Gestor de Ativos Visuais, Personalização de UI e Sincronizador de Mídia.
+    Foco: Identidade Visual, Resiliência Offline e Automação de Registro.
+#>
+
+
 show_log_title "### WallPapers"
 $WallPapers_path = ""
 if (-Not ([string]::IsNullOrEmpty($appsinstall_folder))) {

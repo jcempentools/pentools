@@ -1,79 +1,96 @@
 #requires -version 2.0
-# =====================================================================
-# SCRIPT: Windows 11 Language Enforcer (PT-BR)
-# COMPATIBILIDADE: PowerShell 2.0+, 5.x, 7.6+
-# CONTEXTO: Setup Windows / SYSTEM / OOBE / Audit / WinPE
-# =====================================================================
-#
-# [1] REGRAS DE NEGÓCIO
-# ---------------------------------------------------------------------
-# - O idioma final do sistema deve ser obrigatoriamente pt-BR
-# - O teclado padrão deve ser ABNT2 (00010416)
-# - O fuso horário deve ser Brasília
-# - A região deve ser Brasil
-# - Idiomas e teclados não pt-BR devem ser removidos
-# - O script deve ser idempotente (executável múltiplas vezes)
-# - O script deve se auto-recuperar de falhas transitórias
-# - O script deve validar o estado final
-# - Cada etapa deve executar de forma totalmente síncrona e bloqueante
-#
-# [2] DIRETRIZES
-# ---------------------------------------------------------------------
-# - Estrutura modular baseada em micro-funções reutilizáveis
-# - Implementar retry com backoff progressivo
-# - Logging detalhado para troubleshooting
-# - Compatibilidade com execução como SYSTEM
-# - Evitar dependência de módulos modernos
-# - Preferir comandos nativos (DISM, registry, tzutil)
-# - Detectar e evitar operações redundantes
-# - Priorizar resiliência sobre velocidade
-# - Execução estritamente síncrona entre todas as etapas
-# - Implementar barreiras de sincronização entre operações críticas
-# - Aguardar conclusão de DISM/CBS antes de prosseguir
-#
-# [3] RESTRIÇÕES
-# ---------------------------------------------------------------------
-# - Compatível com PowerShell 2.0+
-# - Sem uso obrigatório de módulos WindowsLanguagePack
-# - Sem dependência de interface gráfica
-# - Deve funcionar sem usuário logado
-# - Deve tolerar execução durante instalação do Windows
-# - Não assumir conectividade de rede imediata
-# - Não falhar caso idioma já esteja aplicado
-# - Não exigir reboot imediato
-# - Não executar operações em paralelo
-#
-# [4] OBJETIVOS
-# ---------------------------------------------------------------------
-# - Detectar idioma atual do Windows
-# - Baixar Language Pack pt-BR automaticamente
-# - Instalar pacote de idioma com tolerância a falhas
-# - Definir idioma padrão do sistema
-# - Configurar teclado ABNT2 como padrão
-# - Configurar região Brasil
-# - Configurar fuso horário Brasília
-# - Remover idiomas e layouts não pt-BR
-# - Garantir execução sequencial bloqueante entre etapas
-# - Validar estado final
-# - Executar de forma segura e resiliente
-#
-# CARACTERÍSTICAS TÉCNICAS
-# ---------------------------------------------------------------------
-# ✔ Idempotente
-# ✔ Fail-safe
-# ✔ Retry automático
-# ✔ Execução totalmente síncrona
-# ✔ Mutex global anti-paralelismo
-# ✔ Barreira DISM/CBS
-# ✔ Compatível SYSTEM
-# ✔ Compatível Setup Windows
-# ✔ Logging
-# ✔ Modular
-# ✔ Resistente a rede instável
-# ✔ Tolerante a DISM lock
-# ✔ Execução offline parcial
-#
-# =====================================================================
+<#
+.SYNOPSIS
+    Windows 11 Language Enforcer (PT-BR).
+    Garante a conformidade regional e de idioma em ambientes críticos.
+
+.DESCRIPTION
+    Script especializado em forçar o idioma pt-BR, teclado ABNT2 e fuso horário Brasília.
+    Projetado para operar em estágios precoces do SO (Setup/OOBE/Audit/WinPE) sob o 
+    contexto de SYSTEM ou Usuário, com foco em resiliência extrema e execução síncrona.
+
+    [1] REGRAS DE NEGÓCIO:
+    - Idioma mandatório: pt-BR.
+    - Teclado padrão: ABNT2 (00010416).
+    - Fuso Horário / Região: Brasília / Brasil.
+    - Purga: Remoção obrigatória de idiomas e layouts não pt-BR.
+    - Idempotência: Seguro para múltiplas execuções; valida estado antes de agir.
+    - Sincronismo: Execução 100% síncrona, sequencial e bloqueante entre etapas.
+
+    [3] RESTRIÇÕES / VEDAÇÕES:
+    - Independência: Sem dependência de módulos modernos (WindowsLanguagePack)        
+
+    [4] OBJETIVOS OPERACIONAIS:
+    - Detecção e download automático de Language Pack pt-BR.
+    - Instalação e definição de idioma padrão do sistema.
+    - Configuração de Localidade (Região/Teclado/Fuso) e remoção de excedentes.
+    - Validação de estado final e geração de logs detalhados para troubleshooting.
+
+.NOTES
+    ================================================================================
+    REGRAS DE NEGÓCIO GLOBAIS DO PROJETO    
+    POWERSHELL MISSION-CRITICAL FRAMEWORK - ESPECIFICAÇÃO DE EXECUÇÃO
+    ================================================================================
+
+    [CAPACIDADES GERAIS]
+    Orquestração determinística, resiliente e idempotente para Windows.
+    Compatibilidade Dual-Engine (5.1 + 7.4+) em contextos SYSTEM e USER.
+
+    [ESTILO, DESIGN & RASTREABILIDADE]
+    - Design: Imutabilidade, Baixo Acoplamento e suporte a camelCase/snake_case.
+    - Rastreabilidade Diff-Friendly: Alterações de código minimalistas otimizados
+                                     para desempenho aliado a análise visual
+                                     de mudanças.
+
+    [CAPACIDADES TÉCNICAS (REAPROVEITÁVEIS)]
+    - COMPATIBILIDADE: Identificação de versão/subversão para comandos adequados.
+    - RESILIÊNCIA: Retry com backoff progressivo e múltiplas formas de tentativa.
+    - OFFLINE-FIRST: Lógica global de priorização de recursos locais vs rede.
+                    configurável para Online-FIRST.
+    - DETERMINISMO: Validação de estado real pós-operação (não apenas ExitCode).
+
+    [EVENTOS & TELEMETRIA (CALLBACK)]
+    - DESACOPLAMENTO: Script não gerencia arquivos de log ou console diretamente,
+                    salvo se explicitamente definido.
+    - OBRIGATORIEDADE: Telemetria via ScriptBlock [callback($msg, $type)]
+                    salvo se explicitamente definido.
+    - TIPAGEM DE MENSAGEM (Parâmetro 2):
+        - [t] Title: Título de etapa ou seções principais.
+        - [l] Log: Registro padrão de fluxo e operações.
+        - [i] Info: Detalhes informativos ou diagnósticos.
+        - [w] Warn: Alertas de falhas não críticas ou retentativas.
+        - [e] Error: Falhas críticas que exigem atenção ou interrupção.
+
+    [REGRAS DE ARQUITETURA]
+    - ISOLAMENTO: Mutex Global obrigatório para prevenir paralelismo.
+    - MODULARIDADE: Baseado em micro-funções especialistas e reutilizáveis.
+    - SINCRO: Execução 100% síncrona, bloqueante e sequencial.
+    - ESTADO: Barreira de consistência (DISM/CBS) para operações de sistema.
+    - NATIVO: Uso estrito de comandos nativos do OS, salvo exceção declarada.
+
+    [DIRETRIZES DE IMPLEMENTAÇÃO]
+    - IDEMPOTÊNCIA: Seguro para múltiplas execuções no mesmo ambiente.
+    - HEADLESS: Operação plena sem interface gráfica ou interação de usuário.
+    - TIMEOUT: Limites controlados adequados à capacidade do hardware.
+
+    [RESTRIÇÕES / VEDAÇÕES]
+    - Não prosseguir com sistema em estado inconsistente ou pendente.
+    - Não assumir conectividade de rede (Offline-First por padrão)
+    configurável para Online-FIRST.
+    - Não depender de módulos externos ou bibliotecas não nativas.
+    - Não executar etapas sem validação de sucesso posterior.
+
+    [ESTRUTURA DE EXECUÇÃO]
+    1. Inicialização segura (ExecutionPolicy, TLS, Context Check).
+    2. Garantia de instância única (Global Mutex).
+    3. Validação de pré-requisitos e pilha de manutenção do SO.
+    4. Orquestração modular com validação individual de cada micro-função.
+    5. Finalização auditável com log rastreável e saída determinística.
+
+.COMPONENT
+    Contexto: Setup Windows / SYSTEM / OOBE / Audit / WinPE.
+    Foco: Padronização regional e linguística determinística.
+#>
 
 param(
   [ScriptBlock]$LogCallback
