@@ -60,7 +60,7 @@
         },
         {
             "dir": "/boot/ISOs/GamesMedias",
-            "alias": "Games e Míidias"
+            "alias": "Games e Mídias"
         }
     ],
     "menu_tip":{
@@ -202,6 +202,18 @@
         {
             "dir": "/boot/ISOs/GamesMedias",
             "class": "gamemedia"
+        },
+        {
+            "dir": "/boot/ISOs/GamesMedias/LibreELEC",
+            "class": "libreelec"
+        },
+        {
+            "key": "libreelec",
+            "class": "libreelec"
+        },
+        {
+            "key": "batocera",
+            "class": "batocera"
         }
     ],
     "auto_install":[
