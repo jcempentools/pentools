@@ -1,3 +1,4 @@
+#requires -version 5.1
 $ErrorActionPreference = 'Stop'
 
 # Caminho fixo
@@ -48,10 +49,10 @@ function Install-Pip {
 
 # Extrai dependências do sync.py
 function Get-SyncPyDependencies {
-    (Get-Content $pythonScript) -match '^import |^from ' |
+  (Get-Content $pythonScript) -match '^import |^from ' |
   ForEach-Object {
     if ($_ -match '^import\s+(\S+)' -or $_ -match '^from\s+(\S+)') {
-                ($matches[1].Split('.')[0])
+      ($matches[1].Split('.')[0])
     }
   } | Sort-Object -Unique
 }

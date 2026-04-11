@@ -1,3 +1,4 @@
+#requires -version 5.1
 <#
 .SYNOPSIS
     Personalização Visual: Gestor de Wallpapers e LockScreen.

@@ -1,3 +1,4 @@
+#requires -version 5.1
 <#
 .SYNOPSIS
     Application Deployment Engine (App Orchestrator).

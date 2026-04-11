@@ -1,3 +1,4 @@
+#requires -version 5.1
 <#
 .SYNOPSIS
     Winget Setup Fix & Context Enforcer.

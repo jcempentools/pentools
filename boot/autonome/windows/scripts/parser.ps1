@@ -1,3 +1,4 @@
+#requires -version 5.1
 <#
 .SYNOPSIS
     BIBLIOTECA PARSER DSL (PowerShell 7.6+).

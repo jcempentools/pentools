@@ -1,3 +1,4 @@
+#requires -version 5.1
 <#
 .SYNOPSIS
     Gatilhos Finais (External Hooks Executor).

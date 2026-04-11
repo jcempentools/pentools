@@ -1,4 +1,4 @@
-#requires -version 2.0
+#requires -version 5.1
 <#
 .SYNOPSIS
     Windows 11 Language Enforcer (PT-BR).

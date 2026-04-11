@@ -1,3 +1,4 @@
+#requires -version 5.1
 <#
 .SYNOPSIS
     Discovery Engine: Localizador de Unidade de Ferramentas (.pentools).
