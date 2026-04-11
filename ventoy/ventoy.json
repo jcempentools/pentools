@@ -1,278 +1,215 @@
 {
-  "control": [
-    { "VTOY_DEFAULT_MENU_MODE": "1" },
-    { "VTOY_TREE_VIEW_MENU_STYLE": "1" },
-    { "VTOY_SECONDARY_BOOT_MENU": "0" },
-    { "VTOY_MENU_LANGUAGE": "pt_BR" },
-    { "VTOY_DEFAULT_SEARCH_ROOT": "/boot/ISOs" }
-  ],
-  "theme": {
-    "file": "/ventoy/themes/Ettery/theme.txt",
-    "gfxmode": "1280x960",
-    "fonts": ["/ventoy/fonts/unicode.pf2"]
-  },
-  "menu_alias": [
-    {
-      "image": "/boot/ISOs/Canivete/windows-HBCD_PE_x64.iso",
-      "alias": "Hiren's BootCD PE"
+    "control":[
+        { "VTOY_DEFAULT_MENU_MODE": "1" },
+        { "VTOY_TREE_VIEW_MENU_STYLE": "1" },
+        { "VTOY_SECONDARY_BOOT_MENU": "0" },
+        { "VTOY_MENU_LANGUAGE": "pt_BR" },
+        { "VTOY_DEFAULT_SEARCH_ROOT": "/boot/ISOs" }
+    ],
+    "theme":{
+        "file": "/ventoy/themes/Ettery/theme.txt",
+        "gfxmode": "1280x960",
+        "fonts":[
+            "/ventoy/fonts/unicode.pf2"
+        ]
     },
-    {
-      "image": "/boot/ISOs/ipxe.iso",
-      "alias": "Boot Network (ipxe)"
-    },
-    {
-      "dir": "/boot/ISOs/Canivete",
-      "alias": "> Canivete Suiço"
-    },
-    {
-      "dir": "/boot/ISOs/Utilitarios",
-      "alias": "> Utilitários"
-    },
-    {
-      "dir": "/boot/ISOs/Utilitarios/Disco",
-      "alias": "> HDs"
-    },
-    {
-      "dir": "/boot/ISOs/Utilitarios/Imagem",
-      "alias": "> Imagens"
-    },
-    {
-      "dir": "/boot/ISOs/Installs/Linux/LinuxMint",
-      "alias": "> LinuxMint"
-    },
-    {
-      "dir": "/boot/ISOs/Installs/Linux/MiniOS",
-      "alias": "> MiniOS"
-    },
-    {
-      "dir": "/boot/ISOs/Installs/Linux/VelhoPC",
-      "alias": "> Salvar aquele PC Velho"
-    },
-    {
-      "dir": "/boot/ISOs/Installs",
-      "alias": "> Instalações e LiveCDs"
-    },
-    {
-      "dir": "/boot/ISOs/Installs/Windows",
-      "alias": "> Windows"
-    },
-    {
-      "dir": "/boot/ISOs/Installs/Linux",
-      "alias": "> Linux"
-    },
-    {
-      "dir": "/boot/ISOs/Installs/BB",
-      "alias": "> BB"
-    }
-  ],
-  "menu_tip": {
-    "color": "#ffffff"
-  },
-  "menu_class": [
-    {
-      "key": "Acronis",
-      "class": "Acronis"
-    },
-    {
-      "key": "win",
-      "class": "windows"
-    },
-    {
-      "key": "windows",
-      "class": "windows"
-    },
-    {
-      "dir": "/boot/ISOs/Installs/Windows",
-      "class": "windows"
-    },
-    {
-      "dir": "/boot/ISOs/Utilitarios/Imagem",
-      "class": "recovery"
-    },
-    {
-      "dir": "/boot/ISOs/Utilitarios",
-      "class": "maleta"
-    },
-    {
-      "key": "tails",
-      "class": "tails"
-    },
-    {
-      "key": "kali",
-      "class": "kali"
-    },
-    {
-      "key": "kodachi",
-      "class": "kodachi"
-    },
-    {
-      "key": "gparted",
-      "class": "gparted"
-    },
-    {
-      "key": "alpine",
-      "class": "alpine"
-    },
-    {
-      "key": "minios",
-      "class": "minios"
-    },
-    {
-      "key": "miniOS",
-      "class": "minios"
-    },
-    {
-      "key": "memtest",
-      "class": "ram"
-    },
-    {
-      "key": "AomeiBackupper",
-      "class": "AomeiBackupper"
-    },
-    {
-      "dir": "/boot/ISOs/Utilitarios/Disco",
-      "class": "disk"
-    },
-    {
-      "dir": "/boot/ISOs/Installs/Linux/MiniOS",
-      "class": "minios"
-    },
-    {
-      "key": "rescuezilla",
-      "class": "clonezilla"
-    },
-    {
-      "dir": "/boot/ISOs/Installs/Linux/LinuxMint",
-      "class": "linux-mint"
-    },
-    {
-      "key": "linuxmint",
-      "class": "linux-mint"
-    },
-    {
-      "key": "AomeiPartition",
-      "class": "aomeipartition"
-    },
-    {
-      "dir": "/boot/ISOs/Installs/Linux/VelhoPC",
-      "class": "oldpc"
-    },
-    {
-      "dir": "/boot/ISOs/Installs",
-      "class": "install"
-    },
-    {
-      "key": "ipxe",
-      "class": "network"
-    },
-    {
-      "key": "kaspersky",
-      "class": "kaspersky"
-    },
-    {
-      "dir": "/boot/ISOs/Installs/Linux",
-      "class": "linux"
-    },
-    {
-      "key": "steamos",
-      "class": "steamos"
-    },
-    {
-      "key": "lakka",
-      "class": "lakka"
-    },
-    {
-      "key": "chromeos",
-      "class": "chromeos"
-    },
-    {
-      "key": "drParted",
-      "class": "drparted"
-    },
-    {
-      "dir": "/boot/ISOs/Canivete",
-      "class": "canivete"
-    },
-    {
-      "dir": "/boot/ISOs/Installs/BB",
-      "class": "bb"
-    },
-    {
-      "key": "linux",
-      "class": "linux"
-    }
-  ],
-
-  "auto_install": [
-    {
-      "control": [
+    "menu_alias":[
         {
-          "item": "VNTY_SERIAL_WIN_PRODUCTKEYTAG",
-          "value": " ",
-          "menu": [
-            " |Confirma? OEM - Windows Original do Equipamento",
-            "<ProductKey><Key>YTMG3-N6DKC-DKB77-7M9GH-8HVX7</Key></ProductKey>|Home",
-            "<ProductKey><Key>4CPRK-NM3K3-X6XXQ-RXX86-MTFDY</Key></ProductKey>|Home N",
-            "<ProductKey><Key>VK7JG-NPHTM-C97JM-9MPGT-3V66T</Key></ProductKey>|Pro",
-            "<ProductKey><Key>2B87N-8KFHP-DKV6R-Y2C8J-PKCKT</Key></ProductKey>|Pro N",
-            "<ProductKey><Key>BT79Q-G7N6G-PGBYW-4YWX6-6F4BT</Key></ProductKey>|Home Single Language",
-            "<ProductKey><Key>NPPR9-FWDCX-D2C8J-H872K-2YT43</Key></ProductKey>|Enterprise",
-            "<ProductKey><Key>XQQYW-N6F4Q-V3BT8-YBWK2-PTPBT</Key></ProductKey>|IoT Enterprise",
-            "<ProductKey><Key>XGVPP-NMH47-7TTHJ-W3FW7-8HV2C</Key></ProductKey>|IoT Enterprise Subscription",
-            "<ProductKey><Key>CPWHC-NT2C7-VYW78-WH8QH-889MM</Key></ProductKey>|Enterprise multi-session",
-            "<ProductKey><Key>NW6C2-QMPVW-D7KKK-3GKT6-VCFB2</Key></ProductKey>|Education",
-            "<ProductKey><Key>6TP4R-GNPTD-KYYHQ-7B7DP-J447Y</Key></ProductKey>|Pro Education",
-            "<ProductKey><Key>DXG7C-N36C4-C4HTG-X4T3X-2YV77</Key></ProductKey>|Pro for Workstations",
-            "<ProductKey><Key>DPH2V-TTNVB-4X9Q3-TJR4H-KHJW4</Key></ProductKey>|Enterprise N",
-            "<ProductKey><Key>2WH4N-8QGBV-H22JP-CT43Q-MDWWJ</Key></ProductKey>|Education N",
-            "<ProductKey><Key>YVWGF-BXNMC-HTVAY-H9Y97-G9PPH</Key></ProductKey>|Pro Education N",
-            "<ProductKey><Key>WYPNQ-8C467-V2W6J-TX4WX-WT2RQ</Key></ProductKey>|Pro N for Workstations"
-          ]
+            "image": "/boot/ISOs/Canivete/windows-HBCD_PE_x64.iso",
+            "alias": "Hiren's BootCD PE"
         },
         {
-          "item": "VNTY_SERIAL_WIN_KEYTAG",
-          "value": " ",
-          "menu": [
-            " |Confirma? OEM - Windows Original do Equipamento",
-            "<Key>YTMG3-N6DKC-DKB77-7M9GH-8HVX7</Key>|Confirma? Home",
-            "<Key>4CPRK-NM3K3-X6XXQ-RXX86-MTFDY</Key>|Confirma? Home N",
-            "<Key>VK7JG-NPHTM-C97JM-9MPGT-3V66T</Key>|Confirma? Pro",
-            "<Key>2B87N-8KFHP-DKV6R-Y2C8J-PKCKT</Key>|Confirma? Pro N",
-            "<Key>BT79Q-G7N6G-PGBYW-4YWX6-6F4BT</Key>|Confirma? Home Single Language",
-            "<Key>NPPR9-FWDCX-D2C8J-H872K-2YT43</Key>|Confirma? Enterprise",
-            "<Key>XQQYW-N6F4Q-V3BT8-YBWK2-PTPBT</Key>|Confirma? IoT Enterprise",
-            "<Key>XGVPP-NMH47-7TTHJ-W3FW7-8HV2C</Key>|Confirma? IoT Enterprise Subscription",
-            "<Key>CPWHC-NT2C7-VYW78-WH8QH-889MM</Key>|Confirma? Enterprise multi-session",
-            "<Key>NW6C2-QMPVW-D7KKK-3GKT6-VCFB2</Key>|Confirma? Education",
-            "<Key>6TP4R-GNPTD-KYYHQ-7B7DP-J447Y</Key>|Confirma? Pro Education",
-            "<Key>DXG7C-N36C4-C4HTG-X4T3X-2YV77</Key>|Confirma? Pro for Workstations",
-            "<Key>DPH2V-TTNVB-4X9Q3-TJR4H-KHJW4</Key>|Confirma? Enterprise N",
-            "<Key>2WH4N-8QGBV-H22JP-CT43Q-MDWWJ</Key>|Confirma? Education N",
-            "<Key>YVWGF-BXNMC-HTVAY-H9Y97-G9PPH</Key>|Confirma? Pro Education N",
-            "<Key>WYPNQ-8C467-V2W6J-TX4WX-WT2RQ</Key>|Confirma? Pro N for Workstations"
-          ]
+            "image": "/boot/ISOs/ipxe.iso",
+            "alias": "Boot Network (ipxe)"
         },
         {
-          "item": "VNTY_PERFIL_CONFIG_INSTALL_CRU",
-          "value": "Basico",
-          "menu": [
-            " |Sistema Limpo (Sem extras)",
-            "Essenciais|Essênciais: Codecs e utilitários base",
-            "Básico|Dia a dia: Navegadores, libreOffice, etc",
-            "Designer|Criativo: apenas ferramentas criativas",
-            "Designer+|Dia a dia + Criativo",
-            "Gamer|Gamer: Apenas Steam, Epic e dependências",
-            "Gamer+|Dia a dia + Gamer",
-            "Gamer++|Dia a dia + Criativo + Jogos",
-            "Dev|Desenvolvedor: apenas ferramentas de programação",
-            "Dev+|Dia a dia + Desenvolvedor",
-            "Dev++|Dia a dia + Criativo + Desenvolvedor",
-            "Full|Pacote Completo (Todos)"
-          ]
+            "dir": "/boot/ISOs/Canivete",
+            "alias": "> Canivete Suiço"
+        },
+        {
+            "dir": "/boot/ISOs/Utilitarios",
+            "alias": "> Utilitários"
+        },
+        {
+            "dir": "/boot/ISOs/Utilitarios/Disco",
+            "alias": "> HDs"
+        },
+        {
+            "dir": "/boot/ISOs/Utilitarios/Imagem",
+            "alias": "> Imagens"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/Linux/VelhoPC",
+            "alias": "> Salvar aquele PC Velho"
+        },
+        {
+            "dir": "/boot/ISOs/Installs",
+            "alias": "> Instalações e LiveCDs"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/Windows",
+            "alias": "> Windows"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/Linux",
+            "alias": "> Linux"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/BB",
+            "alias": "> BB"
+        },
+        {
+            "dir": "/boot/ISOs/GamesMedias",
+            "alias": "Games e Míidias"
         }
-      ],
-      "parent": "/boot/ISOs/Installs/Windows",
-      "template": "/boot/autonome/windows/Instalar/Automatizado.xml"
-    }
-  ]
+    ],
+    "menu_tip":{
+        "color": "#ffffff"
+    },
+    "menu_class":[
+        {
+            "key": "Acronis",
+            "class": "Acronis"
+        },
+        {
+            "key": "win",
+            "class": "windows"
+        },
+        {
+            "key": "windows",
+            "class": "windows"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/Windows",
+            "class": "windows"
+        },
+        {
+            "dir": "/boot/ISOs/Utilitarios/Imagem",
+            "class": "recovery"
+        },
+        {
+            "dir": "/boot/ISOs/Utilitarios",
+            "class": "maleta"
+        },
+        {
+            "key": "tails",
+            "class": "tails"
+        },
+        {
+            "key": "kali",
+            "class": "kali"
+        },
+        {
+            "key": "kodachi",
+            "class": "kodachi"
+        },
+        {
+            "key": "gparted",
+            "class": "gparted"
+        },
+        {
+            "key": "alpine",
+            "class": "alpine"
+        },
+        {
+            "key": "minios",
+            "class": "minios"
+        },
+        {
+            "key": "miniOS",
+            "class": "minios"
+        },
+        {
+            "key": "memtest",
+            "class": "ram"
+        },
+        {
+            "key": "AomeiBackupper",
+            "class": "AomeiBackupper"
+        },
+        {
+            "dir": "/boot/ISOs/Utilitarios/Disco",
+            "class": "disk"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/Linux/MiniOS",
+            "class": "minios"
+        },
+        {
+            "key": "rescuezilla",
+            "class": "clonezilla"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/Linux/LinuxMint",
+            "class": "linux-mint"
+        },
+        {
+            "key": "linuxmint",
+            "class": "linux-mint"
+        },
+        {
+            "key": "AomeiPartition",
+            "class": "aomeipartition"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/Linux/VelhoPC",
+            "class": "oldpc"
+        },
+        {
+            "dir": "/boot/ISOs/Installs",
+            "class": "install"
+        },
+        {
+            "key": "ipxe",
+            "class": "network"
+        },
+        {
+            "key": "kaspersky",
+            "class": "kaspersky"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/Linux",
+            "class": "linux"
+        },
+        {
+            "key": "steamos",
+            "class": "steamos"
+        },
+        {
+            "key": "lakka",
+            "class": "lakka"
+        },
+        {
+            "key": "chromeos",
+            "class": "chromeos"
+        },
+        {
+            "key": "drParted",
+            "class": "drparted"
+        },
+        {
+            "dir": "/boot/ISOs/Canivete",
+            "class": "canivete"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/BB",
+            "class": "bb"
+        },
+        {
+            "key": "linux",
+            "class": "linux"
+        },
+        {
+            "dir": "/boot/ISOs/GamesMedias",
+            "class": "gamemedia"
+        }
+    ],
+    "auto_install":[
+        {
+            "parent": "/boot/ISOs/Installs/Windows",
+            "template":[
+                "/boot/autonome/windows/Instalar/Automatizado.xml"
+            ]
+        }
+    ]
 }
