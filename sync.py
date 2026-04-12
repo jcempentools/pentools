@@ -2154,7 +2154,29 @@ def process_single_syncdownload(path, dry_run):
 
                 return
             else:
-                show_message(f"Cache corrompido na origem → ignorado: {filename}", "w")
+                show_message(f"Cache corrompido na origem → removendo: {filename}", "w")
+
+                try:
+                    os.remove(origin_cached_path)
+                    show_message(f"Cache removido: {filename}", "w")
+                except Exception:
+                    pass
+
+                # 🔒 remove metadata associada
+                try:
+                    if os.path.exists(origin_cached_path + ".sha256"):
+                        os.remove(origin_cached_path + ".sha256")
+                        show_message(f"Metadado .sha256 do cache removido: {filename}", "w")
+                except Exception:
+                    pass
+
+                try:
+                    if os.path.exists(origin_cached_path + ".syncado"):
+                        os.remove(origin_cached_path + ".syncado")
+                        show_message(f"Metadado .syncado do cache removido: {filename}", "w")
+
+                except Exception:
+                    pass
 
     # === DECISÃO ===
     need_download = manage_sync_metadata(
