@@ -50,6 +50,7 @@ Determinística. Respeitar dedup. Não afetar arquivos de .syncdownload.
 ETAPA 3 — .SYNCDOWNLOAD
 =======================
 Formato: linha1 = URL/DSL | linha2 = SHA256 fixo (opc) | linha3 = nome custom (opc)
+                  DSL deve resolver também indices semânticos, ex.: [@attr="img"] e [@attr='img']
 
 Regra de versão:
 - COM hash na linha2 → versão FIXA (não consultar latest)
@@ -1193,12 +1194,9 @@ def fetch_and_parse(url):
 
 def resolve_data_path(obj, path):
     """
-    Descrição: Resolve caminho aninhado em estrutura JSON.
-    Parâmetros:
-    - obj (dict): Objeto base.
-    - path (str): Caminho (ex: a.b[0].c).
-    Retorno:
-    - any: Valor resolvido.
+    Resolve caminho aninhado com suporte a:
+    - índice: [0]
+    - filtro: [@campo="valor"]
     """
 
     current = obj
@@ -1206,24 +1204,56 @@ def resolve_data_path(obj, path):
     tokens = re.split(r'\.(?![^\[]*\])', path)
 
     for token in tokens:
-        m = re.match(r'([a-zA-Z0-9_\-]+)(\[(\d+)\])?', token)
+        # match: campo[index] OU campo[@attr="value"]
+        m = re.match(r'([a-zA-Z0-9_\-]+)(\[(.*?)\])?', token)
 
         if not m:
             raise Exception(f"Parser DSL inválido: {token}")
 
         key = m.group(1)
-        index = m.group(3)
+        selector = m.group(3)  # conteúdo dentro []
 
+        # --- acesso base ---
         if isinstance(current, dict):
             current = current.get(key)
         else:
-            raise Exception("Parser DSL: estrutura inválida")
+            raise Exception("Parser DSL: estrutura inválida (esperado dict)")
 
-        if index is not None:
-            current = current[int(index)]
+        # --- sem seletor ---
+        if selector is None:
+            continue
+
+        # --- índice numérico ---
+        if re.match(r'^\d+$', selector):
+            current = current[int(selector)]
+            continue
+
+        # --- filtro estilo [@campo="valor"] ---
+        m_filter = re.match(r'@([a-zA-Z0-9_\-]+)\s*=\s*["\']([^"\']+)["\']', selector)
+
+        if m_filter:
+            attr = m_filter.group(1)
+            value = m_filter.group(2)
+
+            if not isinstance(current, list):
+                raise Exception("Parser DSL: filtro aplicado em estrutura não-lista")
+
+            match_item = None
+
+            for item in current:
+                if isinstance(item, dict) and str(item.get(attr)) == value:
+                    match_item = item
+                    break
+
+            if match_item is None:
+                raise Exception(f"Parser DSL: nenhum match para {attr}={value}")
+
+            current = match_item
+            continue
+
+        raise Exception(f"Parser DSL: seletor inválido [{selector}]")
 
     return current
-
 
 def resolve_parser_expression(expr):
     """

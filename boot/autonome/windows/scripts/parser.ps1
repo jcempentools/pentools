@@ -14,6 +14,7 @@
     - Delimitadores: URL de origem obrigatoriamente entre ${"..."} ou ${'...'}.
     - Deep Nesting: Suporta acesso a membros (.campo) e índices de arrays ([0]).
     - Hibridismo: Compatível com strings de metadados (ex: ".exe,x64 | ${DSL}").
+    - Deve resolver também indices semânticos, ex.: [@attr="img"] e [@attr='img']
 
     PIPELINE DE RESOLUÇÃO:
     1. DETECÇÃO: Identificação de expressões DSL via 'has_parser_expression'.
