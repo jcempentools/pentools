@@ -988,6 +988,34 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
             base_name = re.sub(r'\.[a-z0-9]{2,5}$', '', custom_name.lower())
             base_name = re.sub(r'[^a-z0-9]+', '.', base_name).strip('.') 
 
+    # =========================================================
+    # 🔒 REMOÇÃO DE DUPLICATAS (preserva números/versões)
+    # =========================================================
+    try:
+        tokens = re.split(r'[^a-z0-9]+', base_name.lower())
+        seen = set()
+        cleaned_tokens = []
+
+        for t in tokens:
+            if not t:
+                continue
+
+            # 🔒 NÃO deduplica números puros (ex: versões 5.5.3.5)
+            if re.match(r'^\d+$', t):
+                cleaned_tokens.append(t)
+                continue
+
+            if t in seen:
+                continue
+
+            seen.add(t)
+            cleaned_tokens.append(t)
+
+        if cleaned_tokens:
+            base_name = "-".join(cleaned_tokens)
+    except Exception:
+        pass
+
     # --- MONTA NOME FINAL ---
     if ext:
         return f"{base_name}.{ext}"
