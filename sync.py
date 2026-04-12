@@ -389,18 +389,23 @@ def _resolve_effective_remote_name(url):
     try:
         import urllib.request
 
-        req = urllib.request.Request(url, method="HEAD")
+        # 🔒 Resolve URL final (inclui parser + redirect)
+        final_url, headers = resolve_final_url(url)
+
+        effective_url = final_url or url
+
+        req = urllib.request.Request(effective_url, method="HEAD")
 
         with urllib.request.urlopen(req) as response:
             # 1. URL final (após redirect)
-            final_url = response.geturl()
-            name = os.path.basename(final_url.split("?")[0])
+            final_url_resp = response.geturl()
+            name = os.path.basename(final_url_resp.split("?")[0])
 
             if name and name.lower() != "download":
                 return name
 
-            # 2. Header
-            cd = response.headers.get("Content-Disposition")
+            # 2. Header (prioriza response real)
+            cd = response.headers.get("Content-Disposition") or headers.get("Content-Disposition")
             if cd:
                 match = re.search(r'filename="?([^"]+)"?', cd)
                 if match:
@@ -650,16 +655,15 @@ def parse_syncdownload(file_path):
                     raise Exception("Parser DSL não retornou URL válida")
 
                 url = resolved
+
         except Exception as e:
             show_message(f"Erro ao resolver parser DSL: {e}", "e")
             return None, None, None
-        
-        expected_hash = None
-        if len(raw_lines) > 1 and raw_lines[1].strip():
-            expected_hash = raw_lines[1].strip().split()[0]
-        custom_filename = raw_lines[2].strip() if len(raw_lines) > 2 and raw_lines[2].strip() else None
 
-        return url, expected_hash, custom_filename
+        # 🔒 GARANTIA: URL final deve ser limpa (sem expressão residual)
+        if url and "${" in url:
+            show_message(f"URL inválida após parser: {url}", "e")
+            return None, None, None
 
     except Exception as e:
         show_message(f"Erro ao ler .syncdownload {file_path}: {e}", "e")
@@ -1099,8 +1103,12 @@ def resolve_syncdownload_cached(sync_path):
             pass
 
     # --- nome final ---
+    # 🔒 GARANTE URL FINAL REAL (redirects / CDN / parser)
+    final_url, _ = resolve_final_url(url)
+    effective_url = final_url or url
+
     filename = resolve_final_filename(
-        url=url,
+        url=effective_url,
         path=sync_path,
         custom_name=custom_filename,
         github_ext=github_ext
