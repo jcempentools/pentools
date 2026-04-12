@@ -506,46 +506,67 @@ def http_open(url_or_req, timeout=15):
 
 def _resolve_effective_remote_name(url):
     """
-    Descrição: Resolve nome REAL do arquivo após redirects (SourceForge, etc).
-    Prioriza:
-    1. URL final após redirect
-    2. Content-Disposition
-    3. Fallback padrão
-    Parâmetros:
-    - url (str): URL original.
-    Retorno:
-    - str: Nome do arquivo remoto.
+    Resolve nome REAL do arquivo remoto com prioridade correta:
+    1. Content-Disposition (mais confiável)
+    2. URL final (se não for UUID/lixo)
+    3. Fallback local
     """
+
     try:
-        
-
-        # 🔒 Resolve URL final (inclui parser + redirect)
         final_url, headers = resolve_final_url(url)
-
         effective_url = final_url or url
 
         req = urllib.request.Request(effective_url, method="HEAD")
 
         with http_open(req) as response:
-            # 1. URL final (após redirect)
+            headers = dict(response.headers)
+
+            # =====================================================
+            # 1. HEADER (PRIORIDADE MÁXIMA)
+            # =====================================================
+            cd = headers.get("Content-Disposition", "")
+            m = re.search(r'filename="?([^"]+)"?', cd)
+
+            if m:
+                name = m.group(1)
+                if name:
+                    return {
+                        "name": name,
+                        "source": "header",
+                        "headers": headers
+                    }
+
+            # =====================================================
+            # 2. URL FINAL
+            # =====================================================
             final_url_resp = response.geturl()
             name = os.path.basename(final_url_resp.split("?")[0])
 
+            # 🔒 descarta nomes inválidos (UUID / download / vazio)
             if name and name.lower() != "download":
-                return name
-
-            # 2. Header (prioriza response real)
-            cd = response.headers.get("Content-Disposition") or headers.get("Content-Disposition")
-            if cd:
-                match = re.search(r'filename="?([^"]+)"?', cd)
-                if match:
-                    return match.group(1)
+                if not re.match(r'^[0-9a-f\-]{20,}$', name.lower()):
+                    return {
+                        "name": name,
+                        "source": "url",
+                        "headers": headers
+                    }
 
     except Exception:
         pass
 
-    # 3. fallback existente
-    return resolve_filename_from_url(url)
+    # =========================================================
+    # 3. FALLBACK PADRÃO (NORMALIZADO)
+    # =========================================================
+    fallback = _resolve_filename_from_url(url)
+
+    if isinstance(fallback, str):
+        return {
+            "name": fallback,
+            "source": "fallback",
+            "headers": {}
+        }
+
+    return fallback
 
 def normalize_product_name(filename):
     """
@@ -723,6 +744,13 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
     - Nome estável (ex: powershell.msi)
     - Não duplicação de extensão
     - Compatibilidade com purge    
+    - Nome fixado na terceira linha representa nome canônico do software
+      para fins comparação (limpeza e purge), desconsiderando o conteúdo:
+        1. terminações contidas em SyncDonwloadExtensions (incluindo o ponto)
+        2. o `{}`, que representa versiojamenteo a ser incorporado no nome do
+           arquivo final
+        3. caracteres não alfanuméricos imediatamente ao entorno de `{}` que
+           estarão presentes apenas no nome do arquivo final
 
     Regras:
     - Força extensão compatível (mime-type ou inferida)
@@ -730,18 +758,20 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
     - Normaliza basename para manter apenas o nome do software
     - Garante compatibilidade com purge e dedup
 
-    Exemplos:
+    Exemplos de arquivo (todos representam apenas um software canonico = 7zip):
     - 7zip.7zip -> 7zip.7zip.msi
     - 7zip.7zip.msi -> 7zip.7zip.msi
     - 7zip -> 7zip.msi
     - 7zip.msi -> 7zip.msi
     - Microsoft.PowerShell-7.6.0-rc.1-win-x64.msi -> powershell.msi
+    - 7zip{} -> 7zip-7.6.0.msi (substitui {} por versão unificada)
+    - 7zip-{}.7zip.msi -> 7zip-7.6.0.7zip.msi (substitui {} por versão unificada, mantém extensão original)
 
     Parâmetros:
     - url (str): URL do recurso.
     - path (str): Caminho do .syncdownload.
     - custom_name (str|None): Nome customizado.
-    - forced_extension (str|None): Extensão forçada.
+    - forced_extension (str|None): Extensão forçada.        
 
     Retorno:
     - str: Nome final do arquivo.   
@@ -752,6 +782,164 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
         return _resolve_filename_from_url(url, path)
 
     custom_name = custom_name.strip()
+
+    # --- REGRA: substituição de {} por versão remota (AFETA APENAS DESTINO) ---
+    original_custom_name = custom_name  # preserva nome canônico
+
+    if custom_name.count("{}") == 1:
+        try:
+            remote_info = _resolve_effective_remote_name(url)
+
+            # compatibilidade: aceita str legado ou dict novo
+            if isinstance(remote_info, dict):
+                remote_name = remote_info.get("name")
+                remote_headers = remote_info.get("headers", {})
+            else:
+                remote_name = remote_info
+                remote_headers = {}
+
+            show_message(f"[DEBUG] remote_name (raw): {remote_name}", "d")
+
+            base_source = None
+
+            # --- valida se remote_name é útil (contém versão) ---
+            if remote_name and re.search(r'\d+\.\d+', remote_name):
+                base_source = remote_name
+                show_message("[DEBUG] usando remote_name", "d")
+            else:
+                used_header = False
+
+                if remote_headers:
+                    cd = remote_headers.get("Content-Disposition", "")
+                    m = re.search(r'filename="?([^"]+)"?', cd)
+                    if m:
+                        base_source = m.group(1)
+                        used_header = True
+                        show_message("[DEBUG] usando header fallback", "d")
+
+                if not used_header:
+                    final_url, _ = resolve_final_url(url)
+                    effective = final_url or url
+
+                    fallback_name = os.path.basename(effective.split("?")[0])
+
+                    show_message(f"[DEBUG] fallback_name: {fallback_name}", "d")
+
+                    base_source = fallback_name
+
+            if base_source:
+                base = base_source.lower()
+
+                # remove extensão
+                base = re.sub(r'\.[a-z0-9]{2,5}$', '', base)
+
+                show_message(f"[DEBUG] base (sem extensão): {base}", "d")
+
+                tokens = normalize_tokens(base)
+
+                show_message(f"[DEBUG] tokens: {tokens}", "d")
+
+                version = None
+                extra = []
+
+                # =====================================================
+                # 1. tenta versão já unificada (ex: 5.1.1)
+                # =====================================================
+                for i, t in enumerate(tokens):
+                    if re.match(r'^\d+(\.\d+)+$', t):
+                        version = t
+
+                        if i > 0:
+                            prev = tokens[i - 1]
+                            if prev not in NOISE_TOKENS:
+                                extra.append(prev)
+
+                        break
+
+                # =====================================================
+                # 2. fallback → reconstruir versão fragmentada (5 1 1)
+                # =====================================================
+                if not version:
+                    numeric_seq = []
+                    seq_start = None
+
+                    for i, t in enumerate(tokens):
+                        if re.match(r'^\d+$', t):
+                            if seq_start is None:
+                                seq_start = i
+                            numeric_seq.append(t)
+                        else:
+                            if len(numeric_seq) >= 2:
+                                break
+                            numeric_seq = []
+                            seq_start = None
+
+                    if len(numeric_seq) >= 2:
+                        version = ".".join(numeric_seq)
+
+                        if seq_start and seq_start > 0:
+                            prev = tokens[seq_start - 1]
+                            if prev not in NOISE_TOKENS:
+                                extra.append(prev)
+
+                # DEBUG
+                show_message(f"[DEBUG] versão final: {version}", "d")
+                show_message(f"[DEBUG] extra final: {extra}", "d")
+
+                show_message(f"[DEBUG] extra: {extra}", "d")
+
+                if version:
+                    # =====================================================
+                    # 🔒 PRIORIDADE: TAGS DECLARADAS (spec ext|url)
+                    # =====================================================
+                    declared_tags = []
+
+                    try:
+                        # extrai spec do próprio .syncdownload (linha 1)
+                        raw_url = None
+                        try:
+                            with open(path, "r", encoding="utf-8") as f:
+                                raw_url = f.readline().strip()
+                        except Exception:
+                            raw_url = None
+
+                        if raw_url and "|" in raw_url:
+                            left, right = raw_url.split("|", 1)
+
+                            if right.strip().startswith(("http://", "https://")):
+                                parts = [p.strip().lower() for p in left.split(",") if p.strip()]
+
+                                for p in parts:
+                                    if not p.startswith("."):  # ignora extensão
+                                        declared_tags.append(p)
+
+                    except Exception:
+                        declared_tags = []
+
+                    # =====================================================
+                    # montagem do bloco de versão com prioridade correta
+                    # =====================================================
+                    if declared_tags:
+                        # usa tags declaradas explicitamente
+                        version_block = f"{declared_tags[0]}-{version}"
+                    elif extra:
+                        version_block = f"{extra[0]}-{version}"
+                    else:
+                        version_block = version
+
+                    show_message(f"[DEBUG] version_block: {version_block}", "d")
+
+                    custom_name = custom_name.replace("{}", version_block)
+
+                    show_message(f"[DEBUG] custom_name final: {custom_name}", "d")
+                else:
+                    show_message("[DEBUG] versão NÃO encontrada", "w")
+
+            else:
+                show_message("[DEBUG] remote_name vazio", "w")
+
+        except Exception as e:
+            show_message(f"[DEBUG] erro na substituição {{}}: {e}", "e")
 
     # --- Extrai extensão existente ---
     match_ext = re.search(r'\.([a-z0-9]{2,5})$', custom_name, re.IGNORECASE)
@@ -786,8 +974,8 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
     
     # 🔒 REGRA: linha 3 sem extensão válida = nome canônico indivisível
     if not existing_ext:
-        # 🔒 preserva casing original (linha 3)
-        base_name = custom_name.strip()
+        # 🔒 usa nome FINAL (com versão já aplicada), removendo apenas resíduos de {}
+        base_name = re.sub(r'\{\}', '', custom_name).strip()
         base_name = re.sub(r'\s+', '-', base_name)
     else:
         # separa extensão mantendo nome original
