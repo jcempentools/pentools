@@ -968,32 +968,31 @@ def manage_sync_metadata(final_dest_path, url, expected_hash):
         show_message(f"Erro na validação: {e}", "w")
         return True
     
-def generate_sync_metadata(final_dest_path, url):    
-    """
-    Descrição: Gera arquivos .sha256 e .syncado - Universal (independente da origem)
-    Parâmetros:
-    - final_dest_path (str): Caminho do arquivo.
-    - url (str): URL original.
-    Retorno:
-    - None
-    """
+def generate_sync_metadata(final_dest_path, url):
     try:
-        # Sempre gera metadata (regra unificada)
         show_message(f"Gerando arquivos auxiliares: {os.path.basename(final_dest_path)}", "d")
 
-        # SHA256
-        sha256_hash = hashlib.sha256()
-        with open(final_dest_path, "rb") as f:
-            for chunk in iter(lambda: f.read(65536), b""):
-                sha256_hash.update(chunk)
+        ext = os.path.splitext(final_dest_path)[1].lower()
 
-        filename_only = os.path.basename(final_dest_path)
-        sha_line = f"{sha256_hash.hexdigest()}  {filename_only}"
+        # =========================================================
+        # 1. SHA256 → SOMENTE PARA IMAGENS
+        # =========================================================
+        if ext in (".iso", ".img"):
+            sha256_hash = hashlib.sha256()
 
-        with open(final_dest_path + ".sha256", "w", encoding="utf-8") as f:
-            f.write(sha_line + "\n")
+            with open(final_dest_path, "rb") as f:
+                for chunk in iter(lambda: f.read(65536), b""):
+                    sha256_hash.update(chunk)
 
-        # .syncado sempre registra nome remoto real (controle de versão)
+            filename_only = os.path.basename(final_dest_path)
+            sha_line = f"{sha256_hash.hexdigest()}  {filename_only}"
+
+            with open(final_dest_path + ".sha256", "w", encoding="utf-8") as f:
+                f.write(sha_line + "\n")
+
+        # =========================================================
+        # 2. .syncado → SEMPRE
+        # =========================================================
         original_name = _resolve_effective_remote_name(url)
 
         if original_name:
@@ -1001,7 +1000,7 @@ def generate_sync_metadata(final_dest_path, url):
                 f.write(original_name)
 
     except Exception as e:
-        show_message(f"Erro ao gerar arquivos auxiliares: {e}", "w") 
+        show_message(f"Erro ao gerar arquivos auxiliares: {e}", "w")
 
 def normalize_tokens(s):
     """
@@ -1603,51 +1602,51 @@ def destination_cleanup(root, dry_run=False):
                 show_message(f"Erro ao acessar subdiretório {dest_full_path}: {e}", "e")
 
 def is_cached_file_valid(path, expected_hash):
-    """
-    Descrição: Valida arquivo de cache por hash ou fallback.
-    Parâmetros:
-    - path (str): Caminho do arquivo.
-    - expected_hash (str|None): Hash esperado.
-    Retorno:
-    - bool: True se válido.
-    """    
     if not os.path.exists(path):
         return False
 
+    ext = os.path.splitext(path)[1].lower()
     sha_file = path + ".sha256"
+    sync_file = path + ".syncado"
 
     # =========================================================
-    # 1. HASH EXTERNO (linha 2 do .syncdownload) → prioridade máxima
+    # 1. HASH EXTERNO (linha 2) → prioridade máxima
     # =========================================================
     if expected_hash:
         current_hash = hash_file(path, "Cache")
         return current_hash == expected_hash.lower()
 
     # =========================================================
-    # 2. VALIDAÇÃO POR .sha256 (INTEGRIDADE LOCAL)
+    # 2. ARQUIVOS DE IMAGEM → USAR SHA256 SE EXISTIR
     # =========================================================
-    if os.path.exists(sha_file):
+    if ext in (".iso", ".img") and os.path.exists(sha_file):
         try:
             with open(sha_file, "r", encoding="utf-8") as f:
-                line = f.readline().strip()
-                saved_hash = line.split()[0] if line else None
-
-            if not saved_hash:
-                return False
+                saved_hash = f.readline().split()[0]
 
             current_hash = hash_file(path, "Cache")
             return current_hash == saved_hash.lower()
-
-        except Exception:
+        except:
             return False
 
     # =========================================================
-    # 3. FALLBACK LEVE (APENAS SE NÃO HÁ METADATA)
+    # 3. .SYNCADO → VALIDAÇÃO DE EXISTÊNCIA / COERÊNCIA
     # =========================================================
-    try:
-        return os.path.getsize(path) > 0
-    except:
-        return False
+    if os.path.exists(sync_file):
+        try:
+            with open(sync_file, "r", encoding="utf-8") as f:
+                stored_name = f.read().strip()
+
+            current_name = os.path.basename(path)
+
+            return normalize_product_name(stored_name) == normalize_product_name(current_name)
+        except:
+            return False
+
+    # =========================================================
+    # 4. FALLBACK FINAL
+    # =========================================================
+    return os.path.getsize(path) > 0
 
 def download_file_with_progress(url, dst):
     """
@@ -1885,19 +1884,42 @@ def process_single_syncdownload(path, dry_run):
     origin_cached_path = os.path.join(os.path.dirname(path), filename)
 
     if os.path.exists(origin_cached_path):
-        if is_cached_file_valid(origin_cached_path, expected_hash):
-            show_message(f"Cache válido na origem: {filename}", "k")
 
-            if not dry_run:
-                if not os.path.exists(final_dest_path) or not is_cached_file_valid(final_dest_path, expected_hash):
-                    copy_file_with_progress(origin_cached_path, final_dest_path)
+        # 🔒 valida presença de metadata CORRETA por tipo
+        ext = os.path.splitext(origin_cached_path)[1].lower()
 
-                if os.path.exists(final_dest_path):
-                    purge_similar_installers_safe(dest_dir, filename)
+        has_sha = os.path.exists(origin_cached_path + ".sha256")
+        has_syncado = os.path.exists(origin_cached_path + ".syncado")
+
+        valid_metadata = False
+
+        if ext in (".iso", ".img"):
+            if has_sha:
+                valid_metadata = True
             else:
-                show_message(f"[DRY-RUN] Copiaria do cache: {filename}", "d")
+                show_message(f"Cache sem .sha256 → inválido: {filename}", "w")
+        else:
+            if has_syncado:
+                valid_metadata = True
+            else:
+                show_message(f"Cache sem .syncado → inválido: {filename}", "w")
 
-            return
+        if valid_metadata:
+            if is_cached_file_valid(origin_cached_path, expected_hash):
+                show_message(f"Cache válido na origem: {filename}", "k")
+
+                if not dry_run:
+                    if not os.path.exists(final_dest_path) or not is_cached_file_valid(final_dest_path, expected_hash):
+                        copy_file_with_progress(origin_cached_path, final_dest_path)
+
+                    if os.path.exists(final_dest_path):
+                        purge_similar_installers_safe(dest_dir, filename)
+                else:
+                    show_message(f"[DRY-RUN] Copiaria do cache: {filename}", "d")
+
+                return
+            else:
+                show_message(f"Cache corrompido na origem → ignorado: {filename}", "w")
 
     # === DECISÃO ===
     need_download = manage_sync_metadata(
@@ -1949,10 +1971,17 @@ def process_single_syncdownload(path, dry_run):
         final_dest_path=final_dest_path,
         url=resolved["url"]
     )
-
+    
     # === CACHE NA ORIGEM ===
     try:
-        shutil.copy2(final_dest_path, origin_cached_path)
+        copy_file_with_progress(final_dest_path, origin_cached_path)
+
+        # 🔒 GARANTE METADATA NA ORIGEM
+        generate_sync_metadata(
+            final_dest_path=origin_cached_path,
+            url=resolved["url"]
+        )
+
     except Exception as e:
         show_message(f"Inconsistência: falha ao atualizar cache origem: {e}", "e")
 
@@ -1980,13 +2009,9 @@ def process_syncdownloads(root, dry_run):
 def main():
     """
     Descrição: Orquestra execução do pipeline de sincronização.
-    Parâmetros:
-    - None
-    Retorno:
-    - None
-    """    
+    """
     global destination_path, failed_files, retent_loop_count
-    
+
     if len(sys.argv) < 2:
         show_message("Uso: python sync.py <caminho_destino> [dry-run]", "e")
         return
@@ -1994,21 +2019,21 @@ def main():
     destination_path = os.path.abspath(sys.argv[1])
     dry_run = "dry-run" in sys.argv
 
-    # 1. LIMPEZA PRIMEIRO
+    # 1. LIMPEZA
     show_message("Etapa 1: Iniciando limpeza do destino...", "info")
     if os.path.exists(destination_path):
         destination_cleanup(destination_path, dry_run)
 
-    # 2. CÓPIA DEPOIS
-    show_message("Etapa 2: Iniciando cópia da origem...", "info")
+    # 2. DOWNLOAD PRIMEIRO (corrige dupla escrita)
+    show_message("Etapa 2: Processando .syncdownload...", "info")
+    process_syncdownloads(ORIGIN_PATH, dry_run)
+
+    # 3. CÓPIA DEPOIS
+    show_message("Etapa 3: Iniciando cópia da origem...", "info")
     recursive_directory_iteration(ORIGIN_PATH, origin_to_destination, True, dry_run)
 
-    show_message("Etapa 3: Processando .syncdownload...", "info")
-    process_syncdownloads(ORIGIN_PATH, dry_run)    
-
-    # 3. RETENTATIVA POR ÚLTIMO
+    # 4. RETENTATIVA
     MAX_RETRIES = 2
-
     retry_round = 1
 
     while failed_files and retry_round <= MAX_RETRIES:
@@ -2026,7 +2051,7 @@ def main():
         for path in to_retry:
             retry_sync(lambda: origin_to_destination(path, False, dry_run))
 
-        # 🔁 REPROCESSA .syncdownload na retentativa
+        # 🔁 mantém consistência: download também pode falhar
         process_syncdownloads(ORIGIN_PATH, dry_run)
 
         retry_round += 1
@@ -2037,8 +2062,8 @@ def main():
             "e"
         )
 
-    # 4. OCULTAR ITENS DO ROOT (PÓS-PROCESSAMENTO)
-    show_message("Etapa 4: Aplicando ocultação no root...", "info")
+    # 5. PÓS-PROCESSAMENTO
+    show_message("Etapa 5: Aplicando ocultação no root...", "info")
     apply_root_hidden_attribute()
 
     show_message("Processo concluído.", "s")
