@@ -404,6 +404,43 @@ def hash_file(filename, label):
         show_message(f"Erro ao calcular hash de {filename}: {e}", "e")
         return None
 
+def copy_file_with_progress(src, dst):
+    """
+    Descrição: Cópia de arquivo com progressbar unificada.
+    Parâmetros:
+    - src (str): Caminho origem.
+    - dst (str): Caminho destino.
+    Retorno:
+    - None
+    """
+    file_size = os.path.getsize(src)
+
+    with open(src, 'rb') as src_f, open(dst, 'wb') as dst_f:
+        with Progress(
+            TextColumn("[bold cyan]→ Cópia: {task.fields[name]}"),
+            BarColumn(complete_style="green", finished_style="bright_green"),
+            TextColumn("[white]{task.percentage:>3.0f}%[/] "),
+            TransferSpeedColumn(),
+            TimeRemainingColumn(),
+            transient=True
+        ) as progress:
+
+            task = progress.add_task(
+                "",
+                total=file_size,
+                name=os.path.basename(src)
+            )
+
+            while chunk := src_f.read(65536):
+                dst_f.write(chunk)
+                progress.update(task, advance=len(chunk))
+
+    # preserva metadata (equivalente ao copy2)
+    try:
+        shutil.copystat(src, dst)
+    except Exception:
+        pass
+
 def _resolve_filename_from_url(url, fallback_path=None):
     """
     INTERNAL: uso exclusivo por resolve_final_filename
@@ -718,8 +755,8 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
     # --- Extrai extensão existente ---
     match_ext = re.search(r'\.([a-z0-9]{2,5})$', custom_name, re.IGNORECASE)
     existing_ext = match_ext.group(1).lower() if match_ext else None
-
-    # --- Determina extensão final ---
+    
+    # --- Determina extensão final (APENAS após URL final resolvida) ---
     ext = None
 
     if forced_extension:
@@ -727,8 +764,11 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
     elif existing_ext:
         ext = existing_ext
     else:
-        # fallback URL
-        remote_name = _resolve_effective_remote_name(url)
+        # 🔒 usa URL FINAL já resolvida (sem parsing intermediário)
+        final_url, _ = resolve_final_url(url)
+        effective = final_url or url
+
+        remote_name = os.path.basename(effective.split("?")[0])
 
         if remote_name and "." in remote_name:
             ext = remote_name.split(".")[-1].lower()
@@ -742,16 +782,22 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
     # --- VALIDAÇÃO CONTRA REGRA DE NEGÓCIO ---
     if ext not in SyncDonwloadExtensions:
         raise Exception(f"Extensão não permitida pela regra de negócio: .{ext}")
+    
+    # 🔒 REGRA: linha 3 sem extensão válida = nome canônico indivisível
+    if not existing_ext:
+        # 🔒 preserva casing original (linha 3)
+        base_name = custom_name.strip()
+        base_name = re.sub(r'\s+', '-', base_name)
+    else:
+        # separa extensão mantendo nome original
+        base_name = re.sub(r'\.[a-z0-9]{2,5}$', '', custom_name, flags=re.IGNORECASE)
 
-    # --- NORMALIZA NOME DO PRODUTO ---
-    base_name = normalize_product_name(custom_name)
+        if not base_name:
+            base_name = custom_name.strip()
 
-    if not base_name:
-        # fallback robusto: usa nome limpo preservando identidade
-        base_name = re.sub(r'\.[a-z0-9]{2,5}$', '', custom_name.lower())
-
-        # remove espaços e caracteres inválidos básicos
-        base_name = re.sub(r'[^a-z0-9]+', '.', base_name).strip('.')    
+        if not base_name:
+            base_name = re.sub(r'\.[a-z0-9]{2,5}$', '', custom_name.lower())
+            base_name = re.sub(r'[^a-z0-9]+', '.', base_name).strip('.') 
 
     # --- MONTA NOME FINAL ---
     if ext:
@@ -1031,13 +1077,16 @@ def is_same_product(a, b):
     if not a or not b:
         return False
 
+    # 🔒 Se ambos não possuem separador ".", tratar como canônico rígido
+    if "." not in a and "." not in b:
+        return a.lower() == b.lower()
+
     ta = set(a.split("."))
     tb = set(b.split("."))
 
     intersect = ta & tb
 
-    # pelo menos 1 token relevante em comum
-    return len(intersect) >= 1         
+    return len(intersect) >= 1  
 
 def has_resolvable_url(value):    
     """
@@ -1320,8 +1369,12 @@ def resolve_syncdownload_cached(sync_path):
         except Exception:
             pass
 
+    # 🔒 resolve URL final antes de qualquer decisão de nome/extensão
+    final_url, _ = resolve_final_url(url)
+    effective_url = final_url or url
+
     filename = resolve_final_filename(
-        url=url,    
+        url=effective_url,
         path=sync_path,
         custom_name=custom_filename,
         forced_extension=forced_extension
@@ -1566,6 +1619,49 @@ def is_cached_file_valid(path, expected_hash):
     except:
         return False
 
+def download_file_with_progress(url, dst):
+    """
+    Descrição: Download de arquivo com progressbar unificada.
+    Parâmetros:
+    - url (str): URL do arquivo.
+    - dst (str): Caminho destino.
+    Retorno:
+    - None
+    """
+
+    req = urllib.request.Request(url)
+
+    with http_open(req) as response:
+        total_size = response.headers.get("Content-Length")
+        total_size = int(total_size) if total_size else None
+
+        with open(dst, 'wb') as out_file:
+            with Progress(
+                TextColumn("[bold cyan]↓ Download: {task.fields[name]}"),
+                BarColumn(complete_style="green", finished_style="bright_green"),
+                TextColumn("[white]{task.percentage:>3.0f}%[/] "),
+                DownloadColumn(),
+                TransferSpeedColumn(),
+                TimeRemainingColumn(),
+                transient=True
+            ) as progress:
+
+                task = progress.add_task(
+                    "",
+                    total=total_size,
+                    name=os.path.basename(dst)
+                )
+
+                while True:
+                    chunk = response.read(65536)
+                    if not chunk:
+                        break
+
+                    out_file.write(chunk)
+
+                    if total_size:
+                        progress.update(task, advance=len(chunk))        
+
 def origin_to_destination(path, retry, dry_run):
     """
     Descrição: Copia arquivos da origem para destino.
@@ -1597,7 +1693,7 @@ def origin_to_destination(path, retry, dry_run):
             # Lógica simples de cópia (exemplo: se não existe ou hash diferente)
             if not os.path.exists(dest_path) or hash_file(path, "Origem") != hash_file(dest_path, "Destino"):
                 show_message(f"Copiando: {rel_path}", "+")
-                shutil.copy2(path, dest_path)
+                copy_file_with_progress(path, dest_path)
     
     except OSError as e:
         show_message(f"Erro no sistema de arquivos em {rel_path}: {e}", "e")
@@ -1764,7 +1860,7 @@ def process_single_syncdownload(path, dry_run):
 
             if not dry_run:
                 if not os.path.exists(final_dest_path) or not is_cached_file_valid(final_dest_path, expected_hash):
-                    shutil.copy2(origin_cached_path, final_dest_path)
+                    copy_file_with_progress(origin_cached_path, final_dest_path)
 
                 if os.path.exists(final_dest_path):
                     purge_similar_installers_safe(dest_dir, filename)
@@ -1794,8 +1890,7 @@ def process_single_syncdownload(path, dry_run):
 
         req = urllib.request.Request(final_url)
 
-        with http_open(req) as response, open(final_dest_path, 'wb') as out_file:
-            shutil.copyfileobj(response, out_file)
+        download_file_with_progress(final_url, final_dest_path)
 
         show_message(f"Download concluído: {filename}", "+")
 
