@@ -391,12 +391,7 @@ def hash_file(filename, label):
 
             hasher = hashlib.sha256() if use_sha256 else xxhash.xxh3_64()
             file_name = os.path.basename(filename)  
-            with Progress(
-                TextColumn("[bold lightmagenta]→ Hash {task.fields[label]}: {task.fields[name]}"),
-                BarColumn(complete_style="orange3", finished_style="gold1", pulse_style="lightgoldenrod1"),
-                TextColumn("[white]{task.percentage:>3.0f}%[/] "),
-                transient=True
-            ) as progress:
+            with create_progress("# Hash", "bold yellow") as progress:
                 task = progress.add_task("", total=file_size, label=label, name=file_name)
                 while chunk := file.read(65536):
                     hasher.update(chunk)
@@ -420,15 +415,7 @@ def copy_file_with_progress(src, dst):
     file_size = os.path.getsize(src)
 
     with open(src, 'rb') as src_f, open(dst, 'wb') as dst_f:
-        with Progress(
-            TextColumn("[bold cyan]→ Cópia: {task.fields[name]}"),
-            BarColumn(complete_style="green", finished_style="bright_green"),
-            TextColumn("[white]{task.percentage:>3.0f}%[/] "),
-            TransferSpeedColumn(),
-            TimeRemainingColumn(),
-            transient=True
-        ) as progress:
-
+        with create_progress("# Cópia", "green") as progress:
             task = progress.add_task(
                 "",
                 total=file_size,
@@ -1177,9 +1164,24 @@ def generate_sync_metadata(final_dest_path, url):
         if ext in (".iso", ".img"):
             sha256_hash = hashlib.sha256()
 
+            total_size = os.path.getsize(final_dest_path)
+
             with open(final_dest_path, "rb") as f:
-                for chunk in iter(lambda: f.read(65536), b""):
-                    sha256_hash.update(chunk)
+                with create_progress("# Hash", "bold yellow") as progress:
+
+                    task = progress.add_task(
+                        "",
+                        total=total_size,
+                        name=os.path.basename(final_dest_path)
+                    )
+
+                    while True:
+                        chunk = f.read(65536)
+                        if not chunk:
+                            break
+
+                        sha256_hash.update(chunk)
+                        progress.update(task, advance=len(chunk))
 
             filename_only = os.path.basename(final_dest_path)
             sha_line = f"{sha256_hash.hexdigest()}  {filename_only}"
@@ -1873,6 +1875,26 @@ def is_cached_file_valid(path, expected_hash):
     # =========================================================
     return os.path.getsize(path) > 0
 
+def create_progress(task_label, color="cyan"):
+    """
+    Cria barra de progresso padronizada para operações de I/O (download, hash, cópia).
+
+    Parâmetros:
+    - task_label (str): Prefixo visual da operação (ex: '↓ Download', '# Hash')
+
+    Retorno:
+    - Progress: Instância configurada
+    """
+    return Progress(
+        TextColumn(f"[bold {color}]{task_label}: {{task.fields[name]}}"),
+        BarColumn(complete_style=color, finished_style=f"bright_{color}"),
+        TextColumn("[white]{task.percentage:>3.0f}%[/] "),
+        DownloadColumn(),
+        TransferSpeedColumn(),
+        TimeRemainingColumn(),
+        transient=True
+    )    
+
 def download_file_with_progress(url, dst):
     """
     Descrição: Download de arquivo com progressbar unificada.
@@ -1890,16 +1912,7 @@ def download_file_with_progress(url, dst):
         total_size = int(total_size) if total_size else None
 
         with open(dst, 'wb') as out_file:
-            with Progress(
-                TextColumn("[bold cyan]↓ Download: {task.fields[name]}"),
-                BarColumn(complete_style="green", finished_style="bright_green"),
-                TextColumn("[white]{task.percentage:>3.0f}%[/] "),
-                DownloadColumn(),
-                TransferSpeedColumn(),
-                TimeRemainingColumn(),
-                transient=True
-            ) as progress:
-
+            with create_progress("# Hash", "cyan") as progress:
                 task = progress.add_task(
                     "",
                     total=total_size,
