@@ -811,9 +811,7 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
 
                     base_source = fallback_name
 
-            if base_source:
-                base = base_source.lower()
-
+            if base_source:                
                 # remove extensão
                 base = re.sub(r'\.[a-z0-9]{2,5}$', '', base)                
 
