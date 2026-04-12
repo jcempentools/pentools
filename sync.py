@@ -145,6 +145,11 @@ from rich.progress import (
 
 PROVIDERS = {}
 
+# --- [Parser DSL Resolver] ---
+
+__PARSER_CACHE = {}
+PARSER_CACHE_TTL = 60  # segundos
+
 # Registro seguro de providers (evita NameError)
 try:
     PROVIDERS["github.com"] = resolve_github
@@ -159,6 +164,10 @@ ID_EXECUCAO = ''.join(random.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_FILE = os.path.join(SCRIPT_DIR, "sync.log")
 MAX_LOG_SIZE = 5 * 1024 * 1024  # 5 MB
+
+# evita falso positivo em arquivos pequenos (boot, configs embutidos, etc.)
+MIN_SIZE_BYTES = 2 * 1024 * 1024  # 2MB
+
 SyncDonwloadExtensions = ["exe", "msi", "iso", "img"]
 
 _log_iniciado = False
@@ -235,12 +244,28 @@ NOISE_TOKENS = {
 }
 
 def resolve_provider(url):
+    """resolve_provider(url)
+    Descrição: Resolve a URL usando um provider registrado, se aplicável.
+    Parâmetros:
+    - url (str): URL a ser resolvida.
+    Retorno:
+    - str: URL resolvida ou original.
+    """    
     for domain, handler in PROVIDERS.items():
         if domain in url:
             return handler(url)
     return url
 
 def retry_sync(fn, attempts=3, delay=1):
+    """retry_sync(fn, attempts=3, delay=1)
+    Descrição: Executa função com retentativa em falhas transitórias.
+    Parâmetros:
+    - fn (callable): Função a executar.
+    - attempts (int): Número máximo de tentativas.
+    - delay (int): Delay entre tentativas (segundos).
+    Retorno:
+    - any: Resultado da função executada.
+    """    
     for i in range(attempts):
         try:
             return fn()
@@ -252,7 +277,17 @@ def retry_sync(fn, attempts=3, delay=1):
             raise
 
 def show_message(txt, tipo=None, cor="white", bold=True, inline=False):
-    """Exibe mensagem formatada no console e salva uma versão limpa no log"""
+    """show_message(txt, tipo=None, cor="white", bold=True, inline=False)
+    Descrição: Exibe mensagem formatada e registra log.
+    Parâmetros:
+    - txt (str): Texto da mensagem.
+    - tipo (str|None): Tipo/nível da mensagem.
+    - cor (str): Cor do texto.
+    - bold (bool): Aplica negrito.
+    - inline (bool): Atualização inline no terminal.
+    Retorno:
+    - None
+    """
     global _log_iniciado, retent_loop_count
 
     def limpar_formatacao_rich(mensagem):
@@ -317,9 +352,27 @@ def show_message(txt, tipo=None, cor="white", bold=True, inline=False):
         f_log.write(f"[{ID_EXECUCAO}] {timestamp} {mensagem_limpa}\n")
 
 def show_inline(txt, tipo, cor="white", bold=True):
+    """show_inline(txt, tipo, cor="white", bold=True)
+    Descrição: Exibe mensagem inline no console.
+    Parâmetros:
+    - txt (str): Texto da mensagem.
+    - tipo (str): Tipo da mensagem.
+    - cor (str): Cor do texto.
+    - bold (bool): Aplica negrito.
+    Retorno:
+    - None
+    """    
     show_message(txt, tipo, cor, bold, True)
 
 def hash_file(filename, label):
+    """
+    Descrição: Calcula hash (xxhash ou SHA256) de arquivo com cache.
+    Parâmetros:
+    - filename (str|Path): Caminho do arquivo.
+    - label (str): Rótulo para exibição.
+    Retorno:
+    - str|None: Hash calculado ou None em erro.
+    """    
     filename = str(filename) if isinstance(filename, Path) else filename
     if os.path.isdir(filename):
         return 1        
@@ -352,7 +405,15 @@ def hash_file(filename, label):
         return None
 
 def _resolve_filename_from_url(url, fallback_path=None):
-    """INTERNAL: uso exclusivo por resolve_final_filename"""
+    """
+    INTERNAL: uso exclusivo por resolve_final_filename
+    Descrição: Resolve nome de arquivo a partir de URL ou fallback.
+    Parâmetros:
+    - url (str): URL do recurso.
+    - fallback_path (str|None): Caminho alternativo.
+    Retorno:
+    - str|None: Nome do arquivo resolvido.
+    """
     filename = None
 
     # 1. URL
@@ -390,6 +451,12 @@ def http_open(url_or_req, timeout=15):
     - Aceita str (URL) ou Request
     - Não implementa retry (delegado para retry_sync)
     - Compatível com HEAD/GET via Request
+
+    Parâmetros:
+    - url_or_req (str|Request): URL ou objeto Request.
+    - timeout (int): Timeout em segundos.
+    Retorno:
+    - HTTPResponse: Objeto de resposta.
     """
 
     if isinstance(url_or_req, str):
@@ -401,11 +468,15 @@ def http_open(url_or_req, timeout=15):
 
 def _resolve_effective_remote_name(url):
     """
-    Resolve nome REAL do arquivo após redirects (SourceForge, etc).
+    Descrição: Resolve nome REAL do arquivo após redirects (SourceForge, etc).
     Prioriza:
     1. URL final após redirect
     2. Content-Disposition
     3. Fallback padrão
+    Parâmetros:
+    - url (str): URL original.
+    Retorno:
+    - str: Nome do arquivo remoto.
     """
     try:
         
@@ -440,11 +511,15 @@ def _resolve_effective_remote_name(url):
 
 def normalize_product_name(filename):
     """
-    Normalização avançada com:
+    Descrição: Normaliza nome de produto removendo ruídos e versões:
     - alias
     - remoção de vendor
     - remoção de versão
-    - cache
+    - cache    
+    Parâmetros:
+    - filename (str): Nome do arquivo.
+    Retorno:
+    - str|None: Nome normalizado.
     """
 
     if filename in _product_cache:
@@ -485,7 +560,12 @@ def normalize_product_name(filename):
 
 def similarity_score(a, b):
     """
-    Score simples baseado em tokens (0 a 1)
+    Descrição: Calcula similaridade simples entre dois nomes.
+    Parâmetros:
+    - a (str): Nome A.
+    - b (str): Nome B.
+    Retorno:
+    - float: Score de similaridade (0 a 1).
     """
     if not a or not b:
         return 0
@@ -503,6 +583,12 @@ def purge_similar_installers(dest_dir, target_name):
     - filtra apenas instaladores válidos
     - preserva o target
     - remove apenas excedentes
+    
+    Parâmetros:
+    - dest_dir (str): Diretório destino.
+    - target_name (str): Arquivo alvo.
+    Retorno:
+    - None    
     """
 
     target_base = normalize_product_name(target_name)
@@ -538,10 +624,7 @@ def purge_similar_installers(dest_dir, target_name):
                 }
 
                 if ext in ALLOWED_HASH_DEDUP_EXT:
-                    size = os.path.getsize(full)
-
-                    # evita falso positivo em arquivos pequenos (boot, configs embutidos, etc.)
-                    MIN_SIZE_BYTES = 2 * 1024 * 1024  # 2MB
+                    size = os.path.getsize(full)                    
 
                     if size >= MIN_SIZE_BYTES:
                         target_full = os.path.join(dest_dir, target_name)
@@ -595,24 +678,35 @@ def purge_similar_installers(dest_dir, target_name):
             except Exception as e:
                 show_message(f"Erro ao remover {f}: {e}", "e")
 
-# Força extenção compatível com mime-type, sem duplicação e,
-# trata bansename para manter apenas o nome do software com
-# a extensão real do mime type.
-#
-# Exemplo para mime type .msi:
-# 7zip.7zip =  7zip.7zip.msi
-# 7zip.7zip.msi =  7zip.7zip.msi
-# 7zip =  7zip.msi
-# 7zip.msi =  7zip.msi
-# Exemplo complexo:
-# Microsoft.PowerShell-7.6.0-rc.1-win-x64.msi = Powershell.msi
 def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
-    """
-    Resolve nome final com normalização de produto.
+    """    
+    Descrição: Resolve nome final normalizado com extensão válida, sem duplicação e com base no nome canônico do produto.
     Garante:
     - Nome estável (ex: powershell.msi)
     - Não duplicação de extensão
-    - Compatibilidade com purge
+    - Compatibilidade com purge    
+
+    Regras:
+    - Força extensão compatível (mime-type ou inferida)
+    - Evita duplicação de extensão
+    - Normaliza basename para manter apenas o nome do software
+    - Garante compatibilidade com purge e dedup
+
+    Exemplos:
+    - 7zip.7zip -> 7zip.7zip.msi
+    - 7zip.7zip.msi -> 7zip.7zip.msi
+    - 7zip -> 7zip.msi
+    - 7zip.msi -> 7zip.msi
+    - Microsoft.PowerShell-7.6.0-rc.1-win-x64.msi -> powershell.msi
+
+    Parâmetros:
+    - url (str): URL do recurso.
+    - path (str): Caminho do .syncdownload.
+    - custom_name (str|None): Nome customizado.
+    - forced_extension (str|None): Extensão forçada.
+
+    Retorno:
+    - str: Nome final do arquivo.   
     """
 
     # --- SEM linha 3 → comportamento original ---
@@ -666,6 +760,13 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
     return base_name    
 
 def parse_syncdownload(file_path):
+    """
+    Descrição: Lê e interpreta arquivo .syncdownload.
+    Parâmetros:
+    - file_path (str): Caminho do arquivo.
+    Retorno:
+    - tuple: (url, expected_hash, custom_name)
+    """    
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             raw_lines = [l.rstrip('\n') for l in f.readlines()]
@@ -717,6 +818,13 @@ def manage_sync_metadata(final_dest_path, url, expected_hash):
     2. .syncado existe?
     3. Nome confere?
     4. Hash confere?
+
+    Parâmetros:
+    - final_dest_path (str): Caminho destino.
+    - url (str): URL do recurso.
+    - expected_hash (str|None): Hash esperado.
+    Retorno:
+    - bool: True se precisa baixar.    
     """
 
     sha_file = final_dest_path + ".sha256"
@@ -813,15 +921,17 @@ def manage_sync_metadata(final_dest_path, url, expected_hash):
         show_message(f"Erro na validação: {e}", "w")
         return True
     
-def generate_sync_metadata(final_dest_path, url):
+def generate_sync_metadata(final_dest_path, url):    
     """
-    Gera arquivos auxiliares (.sha256 / .syncado)
-    Universal (independente da origem)
-    """    
-
+    Descrição: Gera arquivos .sha256 e .syncado - Universal (independente da origem)
+    Parâmetros:
+    - final_dest_path (str): Caminho do arquivo.
+    - url (str): URL original.
+    Retorno:
+    - None
+    """
     try:
         # Sempre gera metadata (regra unificada)
-
         show_message(f"Gerando arquivos auxiliares: {os.path.basename(final_dest_path)}", "d")
 
         # SHA256
@@ -847,20 +957,35 @@ def generate_sync_metadata(final_dest_path, url):
         show_message(f"Erro ao gerar arquivos auxiliares: {e}", "w") 
 
 def normalize_tokens(s):
-    """Quebra string em tokens normalizados"""
+    """
+    Descrição: Tokeniza string em partes normalizadas.
+    Parâmetros:
+    - s (str): String de entrada.
+    Retorno:
+    - list[str]: Lista de tokens.
+    """
     return [t for t in re.split(r'[^a-z0-9]+', s.lower()) if t] 
 
-# --- [Parser DSL Detection / URL Abstraction] ---
-
 def has_parser_expression(value):
-    """Detecta presença de expressão parser ${"..."}"""
+    """has_parser_expression(value)
+    Descrição: Detecta expressão DSL ${"..."}.
+    Parâmetros:
+    - value (str): Valor a verificar.
+    Retorno:
+    - bool: True se contém expressão.
+    """    
     if not value:
         return False
     return bool(re.search(r'\$\{\s*["\']https?://[^"\']+["\']\s*\}', value))
 
-
 def extract_parser_url(value):
-    """Extrai URL base de expressão parser"""
+    """
+    Descrição: Extrai URL de expressão DSL.
+    Parâmetros:
+    - value (str): Expressão.
+    Retorno:
+    - str|None: URL extraída.
+    """
     if not value:
         return None
     m = re.search(r'\$\{\s*["\'](https?://[^"\']+)["\']\s*\}', value)
@@ -868,8 +993,14 @@ def extract_parser_url(value):
 
 
 def resolve_final_url(url, timeout=10):
-    
-
+    """
+    Descrição: Resolve URL final após redirect via HEAD.
+    Parâmetros:
+    - url (str): URL original.
+    - timeout (int): Timeout.
+    Retorno:
+    - tuple: (url_final, headers)
+    """    
     try:
         req = urllib.request.Request(url, method="HEAD")
         with http_open(req, timeout=timeout) as response:
@@ -878,10 +1009,25 @@ def resolve_final_url(url, timeout=10):
         return None, {}
 
 def is_binary_content(headers):
+    """
+    Descrição: Verifica se conteúdo é binário.
+    Parâmetros:
+    - headers (dict): Headers HTTP.
+    Retorno:
+    - bool: True se binário.
+    """    
     ct = headers.get("Content-Type", "").lower()
     return "text/html" not in ct 
 
 def is_same_product(a, b):
+    """
+    Descrição: Verifica se dois nomes representam o mesmo produto.
+    Parâmetros:
+    - a (str): Nome A.
+    - b (str): Nome B.
+    Retorno:
+    - bool: True se equivalentes.
+    """    
     if not a or not b:
         return False
 
@@ -893,8 +1039,14 @@ def is_same_product(a, b):
     # pelo menos 1 token relevante em comum
     return len(intersect) >= 1         
 
-def has_resolvable_url(value):
-    """Detecta URL direta OU indireta (parser DSL)"""
+def has_resolvable_url(value):    
+    """
+    Descrição: Detecta URL direta OU indireta (parser DSL)
+    Parâmetros:
+    - value (str): Valor contendo URL.
+    Retorno:
+    - tuple: (tipo, url)
+    """    
     if not value:
         return False
 
@@ -904,10 +1056,12 @@ def has_resolvable_url(value):
     return bool(re.search(r'https?://', value)) 
 
 def resolve_url_source(value):
-    """
-    Resolve origem da URL:
-    - direta
-    - parser DSL
+    """    
+    Descrição: Identifica tipo e origem da URL, direta ou via parser DSL.
+    Parâmetros:
+    - value (str): Valor contendo URL.
+    Retorno:
+    - tuple: (tipo, url)
     """
 
     if not value:
@@ -922,13 +1076,14 @@ def resolve_url_source(value):
 
     return None, None   
 
-# --- [Parser DSL Resolver] ---
-
-__PARSER_CACHE = {}
-PARSER_CACHE_TTL = 60  # segundos
-
-
 def _parser_cache_get(url):
+    """_parser_cache_get(url)
+    Descrição: Recupera cache de parser com TTL.
+    Parâmetros:
+    - url (str): URL base.
+    Retorno:
+    - any: Dados em cache ou None.
+    """    
     entry = __PARSER_CACHE.get(url)
     if not entry:
         return None
@@ -939,14 +1094,25 @@ def _parser_cache_get(url):
 
     return data
 
-
 def _parser_cache_set(url, data):
+    """_parser_cache_set(url, data)
+    Descrição: Armazena dados no cache de parser.
+    Parâmetros:
+    - url (str): URL base.
+    - data (any): Dados a armazenar.
+    Retorno:
+    - None
+    """
     __PARSER_CACHE[url] = (time.time(), data)
 
 
 def fetch_and_parse(url):
     """
-    Fetch + parse automático (JSON/YAML fallback JSON only)
+    Descrição: Fetch + parse automático (JSON/YAML fallback JSON only)
+    Parâmetros:
+    - url (str): URL de origem.
+    Retorno:
+    - dict: Dados parseados    
     """
 
     cached = _parser_cache_get(url)
@@ -978,8 +1144,12 @@ def fetch_and_parse(url):
 
 def resolve_data_path(obj, path):
     """
-    Resolve caminho tipo:
-    users[0].name
+    Descrição: Resolve caminho aninhado em estrutura JSON.
+    Parâmetros:
+    - obj (dict): Objeto base.
+    - path (str): Caminho (ex: a.b[0].c).
+    Retorno:
+    - any: Valor resolvido.
     """
 
     current = obj
@@ -1010,6 +1180,10 @@ def resolve_parser_expression(expr):
     """
     Resolve expressão completa:
     ${"url"}.path.to.value
+    Parâmetros:
+    - expr (str): Expressão DSL.
+    Retorno:
+    - any: Resultado resolvido.    
     """
 
     url = extract_parser_url(expr)
@@ -1039,6 +1213,10 @@ def resolve_syncdownload_cached(sync_path):
     - Reutilização em cleanup + download
 
     NÃO realiza download
+    Parâmetros:
+    - sync_path (str): Caminho do arquivo.
+    Retorno:
+    - dict|None: Dados resolvidos.    
     """
 
     cache_entry = sync_resolve_cache.get(sync_path)
@@ -1162,6 +1340,13 @@ def resolve_syncdownload_cached(sync_path):
     return result    
 
 def resolve_download_context(sync_path):
+    """
+    Descrição: Monta contexto completo de download.
+    Parâmetros:
+    - sync_path (str): Caminho do .syncdownload.
+    Retorno:
+    - dict|None: Contexto com URL final e headers.
+    """    
     resolved = resolve_syncdownload_cached(sync_path)
 
     if not resolved:
@@ -1183,7 +1368,14 @@ def resolve_download_context(sync_path):
     }    
 
 def destination_cleanup(root, dry_run=False):
-    """Remove arquivos/pastas no destino que não existem na origem"""
+    """
+    Descrição: Remove itens no destino não presentes na origem.
+    Parâmetros:
+    - root (str): Diretório raiz.
+    - dry_run (bool): Simulação sem remover.
+    Retorno:
+    - None
+    """
     global _sync_global_map
     # --- CACHE LOCAL DE PROTEÇÃO POR DIRETÓRIO (.syncdownload) ---
     local_sync_files = []
@@ -1328,6 +1520,14 @@ def destination_cleanup(root, dry_run=False):
                 show_message(f"Erro ao acessar subdiretório {dest_full_path}: {e}", "e")
 
 def is_cached_file_valid(path, expected_hash):
+    """
+    Descrição: Valida arquivo de cache por hash ou fallback.
+    Parâmetros:
+    - path (str): Caminho do arquivo.
+    - expected_hash (str|None): Hash esperado.
+    Retorno:
+    - bool: True se válido.
+    """    
     if not os.path.exists(path):
         return False
 
@@ -1367,7 +1567,15 @@ def is_cached_file_valid(path, expected_hash):
         return False
 
 def origin_to_destination(path, retry, dry_run):
-    """Sincroniza da origem para o destino com tratamento de erro WinError 1392"""
+    """
+    Descrição: Copia arquivos da origem para destino.
+    Parâmetros:
+    - path (str): Caminho origem.
+    - retry (bool): Permite retentativa.
+    - dry_run (bool): Simulação.
+    Retorno:
+    - None
+    """
     global failed_files
     rel_path = os.path.relpath(path, ORIGIN_PATH)
     dest_path = os.path.join(destination_path, rel_path)
@@ -1398,7 +1606,16 @@ def origin_to_destination(path, retry, dry_run):
             failed_files.append(path)
 
 def recursive_directory_iteration(root, action, retry, dry_run):
-    """Percorre os diretórios recursivamente aplicando a ação"""
+    """
+    Descrição: Itera diretórios recursivamente aplicando ação.
+    Parâmetros:
+    - root (str): Diretório base.
+    - action (callable): Função a aplicar.
+    - retry (bool): Flag de retentativa.
+    - dry_run (bool): Simulação.
+    Retorno:
+    - None
+    """
     try:
         items = os.listdir(root)
     except OSError as e:
@@ -1415,7 +1632,13 @@ def recursive_directory_iteration(root, action, retry, dry_run):
             recursive_directory_iteration(full_path, action, retry, dry_run)
 
 def apply_root_hidden_attribute():
-    """Oculta arquivos/pastas no root do destino que existem na origem (exceto exceções)"""
+    """
+    Descrição: Aplica atributo oculto no root do destino (Windows).
+    Parâmetros:
+    - None
+    Retorno:
+    - None
+    """        
     try:
         origin_root_items = set(os.listdir(ORIGIN_PATH))
     except Exception as e:
@@ -1451,6 +1674,14 @@ def apply_root_hidden_attribute():
 
 
 def purge_similar_installers_safe(dest_dir, target_name):
+    """
+    Descrição: Remove versões antigas de forma segura.
+    Parâmetros:
+    - dest_dir (str): Diretório destino.
+    - target_name (str): Arquivo alvo.
+    Retorno:
+    - None
+    """    
     target_full = os.path.join(dest_dir, target_name)
 
     if not os.path.exists(target_full):
@@ -1501,6 +1732,14 @@ def purge_similar_installers_safe(dest_dir, target_name):
                 show_message(f"Erro ao remover {f}: {e}", "e")                
 
 def process_single_syncdownload(path, dry_run):
+    """
+    Descrição: Processa um único arquivo .syncdownload.
+    Parâmetros:
+    - path (str): Caminho do arquivo.
+    - dry_run (bool): Simulação.
+    Retorno:
+    - None
+    """    
     resolved = resolve_download_context(path)
     if not resolved:
         return
@@ -1593,6 +1832,14 @@ def process_single_syncdownload(path, dry_run):
         show_message(f"Inconsistência: falha ao atualizar cache origem: {e}", "e")
 
 def process_syncdownloads(root, dry_run):
+    """
+    Descrição: Processa todos .syncdownload recursivamente.
+    Parâmetros:
+    - root (str): Diretório base.
+    - dry_run (bool): Simulação.
+    Retorno:
+    - None
+    """    
     for dirpath, _, files in os.walk(root):
         for f in files:
             if not f.lower().endswith(".syncdownload"):
@@ -1606,6 +1853,13 @@ def process_syncdownloads(root, dry_run):
                 show_message(f"Erro no .syncdownload {sync_path}: {e}", "e")
 
 def main():
+    """
+    Descrição: Orquestra execução do pipeline de sincronização.
+    Parâmetros:
+    - None
+    Retorno:
+    - None
+    """    
     global destination_path, failed_files, retent_loop_count
     
     if len(sys.argv) < 2:
