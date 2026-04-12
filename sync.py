@@ -122,6 +122,7 @@ import sys
 import codecs
 import shutil
 import re
+import urllib.request
 import xxhash
 import hashlib
 from rich.console import Console
@@ -243,10 +244,12 @@ def retry_sync(fn, attempts=3, delay=1):
     for i in range(attempts):
         try:
             return fn()
-        except Exception as e:
+        except (TimeoutError, ConnectionError) as e:
             if i == attempts - 1:
                 raise
             time.sleep(delay)
+        except Exception:
+            raise
 
 def show_message(txt, tipo=None, cor="white", bold=True, inline=False):
     """Exibe mensagem formatada no console e salva uma versão limpa no log"""
@@ -359,9 +362,9 @@ def _resolve_filename_from_url(url, fallback_path=None):
 
     # 2. Header
     try:
-        import urllib.request
+        
         req = urllib.request.Request(url, method='HEAD')
-        with urllib.request.urlopen(req) as response:
+        with http_open(req) as response:
             content_disposition = response.headers.get('Content-Disposition')
             if content_disposition:
                 match = re.search(r'filename="?([^"]+)"?', content_disposition)
@@ -378,6 +381,24 @@ def _resolve_filename_from_url(url, fallback_path=None):
 
     return filename  
 
+def http_open(url_or_req, timeout=15):
+    """
+    Wrapper centralizado para acesso HTTP.
+
+    Garantias:
+    - Timeout SEMPRE aplicado
+    - Aceita str (URL) ou Request
+    - Não implementa retry (delegado para retry_sync)
+    - Compatível com HEAD/GET via Request
+    """
+
+    if isinstance(url_or_req, str):
+        req = urllib.request.Request(url_or_req)
+    else:
+        req = url_or_req
+
+    return urllib.request.urlopen(req, timeout=timeout)
+
 def _resolve_effective_remote_name(url):
     """
     Resolve nome REAL do arquivo após redirects (SourceForge, etc).
@@ -387,7 +408,7 @@ def _resolve_effective_remote_name(url):
     3. Fallback padrão
     """
     try:
-        import urllib.request
+        
 
         # 🔒 Resolve URL final (inclui parser + redirect)
         final_url, headers = resolve_final_url(url)
@@ -396,7 +417,7 @@ def _resolve_effective_remote_name(url):
 
         req = urllib.request.Request(effective_url, method="HEAD")
 
-        with urllib.request.urlopen(req) as response:
+        with http_open(req) as response:
             # 1. URL final (após redirect)
             final_url_resp = response.geturl()
             name = os.path.basename(final_url_resp.split("?")[0])
@@ -491,7 +512,7 @@ def purge_similar_installers(dest_dir, target_name):
 
     candidates = []
 
-    for f in os.listdir(dest_dir):
+    for f in sorted(os.listdir(dest_dir)):
         full = os.path.join(dest_dir, f)
 
         if not os.path.isfile(full):
@@ -552,18 +573,27 @@ def purge_similar_installers(dest_dir, target_name):
     if target_name not in candidates:
         show_message(f"Purga abortada: alvo não encontrado entre candidatos ({target_name})", "w")
         return
+    
+    # 🔒 mantém target + 1 fallback válido
+    keep = [target_name]
 
-    # 🔒 Mantém o target SEMPRE
-    to_remove = [f for f in candidates if f != target_name]
+    for f in candidates:
+        if f == target_name:
+            continue
 
-    for f in to_remove:
         full = os.path.join(dest_dir, f)
 
-        try:
-            os.remove(full)
-            show_message(f"Removido instalador antigo: {f}", "-", cor="yellow")
-        except Exception as e:
-            show_message(f"Erro ao remover {f}: {e}", "e")
+        if is_cached_file_valid(full, None):
+            keep.append(f)
+            break
+
+    for f in candidates:
+        if f not in keep:
+            try:
+                os.remove(os.path.join(dest_dir, f))
+                show_message(f"Removido excedente: {f}", "-", cor="yellow")
+            except Exception as e:
+                show_message(f"Erro ao remover {f}: {e}", "e")
 
 # Força extenção compatível com mime-type, sem duplicação e,
 # trata bansename para manter apenas o nome do software com
@@ -576,7 +606,7 @@ def purge_similar_installers(dest_dir, target_name):
 # 7zip.msi =  7zip.msi
 # Exemplo complexo:
 # Microsoft.PowerShell-7.6.0-rc.1-win-x64.msi = Powershell.msi
-def resolve_final_filename(url, path, custom_name=None, github_ext=None):
+def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
     """
     Resolve nome final com normalização de produto.
     Garante:
@@ -598,8 +628,8 @@ def resolve_final_filename(url, path, custom_name=None, github_ext=None):
     # --- Determina extensão final ---
     ext = None
 
-    if github_ext:
-        ext = github_ext.lower()
+    if forced_extension:
+        ext = forced_extension.lower()
     elif existing_ext:
         ext = existing_ext
     else:
@@ -660,14 +690,23 @@ def parse_syncdownload(file_path):
             show_message(f"Erro ao resolver parser DSL: {e}", "e")
             return None, None, None
 
-        # 🔒 GARANTIA: URL final deve ser limpa (sem expressão residual)
-        if url and "${" in url:
+        # 🔒 GARANTIA: URL final válida
+        if not url or not isinstance(url, str):
+            show_message(f"URL inválida no .syncdownload: {file_path}", "e")
+            return None, None, None
+
+        if "${" in url:
             show_message(f"URL inválida após parser: {url}", "e")
             return None, None, None
 
     except Exception as e:
         show_message(f"Erro ao ler .syncdownload {file_path}: {e}", "e")
         return None, None, None
+
+    expected_hash = raw_lines[1].strip() if len(raw_lines) > 1 and raw_lines[1].strip() else None
+    custom_name = raw_lines[2].strip() if len(raw_lines) > 2 and raw_lines[2].strip() else None
+
+    return url, expected_hash, custom_name        
 
 def manage_sync_metadata(final_dest_path, url, expected_hash):
     """
@@ -745,7 +784,8 @@ def manage_sync_metadata(final_dest_path, url, expected_hash):
             show_message("Sem .sha256 → fallback leve", "d")
 
             try:
-                return os.path.getsize(final_dest_path) == 0
+                show_message("Sem .sha256 → confiando apenas em .syncado", "d")
+                return False
             except:
                 return True
 
@@ -828,11 +868,11 @@ def extract_parser_url(value):
 
 
 def resolve_final_url(url, timeout=10):
-    import urllib.request
+    
 
     try:
         req = urllib.request.Request(url, method="HEAD")
-        with urllib.request.urlopen(req, timeout=timeout) as response:
+        with http_open(req, timeout=timeout) as response:
             return response.geturl(), response.headers
     except Exception:
         return None, {}
@@ -913,12 +953,12 @@ def fetch_and_parse(url):
     if cached is not None:
         return cached
 
-    import urllib.request
+    
     import json
 
     req = urllib.request.Request(url, headers={"User-Agent": "sync-engine"})
 
-    with urllib.request.urlopen(req) as response:
+    with http_open(req) as response:
         raw = response.read()
 
         content_type = response.headers.get("Content-Type", "").lower()
@@ -1030,11 +1070,11 @@ def resolve_syncdownload_cached(sync_path):
             spec = None
 
     # --- GitHub ---
-    github_ext = None
+    forced_extension = None
 
     if spec and "github.com" in url.lower() and not __IGNORAR_GITHUB:
         try:
-            import urllib.request
+            
             import json
 
             parts = [p.strip().lower() for p in spec.split(",") if p.strip()]
@@ -1047,7 +1087,7 @@ def resolve_syncdownload_cached(sync_path):
             for p in parts:
                 if p.startswith("."):
                     ext = p[1:]
-                    github_ext = ext
+                    forced_extension = ext
                 elif p in ("x86", "x64", "arm64", "amd64"):
                     arch = p
                 elif p.startswith("!"):
@@ -1061,7 +1101,7 @@ def resolve_syncdownload_cached(sync_path):
                     "api.github.com/repos"
                 ) + "/releases/latest"
 
-                with urllib.request.urlopen(api_url) as response:
+                with http_open(api_url) as response:
                     data = json.loads(response.read().decode())
 
                 assets = data.get("assets", [])
@@ -1102,23 +1142,18 @@ def resolve_syncdownload_cached(sync_path):
         except Exception:
             pass
 
-    # --- nome final ---
-    # 🔒 GARANTE URL FINAL REAL (redirects / CDN / parser)
-    final_url, _ = resolve_final_url(url)
-    effective_url = final_url or url
-
     filename = resolve_final_filename(
-        url=effective_url,
+        url=url,    
         path=sync_path,
         custom_name=custom_filename,
-        github_ext=github_ext
+        forced_extension=forced_extension
     )
 
     result = {
         "url": url,
         "filename": filename,
         "expected_hash": expected_hash,
-        "github_ext": github_ext,
+        "forced_extension": forced_extension,
         "custom_filename": custom_filename
     }
 
@@ -1336,6 +1371,7 @@ def origin_to_destination(path, retry, dry_run):
     global failed_files
     rel_path = os.path.relpath(path, ORIGIN_PATH)
     dest_path = os.path.join(destination_path, rel_path)
+    need_download = True
 
     try:
         if os.path.isdir(path):
@@ -1346,215 +1382,9 @@ def origin_to_destination(path, retry, dry_run):
         if not dry_run:
             os.makedirs(os.path.dirname(dest_path), exist_ok=True)
 
-            # --- TRATAMENTO PARA .syncdownload ---
+            # --- .syncdownload agora é tratado na Etapa 3 ---
             if path.lower().endswith(".syncdownload"):
-                show_message(f"Sincronização online: {os.path.splitext(os.path.basename(path))[0]}")
-
-                try:
-                    resolved = resolve_download_context(path)
-                    if not resolved:
-                        return
-
-                    # BUG: REGRA VIOLADA: verificação e validação de url não é
-                    #                atribuição de origin_to_destination                     
-                    url = resolved["url"]
-                    final_url = resolved.get("final_url")                    
-                    
-                    expected_hash = resolved["expected_hash"]                    
-
-                    custom_filename = None
-                    if resolved:
-                        custom_filename = resolved.get("custom_filename")                    
-
-                    # BUG: REGRA VIOLADA: o nome do motor (github) é indiferente
-                    #                não cabe a esta função validar/verificar
-                    #                se a extensão é valida
-                    github_ext = resolved["github_ext"]
-
-                    # Nome do arquivo (mesma lógica do cleanup)                    
-                    # PRESERVA nome vindo do GitHub (se existir)                    
-                    filename = resolved["filename"]
-
-                    dest_dir = os.path.dirname(dest_path)
-
-                    final_dest_path = os.path.join(dest_dir, filename)                    
-
-                    # =========================================================
-                    # CACHE NA ORIGEM (ANTES DA DECISÃO DE DOWNLOAD)
-                    # =========================================================
-
-                    origin_dir = os.path.dirname(path)
-                    origin_cached_path = os.path.join(origin_dir, filename)
-
-                    # verifica se já existe na origem e está válido
-                    if os.path.exists(origin_cached_path):
-                        origin_valid = is_cached_file_valid(
-                            origin_cached_path,
-                            expected_hash                            
-                        )
-
-                        if origin_valid:
-                            show_message(f"Cache válido na origem: {filename}", "k")
-
-                            # garante cópia para destino (forçado)
-                            try:
-                                os.makedirs(dest_dir, exist_ok=True)
-                                shutil.copy2(origin_cached_path, final_dest_path)
-
-                                # 🔒 Purge somente após garantir latest físico no destino
-                                if os.path.exists(final_dest_path):
-                                    purge_similar_installers(dest_dir, filename)
-                            except Exception as e:
-                                show_message(f"Erro ao copiar cache da origem: {e}", "e")
-
-                            return                    
-                    
-                    # Verifica necessidade de download (centralizado)
-                    need_download = manage_sync_metadata(
-                        final_dest_path=final_dest_path,
-                        url=resolved["url"],
-                        expected_hash=expected_hash,                        
-                        github_ext=github_ext
-                    )
-
-                    # log explícito de decisão ---
-                    if github_ext and need_download:
-                        show_message(f"GitHub: download necessário (arquivo ausente/desatualizado): {filename}", "i")                                
-
-                    if need_download:
-                        import urllib.request
-
-                        show_message(f"Baixando: {rel_path} -> {filename}", "+")
-
-                        # BUG: REGRA VIOLADA: possivel falha, porque insitimo 
-                        #                     em tratar final_url, não é objetivo desta função
-                        # --- RESOLUÇÃO CENTRALIZADA (HEAD antes do GET) ---
-                        final_url = resolved.get("final_url") or resolved["url"]                        
-
-
-                        # BUG: REGRA VIOLADA: possivel falha, porque insitimo 
-                        #                     em tratar final_url, não é objetivo desta função
-                        #                     # mover para função pertinente
-                        if not final_url:
-                            show_message(f"Falha ao resolver URL final: {url}", "e")
-                            return                                                
-
-                        # BUG: o que HTML detectado tem a ver com final_url?
-                        if not final_url:
-                            show_message(f"Falha ao resolver download real (HTML detectado): {url}", "e")
-                            return
-
-                        # --- DOWNLOAD REAL ---
-                        with urllib.request.urlopen(final_url) as response:
-                            total_size = int(response.headers.get('Content-Length', 0))
-                            chunk_size = 65536
-
-                            with Progress(
-                                TextColumn("[bold lightmagenta]→ Download: {task.fields[name]}"),
-                                BarColumn(),
-                                TaskProgressColumn(),
-                                DownloadColumn(),
-                                TransferSpeedColumn(),
-                                TimeRemainingColumn(),
-                                transient=True
-                            ) as progress:
-                                task = progress.add_task("", total=total_size, name=filename)
-
-                                with open(final_dest_path, 'wb') as out_file:
-                                    while True:
-                                        chunk = response.read(chunk_size)
-                                        if not chunk:
-                                            break
-                                        out_file.write(chunk)
-                                        progress.update(task, advance=len(chunk))                                                                                                                                                           
-
-                        # Validação
-                        # --- VALIDAÇÃO POR HASH EXTERNO (linha 2) ---
-                        valid_download = True
-
-                        if expected_hash:
-                            downloaded_hash = hash_file(final_dest_path, "Download")
-
-                            if downloaded_hash != expected_hash.lower():
-                                show_message(f"Hash inválido: {filename}", "e")
-                                valid_download = False
-                            else:
-                                show_message(f"Download validado: {filename}", "s")
-
-                        # --- VALIDAÇÃO LEVE (quando não há hash) ---
-                        if not expected_hash:
-                            try:
-                                file_size = os.path.getsize(final_dest_path)
-
-                                if file_size == 0:
-                                    raise Exception("arquivo vazio")
-
-                                if total_size > 0 and file_size != total_size:
-                                    raise Exception(f"tamanho divergente ({file_size} != {total_size})")
-
-                            except Exception as e:
-                                show_message(f"Falha no download: {filename} ({e})", "e")
-                                valid_download = False
-
-                        # --- PIPELINE FINAL ---
-                        if valid_download:
-                            if not dry_run:
-                                pass  # hook intencional (pipeline extensível)
-
-                            purge_similar_installers(dest_dir, filename)
-
-                            # Metadata SEMPRE após sucesso
-                            generate_sync_metadata(
-                                final_dest_path=final_dest_path,
-                                url=resolved["url"],
-                                # BUG: parâmetro ausente na função (provavelmente desnecessário)
-                                custom_filename=custom_filename,
-                                # BUG: VIOLA REGRAS: nome da motor é indiferente
-                                #                    parâmetro ausente na func'~ao
-                                github_ext=github_ext
-                            )
-                        else:
-                            # Remove arquivo inválido (fail-safe)
-                            try:
-                                if os.path.exists(final_dest_path):
-                                    os.remove(final_dest_path)
-                            except Exception:
-                                pass       
-
-                        # =========================================================
-                        # SALVA CACHE NA ORIGEM
-                        # =========================================================
-                        if valid_download and os.path.exists(final_dest_path):
-                            try:
-                                origin_dir = os.path.dirname(path)
-                                origin_cached_path = os.path.join(origin_dir, filename)
-
-                                os.makedirs(origin_dir, exist_ok=True)
-
-                                shutil.copy2(final_dest_path, origin_cached_path)
-
-                                # 🔒 Purge somente após garantir latest físico na origem
-                                if os.path.exists(origin_cached_path):
-                                    purge_similar_installers(origin_dir, filename)
-
-                                generate_sync_metadata(
-                                    final_dest_path=origin_cached_path,
-                                    url=resolved["url"],
-                                    # BUG: parâmetro ausente na função (provavelmente desnecessário)
-                                    custom_filename=custom_filename,
-                                    # BUG: VIOLA REGRAS: nome da motor é indiferente
-                                    #                    parâmetro ausente na func'~ao                                    
-                                    github_ext=github_ext
-                                )
-
-                            except Exception as e:
-                                show_message(f"Falha ao cachear na origem: {e}", "w")                                                                 
-
-                except Exception as e:
-                    show_message(f"Erro no .syncdownload {rel_path}: {e}", "e")
-
                 return
-            # --- FIM DO TRATAMENTO ---
 
             # Lógica simples de cópia (exemplo: se não existe ou hash diferente)
             if not os.path.exists(dest_path) or hash_file(path, "Origem") != hash_file(dest_path, "Destino"):
@@ -1615,16 +1445,165 @@ def apply_root_hidden_attribute():
                 if attrs != -1 and not (attrs & FILE_ATTRIBUTE_HIDDEN):
                     ctypes.windll.kernel32.SetFileAttributesW(dest_full_path, attrs | FILE_ATTRIBUTE_HIDDEN)
                     show_message(f"Ocultado: {item}", "d")
-            else:
-                # BUG: ESTE TRECHO  NUNCA É EXECUTADO - (FALHA NA IMPLEMENTAÇãO)
-                # Fallback Unix (renomeia com ponto)
-                if not os.path.basename(dest_full_path).startswith("."):
-                    hidden_path = os.path.join(destination_path, "." + item)
-                    os.rename(dest_full_path, hidden_path)
-                    show_message(f"Ocultado (unix): {item}", "d")
 
         except Exception as e:
             show_message(f"Falha ao ocultar {item}: {e}", "e")            
+
+
+def purge_similar_installers_safe(dest_dir, target_name):
+    target_full = os.path.join(dest_dir, target_name)
+
+    if not os.path.exists(target_full):
+        return
+
+    target_base = normalize_product_name(target_name)
+    if not target_base:
+        return
+
+    candidates = []
+
+    for f in sorted(os.listdir(dest_dir)):
+        full = os.path.join(dest_dir, f)
+
+        if not os.path.isfile(full):
+            continue
+
+        if f.lower().endswith((".sha256", ".syncado", ".syncdownload")):
+            continue
+
+        base = normalize_product_name(f)
+
+        if is_same_product(base, target_base):
+            candidates.append(f)
+
+    if len(candidates) <= 1:
+        return
+
+    # 🔒 mantém target + 1 fallback válido
+    keep = [target_name]
+
+    for f in candidates:
+        if f == target_name:
+            continue
+
+        full = os.path.join(dest_dir, f)
+
+        if is_cached_file_valid(full, None):
+            keep.append(f)
+            break
+
+    for f in candidates:
+        if f not in keep:
+            try:
+                os.remove(os.path.join(dest_dir, f))
+                show_message(f"Removido excedente: {f}", "-", cor="yellow")
+            except Exception as e:
+                show_message(f"Erro ao remover {f}: {e}", "e")                
+
+def process_single_syncdownload(path, dry_run):
+    resolved = resolve_download_context(path)
+    if not resolved:
+        return
+
+    final_url = resolved["final_url"]
+    expected_hash = resolved["expected_hash"]
+    filename = resolved["filename"]
+
+    dest_dir = os.path.join(
+        destination_path,
+        os.path.relpath(os.path.dirname(path), ORIGIN_PATH)
+    )
+
+    final_dest_path = os.path.join(dest_dir, filename)
+
+    # === CACHE NA ORIGEM ===
+    origin_cached_path = os.path.join(os.path.dirname(path), filename)
+
+    if os.path.exists(origin_cached_path):
+        if is_cached_file_valid(origin_cached_path, expected_hash):
+            show_message(f"Cache válido na origem: {filename}", "k")
+
+            if not dry_run:
+                if not os.path.exists(final_dest_path) or not is_cached_file_valid(final_dest_path, expected_hash):
+                    shutil.copy2(origin_cached_path, final_dest_path)
+
+                if os.path.exists(final_dest_path):
+                    purge_similar_installers_safe(dest_dir, filename)
+            else:
+                show_message(f"[DRY-RUN] Copiaria do cache: {filename}", "d")
+
+            return
+
+    # === DECISÃO ===
+    need_download = manage_sync_metadata(
+        final_dest_path=final_dest_path,
+        url=final_url or resolved["url"],
+        expected_hash=expected_hash
+    )
+
+    if not need_download:
+        return
+
+    # === DRY-RUN: NÃO EXECUTA DOWNLOAD ===
+    if dry_run:
+        show_message(f"[DRY-RUN] Baixaria: {filename} ({final_url})", "d")
+        return
+
+    # === DOWNLOAD (INLINE, SEM FUNÇÃO EXTERNA) ===
+    try:
+        os.makedirs(dest_dir, exist_ok=True)
+
+        req = urllib.request.Request(final_url)
+
+        with http_open(req) as response, open(final_dest_path, 'wb') as out_file:
+            shutil.copyfileobj(response, out_file)
+
+        show_message(f"Download concluído: {filename}", "+")
+
+    except Exception as e:
+        show_message(f"Erro no download: {filename} -> {e}", "e")
+
+        if path not in failed_files:
+            failed_files.append(path)
+
+        return
+
+    # === VALIDAÇÃO ===
+    if not is_cached_file_valid(final_dest_path, expected_hash):
+        show_message(f"Download inválido (hash/tamanho): {filename}", "w")
+        try:
+            os.remove(final_dest_path)
+        except:
+            pass
+        return
+
+    # === PURGE CONTROLADO ===
+    purge_similar_installers_safe(dest_dir, filename)
+
+    # === METADATA ===
+    generate_sync_metadata(
+        final_dest_path=final_dest_path,
+        url=resolved["url"]
+    )
+
+    # === CACHE NA ORIGEM ===
+    try:
+        shutil.copy2(final_dest_path, origin_cached_path)
+    except Exception as e:
+        show_message(f"Inconsistência: falha ao atualizar cache origem: {e}", "e")
+
+def process_syncdownloads(root, dry_run):
+    for dirpath, _, files in os.walk(root):
+        for f in files:
+            if not f.lower().endswith(".syncdownload"):
+                continue
+
+            sync_path = os.path.join(dirpath, f)
+
+            try:
+                process_single_syncdownload(sync_path, dry_run)
+            except Exception as e:
+                show_message(f"Erro no .syncdownload {sync_path}: {e}", "e")
 
 def main():
     global destination_path, failed_files, retent_loop_count
@@ -1645,6 +1624,9 @@ def main():
     show_message("Etapa 2: Iniciando cópia da origem...", "info")
     recursive_directory_iteration(ORIGIN_PATH, origin_to_destination, True, dry_run)
 
+    show_message("Etapa 3: Processando .syncdownload...", "info")
+    process_syncdownloads(ORIGIN_PATH, dry_run)    
+
     # 3. RETENTATIVA POR ÚLTIMO
     MAX_RETRIES = 2
 
@@ -1652,10 +1634,9 @@ def main():
 
     while failed_files and retry_round <= MAX_RETRIES:
         show_message(
-            f"Etapa 3: Retentativa {retry_round}/{MAX_RETRIES} ({len(failed_files)} arquivos)...",
+            f"Etapa 4: Retentativa {retry_round}/{MAX_RETRIES} ({len(failed_files)} arquivos)...",
             "warn"
         )
-
         retent_loop_count = retry_round
 
         to_retry = failed_files[:]
@@ -1665,6 +1646,9 @@ def main():
 
         for path in to_retry:
             retry_sync(lambda: origin_to_destination(path, False, dry_run))
+
+        # 🔁 REPROCESSA .syncdownload na retentativa
+        process_syncdownloads(ORIGIN_PATH, dry_run)
 
         retry_round += 1
 
