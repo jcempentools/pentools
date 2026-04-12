@@ -1,7 +1,7 @@
 #requires -version 5.1
 <#
 .SYNOPSIS
-    BIBLIOTECA PARSER DSL (PowerShell 7.6+).
+    BIBLIOTECA PARSER DSL (PowerShell 5.1 + 7.4+).
     Abstração universal de origens via resolução declarativa de URLs dinâmicas.
 
 .DESCRIPTION
@@ -98,7 +98,242 @@
     4. Orquestração modular com validação individual de cada micro-função.
     5. Finalização auditável com log rastreável e saída determinística.
 
+    [INVOCAÇãO]
+    O script sempre auto identifica se foi importado ou executado:
+    1. Se executado diretatamente executa função main repassando parametros 
+       recebidos por linha de comando ou variáveis de ambiente.,
+    2. Se importado expõe as funções públicas para serem chamadas por outros
+       scripts sem executar nada.        
+
 .COMPONENT
     Abstração de APIs, Resolutor de URLs e Parser de Dados Estruturados.
     Foco: Abstração Universal de Origens e Determinismo de Endpoints.
 #>
+
+
+# =========================
+# ESTADO GLOBAL (CACHE)
+# =========================
+if (-not $script:__PARSER_CACHE) {
+  $script:__PARSER_CACHE = @{}
+}
+
+# =========================
+# UTIL
+# =========================
+function _now {
+  return [DateTime]::UtcNow
+}
+
+function _emit {
+  param($msg, $type, $callback)
+  if ($callback -and $callback -is [ScriptBlock]) {
+    & $callback $msg $type
+  }
+}
+
+# =========================
+# DETECÇÃO DSL
+# =========================
+function has_parser_expression {
+  param([string]$source)
+  if (-not $source) { return $false }
+  return ($source -match '\$\{\s*["''].*?["'']\s*\}')
+}
+
+# =========================
+# EXTRAÇÃO DSL
+# =========================
+function _extract_dsl {
+  param([string]$source)
+
+  if ($source -notmatch '\$\{\s*(["''])(.*?)\1\s*\}(.*)') {
+    return $null
+  }
+
+  return @{
+    url  = $matches[2]
+    path = $matches[3]
+  }
+}
+
+# =========================
+# CACHE
+# =========================
+function _cache_get {
+  param($key)
+
+  if (-not $script:__PARSER_CACHE.ContainsKey($key)) {
+    return $null
+  }
+
+  $entry = $script:__PARSER_CACHE[$key]
+
+  if ((_now) -gt $entry.expire) {
+    $script:__PARSER_CACHE.Remove($key)
+    return $null
+  }
+
+  return $entry.value
+}
+
+function _cache_set {
+  param($key, $value)
+
+  $script:__PARSER_CACHE[$key] = @{
+    value  = $value
+    expire = (_now).AddSeconds(60)
+  }
+}
+
+# =========================
+# FETCH (MULTI-ESTRATÉGIA)
+# =========================
+function _fetch_raw {
+  param(
+    [string]$url,
+    [ScriptBlock]$callback
+  )
+
+  $methods = @(
+    { Invoke-RestMethod -Uri $url -Method GET -TimeoutSec 15 -ErrorAction Stop },
+    { Invoke-WebRequest -Uri $url -Method GET -TimeoutSec 15 -UseBasicParsing -ErrorAction Stop | Select-Object -ExpandProperty Content },
+    { 
+      $wc = New-Object System.Net.WebClient
+      $wc.DownloadString($url)
+    }
+  )
+
+  foreach ($method in $methods) {
+    for ($i = 0; $i -lt 3; $i++) {
+      try {
+        return & $method
+      }
+      catch {
+        _emit "fetch retry [$i] $url" "w" $callback
+        Start-Sleep -Milliseconds (200 * ($i + 1))
+      }
+    }
+  }
+
+  _emit "fetch failed $url" "e" $callback
+  return $null
+}
+
+# =========================
+# PARSE (JSON/XML/YAML)
+# =========================
+function _parse_content {
+  param(
+    $raw,
+    [ScriptBlock]$callback
+  )
+
+  if ($null -eq $raw) { return $null }
+
+  # já objeto (Invoke-RestMethod)
+  if ($raw -isnot [string]) {
+    return $raw
+  }
+
+  # JSON
+  try {
+    return $raw | ConvertFrom-Json -ErrorAction Stop
+  }
+  catch {}
+
+  # XML
+  try {
+    return [xml]$raw
+  }
+  catch {}
+
+  # YAML (se disponível)
+  if (Get-Command ConvertFrom-Yaml -ErrorAction SilentlyContinue) {
+    try {
+      return $raw | ConvertFrom-Yaml
+    }
+    catch {}
+  }
+
+  _emit "parse failed" "w" $callback
+  return $null
+}
+
+# =========================
+# NAVEGAÇÃO
+# =========================
+function _navigate {
+  param(
+    $obj,
+    [string]$path,
+    [ScriptBlock]$callback
+  )
+
+  if (-not $path) { return $obj }
+
+  $current = $obj
+
+  $tokens = ($path -replace '^\.', '') -split '\.'
+
+  foreach ($token in $tokens) {
+    if (-not $current) { return $null }
+
+    if ($token -match '(.+?)\[(\d+)\]') {
+      $name = $matches[1]
+      $idx = [int]$matches[2]
+
+      $current = $current.$name
+      if ($current -is [System.Collections.IEnumerable]) {
+        $current = @($current)[$idx]
+      }
+      else {
+        return $null
+      }
+    }
+    else {
+      $current = $current.$token
+    }
+  }
+
+  return $current
+}
+
+# =========================
+# RESOLVER DSL
+# =========================
+function resolve_parser_expression {
+  param(
+    [string]$source,
+    [ScriptBlock]$callback
+  )
+
+  if (-not (has_parser_expression $source)) {
+    return $source
+  }
+
+  $dsl = _extract_dsl $source
+  if (-not $dsl) { return $null }
+
+  $key = "$($dsl.url)|$($dsl.path)"
+
+  $cached = _cache_get $key
+  if ($cached) {
+    return [string]$cached
+  }
+
+  $raw = _fetch_raw -url $dsl.url -callback $callback
+  if (-not $raw) { return $null }
+
+  $parsed = _parse_content -raw $raw -callback $callback
+  if (-not $parsed) { return $null }
+
+  $value = _navigate -obj $parsed -path $dsl.path -callback $callback
+  if ($null -eq $value) { return $null }
+
+  $value = [string]$value
+
+  _cache_set $key $value
+
+  return $value
+}
