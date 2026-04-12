@@ -1,78 +1,122 @@
-# ==============================================================================
-# SYNC ENGINE — CONTRATO OPERACIONAL E DIRETRIZES
-# ==============================================================================
-#
-# OBJETIVO
-# - Sincronizar origem → destino com suporte a cópia local e downloads declarativos
-# - Detectar releases remotos, atualizar automaticamente e garantir integridade
-# - Manter destino limpo, determinístico, idempotente e resiliente
-#
-# FAIL-SAFE / RESILIÊNCIA / AUTO-RECUPERAÇÃO
-# - Execução idempotente e determinística
-# - Nunca remover dados sem validação lógica
-# - Download apenas quando necessário
-# - Validação pós-download (hash/tamanho)
-# - Retry automático para falhas transitórias
-# - Metadata persistente (.sha256 / .syncado) para recuperação de estado
-# - Abort seguro em inconsistências
-# - Execução ordenada e validada por etapas
-#
-# PIPELINE OBRIGATÓRIO
-# 1. Limpeza controlada do destino
-# 2. Sincronização origem → destino
-# 3. Processamento .syncdownload (downloads)
-# 4. Retentativa de falhas
-# 5. Pós-processamento (atributos)
-#
-# REGRAS DE NEGÓCIO
-# - .syncdownload define downloads declarativos
-# - Normalização de nomes para deduplicação
-# - Preservar apenas versão válida mais recente
-# - Remover instaladores redundantes do mesmo produto
-# - Ignorar paths conforme regex configurável
-#
-# ABSTRAÇÃO DE ORIGENS (OBRIGATÓRIO)
-# - Diferentes provedores devem expor interface lógica equivalente
-# - Mesma lógica de decisão, validação e metadata
-# - Preferir APIs oficiais sempre
-# - Evitar parsing HTML/XML heurístico
-#
-# GUI / UX (REQUISITO)
-# - Preservar progressbar inline (rich.progress)
-# - Atualização em linha (sem flooding)
-# - Feedback visual para hash, download, retry e cópia
-#
-# ESTILO DE IMPLEMENTAÇÃO (OBRIGATÓRIO)
-# - Funções pequenas, específicas e reutilizáveis (microfunções com bom senso)
-# - NÃO duplicar lógica em nenhuma parte do código
-# - Qualquer regra reutilizável deve existir em uma única função central
-# - Exemplos obrigatórios de centralização:
-#   • normalização de nomes de aplicativos
-#   • decisão de versão mais recente
-#   • resolução de nome final de arquivo
-#   • validação de integridade
-#   • lógica de download
-# - Nomeação consistente e descritiva
-# - Evitar side-effects implícitos
-# - Evitar hardcode desnecessário
-# - Centralizar lógica crítica (download, execução, validação, decisão)
-# - Logs humanos + machine-readable
-# - Código autoexplicativo e baixo acoplamento
-#
-# DIRETRIZES TÉCNICAS
-# - Hash rápido para comparação + SHA256 para integridade
-# - Cache em memória para performance
-# - Metadata persistente para decisão incremental
-# - Logging rotativo
-# - Retry controlado e execução incremental
-#
-# RESTRIÇÕES
-# - Não duplicar lógica (qualquer domínio)
-# - Não usar parsing HTML se API existir
-# - Não remover arquivos sem validação
-# - Não alterar UX da progressbar sem decisão explícita
-# - Não quebrar compatibilidade de metadata
-# ==============================================================================
+"""
+SYNC ENGINE — Contrato Operacional
+
+OBJETIVO
+========
+Sincronizar origem→destino (cópia local + downloads .syncdownload). Detectar
+releases remotos e atualizar auto. Garantir integridade, determinismo,
+idempotência. Origem = cache persistente (não fonte de versão, exceto hash
+fixo).
+
+PIPELINE (ordem imutável)
+=========================
+1. Limpeza controlada do destino
+2. Cópia origem→destino
+3. Processamento .syncdownload (download + cache na origem)
+4. Retentativa (mesma ordem, síncrono)
+5. Pós-processamento (atributos)
+
+PRINCÍPIOS GLOBAIS
+==================
+- Idempotente, determinístico, síncrono, ordenado
+- Nunca remover sem validação lógica
+- Retry auto p/ falhas transitórias; abort seguro p/ inconsistências
+- Logs humano + machine-readable
+- Metadata persistente (.sha256 / .syncado)
+- Decisão incremental: cache + validação
+- Ignorar paths por regex configurável
+
+REGRAS COMPARTILHADAS
+=====================
+- Normalização de nomes p/ dedup (tolerante a variações reais)
+- Nome do software estável; filename pode variar
+- Preservar apenas versão válida + recente
+- Dedup: nome canônico (primário) | hash (fallback)
+- Sem purge agressivo só por nome
+- Coerência obrigatória origem↔destino
+
+ETAPA 1 — LIMPEZA (destino + cache)
+===================================
+Remover só itens inexistentes na origem. Respeitar .syncdownload. Proteger
+arquivos válidos por: existência, metadata válida, similaridade. Purge atua
+no destino E cache, preserva versão final, usa heurística segura (nome +
+fallback hash). Nunca remover metadata de arquivo existente.
+
+ETAPA 2 — CÓPIA (origem→destino)
+================================
+Copiar quando: não existe OU hash diverge. Sem sobrescrita desnecessária.
+Determinística. Respeitar dedup. Não afetar arquivos de .syncdownload.
+
+ETAPA 3 — .SYNCDOWNLOAD
+=======================
+Formato: linha1 = URL/DSL | linha2 = SHA256 fixo (opc) | linha3 = nome custom (opc)
+
+Regra de versão:
+- COM hash na linha2 → versão FIXA (não consultar latest)
+- SEM hash → resolver latest online
+
+Fluxo: resolver URL → nome final → verificar cache → decidir via metadata
+→ download se necessário → validar (hash/tamanho) → purge → gerar metadata
+→ persistir cache.
+
+Cache: reutilizar downloads válidos, evitar re-download, manter só versões
+válidas (sem histórico desnecessário).
+
+Metadata:
+- .syncado → controle de versão (nome remoto real ou referência)
+- .sha256 → integridade, formato "<hash>  <filename>" (2 espaços),
+  compatível c/ sha256sum. Uso EXCLUSIVO: validação local.
+  NÃO participa da decisão de versão.
+
+Hash: NÃO define atualização de versão (exceto se fixo no .syncdownload).
+Usado p/ validação pós-download, validação de cache, dedup fallback.
+
+ETAPA 4 — RETENTATIVA
+=====================
+Retry controlado, síncrono, determinístico. Mesma ordem. Sem paralelismo.
+Só itens falhos. Limite explícito.
+
+ETAPA 5 — PÓS-PROCESSAMENTO
+===========================
+Aplicar atributos (ex: ocultação). Sem alterar lógica de sync ou
+integridade/metadata (fóco exFat/pendrive).
+
+ABSTRAÇÃO DE ORIGENS
+====================
+Interface lógica equivalente p/ todos providers (GitHub, GitLab, SF, etc.).
+Extensível. Mesma lógica de decisão, validação, metadata. Preferir APIs
+oficiais. Evitar parsing HTML/XML heurístico.
+
+DIRETRIZES TÉCNICAS
+===================
+- HEAD (metadata) e GET (download) separados
+- Hash rápido (xxhash) + SHA256 (integridade)
+- Cache: memória + persistente na origem
+- Metadata não bloqueia atualização de versão
+- Timeout de rede obrigatório; logging rotativo
+
+GUI/UX
+======
+Preservar progressbar inline (rich.progress). Atualização em linha sem
+flooding. Feedback visual p/ hash, download, retry, cópia.
+
+ESTILO DE IMPLEMENTAÇÃO
+=======================
+Funções pequenas, especialistas, reutilizáveis. NÃO duplicar lógica.
+Centralização obrigatória de: normalização, decisão de versão, nome final,
+validação, download. Nomeação consistente. Evitar side-effects e hardcode.
+Baixo acoplamento.
+
+RESTRIÇÕES
+==========
+- Não duplicar lógica
+- Não usar parsing HTML se houver API
+- Não remover arquivos sem validação
+- Não fazer purge agressivo só por nome
+- Não quebrar coerência origem↔destino
+- Não alterar UX da progressbar sem decisão explícita
+- Não quebrar compatibilidade de metadata
+"""
 import os
 import sys
 import codecs
@@ -97,6 +141,10 @@ from rich.progress import (
     TransferSpeedColumn,
     TaskProgressColumn
 )
+
+PROVIDERS = {
+    "github.com": resolve_github
+}
 
 __IGNORAR_GITHUB = False
 
@@ -176,6 +224,21 @@ NOISE_TOKENS = {
     "rc", "beta", "alpha",
     "msi", "exe", "zip"
 }
+
+def resolve_provider(url):
+    for domain, handler in PROVIDERS.items():
+        if domain in url:
+            return handler(url)
+    return url
+
+def retry_sync(fn, attempts=3, delay=1):
+    for i in range(attempts):
+        try:
+            return fn()
+        except Exception as e:
+            if i == attempts - 1:
+                raise
+            time.sleep(delay)
 
 def show_message(txt, tipo=None, cor="white", bold=True, inline=False):
     """Exibe mensagem formatada no console e salva uma versão limpa no log"""
@@ -450,7 +513,7 @@ def purge_similar_installers(dest_dir, target_name):
 
         base = normalize_product_name(f)
 
-        same_product = (base == target_base)
+        same_product = is_same_product(base, target_base)
 
         # --- fallback controlado por hash ---
         if not same_product:
@@ -467,7 +530,7 @@ def purge_similar_installers(dest_dir, target_name):
                     size = os.path.getsize(full)
 
                     # evita falso positivo em arquivos pequenos (boot, configs embutidos, etc.)
-                    MIN_SIZE_BYTES = 10 * 1024 * 1  # 10MB
+                    MIN_SIZE_BYTES = 2 * 1024 * 1024  # 2MB
 
                     if size >= MIN_SIZE_BYTES:
                         target_full = os.path.join(dest_dir, target_name)
@@ -670,8 +733,12 @@ def manage_sync_metadata(final_dest_path, url, expected_hash, github_ext):
         # 5. VALIDAÇÃO DE HASH LOCAL (.sha256)
         # =====================================================
         if not os.path.exists(sha_file):
-            show_message("Sem .sha256 → download necessário", "d")
-            return True
+            show_message("Sem .sha256 → fallback leve", "d")
+
+            try:
+                return os.path.getsize(final_dest_path) == 0
+            except:
+                return True
 
         with open(sha_file, "r", encoding="utf-8") as f:
             line = f.readline().strip()
@@ -750,6 +817,44 @@ def extract_parser_url(value):
     m = re.search(r'\$\{\s*["\'](https?://[^"\']+)["\']\s*\}', value)
     return m.group(1) if m else None
 
+
+def resolve_final_url(url, timeout=10):
+    import urllib.request
+
+    try:
+        req = urllib.request.Request(url, method="HEAD")
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            return response.geturl(), response.headers
+    except Exception:
+        return None, {}
+
+def is_binary_content(headers):
+    ct = headers.get("Content-Type", "").lower()
+    return "text/html" not in ct 
+
+def is_same_product(a, b):
+    if not a or not b:
+        return False
+
+    ta = set(a.split("."))
+    tb = set(b.split("."))
+
+    intersect = ta & tb
+
+    # pelo menos 1 token relevante em comum
+    return len(intersect) >= 1   
+
+def is_same_product(a, b):
+    if not a or not b:
+        return False
+
+    ta = set(a.split("."))
+    tb = set(b.split("."))
+
+    intersect = ta & tb
+
+    # pelo menos 1 token relevante em comum
+    return len(intersect) >= 1            
 
 def has_resolvable_url(value):
     """Detecta URL direta OU indireta (parser DSL)"""
@@ -899,8 +1004,14 @@ def resolve_syncdownload_cached(sync_path):
     NÃO realiza download
     """
 
-    if sync_path in sync_resolve_cache:
-        return sync_resolve_cache[sync_path]
+    cache_entry = sync_resolve_cache.get(sync_path)
+
+    if cache_entry:
+        cached_mtime = cache_entry.get("_mtime")
+        current_mtime = os.path.getmtime(sync_path)
+
+        if cached_mtime == current_mtime:
+            return cache_entry
 
     url, expected_hash, custom_filename = parse_syncdownload(sync_path)
 
@@ -1006,11 +1117,27 @@ def resolve_syncdownload_cached(sync_path):
         "url": url,
         "filename": filename,
         "expected_hash": expected_hash,
-        "github_ext": github_ext
+        "github_ext": github_ext,
+        "custom_filename": custom_filename
     }
 
+    result["_mtime"] = os.path.getmtime(sync_path)
     sync_resolve_cache[sync_path] = result
     return result    
+
+def resolve_download_context(sync_path):
+    resolved = resolve_syncdownload_cached(sync_path)
+
+    if not resolved:
+        return None
+
+    final_url, headers = resolve_final_url(resolved["url"])
+
+    return {
+        **resolved,
+        "final_url": final_url,
+        "headers": headers,
+    }    
 
 def destination_cleanup(root, dry_run=False):
     """Remove arquivos/pastas no destino que não existem na origem"""
@@ -1027,19 +1154,31 @@ def destination_cleanup(root, dry_run=False):
         
         # protege arquivos auxiliares de sync vinculados a arquivo existente
         if dest_full_path.lower().endswith((".sha256", ".syncado")):
-            show_message(f"Remoção protegida: {item}", "D")
+            origin_equivalent_sync = origin_equivalent + ".syncdownload"
+
+            # 🔒 1. Proteção via .syncdownload (PRIORITÁRIO)
+            if os.path.exists(origin_equivalent_sync):
+                try:
+                    resolved = resolve_syncdownload_cached(origin_equivalent_sync)
+
+                    if resolved:
+                        expected_name = resolved.get("filename")
+                        expected_full = os.path.join(os.path.dirname(dest_full_path), expected_name)
+
+                        if os.path.exists(expected_full):
+                            show_message(f"Remoção protegida (.syncdownload válido): {item}", "D")
+                            continue
+                except Exception:
+                    pass
+
+            # 🔒 2. Fallback: base file
             base_file = re.sub(r'\.(sha256|syncado)$', '', dest_full_path, flags=re.IGNORECASE)
 
-            # mantém se o arquivo principal existir
             if os.path.exists(base_file):
+                show_message(f"Remoção protegida (metadata válida): {item}", "D")
                 continue
 
-            # fallback: tenta validar via .syncdownload correspondente
-            origin_equivalent_sync = origin_equivalent + ".syncdownload"
-            if os.path.exists(origin_equivalent_sync):
-                continue
-
-            # caso contrário, pode remover (metadata órfã)                   
+            # metadata órfã → remover permitido                 
 
         if re.search(IGNORED_PATHS, dest_full_path, re.IGNORECASE):
             show_message(f"Remoção ignorada [regex]: {dest_full_path}", "W")
@@ -1060,8 +1199,11 @@ def destination_cleanup(root, dry_run=False):
                     expected_name = resolved.get("filename")
 
                     # Se o nome bate com o arquivo atual, NÃO remove
-                    if expected_name and os.path.basename(dest_full_path) == expected_name:
-                        show_message(f"Remoção protegida .syncdownload: {item}", "D") 
+                    expected_base = normalize_product_name(expected_name)
+                    current_base = normalize_product_name(os.path.basename(dest_full_path))
+
+                    if is_same_product(expected_base, current_base):
+                        show_message(f"Protegido por similaridade: {item}", "D")
                         continue
                 except Exception:
                     pass
@@ -1083,6 +1225,20 @@ def destination_cleanup(root, dry_run=False):
                 destination_cleanup(dest_full_path, dry_run)
             except Exception as e:
                 show_message(f"Erro ao acessar subdiretório {dest_full_path}: {e}", "e")
+
+def is_cached_file_valid(path, expected_hash, url):
+    if not os.path.exists(path):
+        return False
+
+    if expected_hash:
+        current_hash = hash_file(path, "Cache")
+        return current_hash == expected_hash.lower()
+
+    # fallback leve
+    try:
+        return os.path.getsize(path) > 0
+    except:
+        return False
 
 def origin_to_destination(path, retry, dry_run):
     """Sincroniza da origem para o destino com tratamento de erro WinError 1392"""
@@ -1110,9 +1266,13 @@ def origin_to_destination(path, retry, dry_run):
                         return
 
                     url = resolved["url"]
-                    expected_hash = resolved["expected_hash"]
-                    custom_filename = None  # já incorporado no filename final
-                    github_ext = resolved["github_ext"]
+                    expected_hash = resolved["expected_hash"]                    
+
+                    custom_filename = None
+                    if resolved:
+                        custom_filename = resolved.get("custom_filename")                    
+
+                    github_ext = resolved["github_ext"]                        
 
                     # --- NORMALIZAÇÃO UNIVERSAL spec | url ---
                     spec = None
@@ -1134,125 +1294,7 @@ def origin_to_destination(path, retry, dry_run):
                             spec = None                    
 
                     if not url:
-                        return                  
-                                                            
-                    github_ext = None                    
-
-                    github_match = None
-
-                    if spec and "github.com" in url.lower():
-                        github_match = True
-
-                    if github_match and not __IGNORAR_GITHUB:
-                        try:
-                            raw_spec = spec
-                            repo_url = url.rstrip('/')
-
-                            github_ext = None 
-
-                            # --- PARSE DOS PARÂMETROS ---
-                            parts = [p.strip().lower() for p in raw_spec.split(",") if p.strip()]
-
-                            ext = None
-                            arch = None
-                            include_filters = []
-                            exclude_filters = []
-
-                            for p in parts:
-                                if p.startswith("."):
-                                    ext = p[1:]
-                                    github_ext = ext
-                                elif p in ("x86", "x64", "arm64"):
-                                    arch = p
-                                elif p.startswith("!"):
-                                    exclude_filters.append(p[1:])
-                                else:
-                                    include_filters.append(p)
-
-                            if not ext:
-                                show_message("Extensão não informada no padrão GitHub (.ext obrigatório)", "e")
-                                return
-
-                            # Monta endpoint da API
-                            api_url = repo_url.replace("github.com", "api.github.com/repos") + "/releases/latest"
-
-                            import urllib.request
-                            import json
-
-                            show_message(f"Detectado padrão GitHub: .{ext}" + (f", {arch}" if arch else ""), "d")                            
-
-                            with urllib.request.urlopen(api_url) as response:
-                                data = json.loads(response.read().decode())
-
-                            assets = data.get("assets", [])
-
-                            if not assets:
-                                show_message("Release não possui assets", "e")
-                                return                            
-
-                            # --- MATCH ESTRITO: TODOS OS CRITÉRIOS DEVEM CASAR ---
-                            selected_candidates = []
-
-                            for asset in assets:
-                                name = asset.get("name", "")
-                                tokens = normalize_tokens(name)
-
-                                # 1. Extensão (obrigatória)
-                                clean_name = name.lower().split('?')[0].split('#')[0]
-                                if not clean_name.endswith(f".{ext}"):
-                                    continue
-                                
-                                match_ok = True
-
-                                # 2. Arquitetura (se informada → obrigatória)
-                                if arch:
-                                    if not any(arch in t for t in tokens):
-                                        match_ok = False
-
-                                # 3. Filtros positivos (TODOS obrigatórios)
-                                for f in include_filters:
-                                    if not any(f in t for t in tokens):
-                                        match_ok = False
-                                        break
-
-                                # 4. Filtros negativos (NENHUM pode existir)
-                                if match_ok:
-                                    for f in exclude_filters:
-                                        if any(f in t for t in tokens):
-                                            match_ok = False
-                                            break
-
-                                if match_ok:
-                                    selected_candidates.append(asset)
-
-                            # Seleção final
-                            if len(selected_candidates) == 1:
-                                selected_asset = selected_candidates[0]
-
-                            elif len(selected_candidates) > 1:
-                                # Critério simples e determinístico: maior arquivo
-                                selected_asset = max(selected_candidates, key=lambda a: a.get("size", 0))
-                                show_message(f"Múltiplos matches encontrados, selecionado maior arquivo", "w")
-
-                            else:
-                                selected_asset = None
-                            # --- FIM DO MATCH ---
-
-                            if selected_asset:
-                                url = selected_asset.get("browser_download_url")
-
-                                show_message(f"Asset encontrado: {selected_asset.get('name')}", "s")
-
-                                # Mantém hash se fornecido externamente (mais confiável que heurística de asset)
-                                # expected_hash NÃO deve ser sobrescrito aqui
-                            else:
-                                show_message(f"Nenhum asset compatível encontrado (.{ext}" + (f", {arch}" if arch else "") + ")", "e")
-                                return
-
-                        except Exception as e:
-                            show_message(f"Erro ao resolver GitHub release: {e}", "e")
-                            return
-                    # --- FIM DO BLOCO ---                    
+                        return                                                      
 
                     # Nome do arquivo (mesma lógica do cleanup)                    
                     # PRESERVA nome vindo do GitHub (se existir)                    
@@ -1261,6 +1303,35 @@ def origin_to_destination(path, retry, dry_run):
                     dest_dir = os.path.dirname(dest_path)
 
                     final_dest_path = os.path.join(dest_dir, filename)                    
+
+                    # =========================================================
+                    # CACHE NA ORIGEM (ANTES DA DECISÃO DE DOWNLOAD)
+                    # =========================================================
+
+                    origin_dir = os.path.dirname(path)
+                    origin_cached_path = os.path.join(origin_dir, filename)
+
+                    # verifica se já existe na origem e está válido
+                    if os.path.exists(origin_cached_path):
+                        origin_valid = is_cached_file_valid(
+                            origin_cached_path,
+                            expected_hash,
+                            url
+                        )
+
+                        if origin_valid:
+                            show_message(f"Cache válido na origem: {filename}", "k")
+
+                            # garante cópia para destino (forçado)
+                            try:
+                                os.makedirs(dest_dir, exist_ok=True)
+                                shutil.copy2(origin_cached_path, final_dest_path)
+
+                                purge_similar_installers(dest_dir, filename)
+                            except Exception as e:
+                                show_message(f"Erro ao copiar cache da origem: {e}", "e")
+
+                            return                    
                     
                     # Verifica necessidade de download (centralizado)
                     need_download = manage_sync_metadata(
@@ -1279,82 +1350,51 @@ def origin_to_destination(path, retry, dry_run):
 
                         show_message(f"Baixando: {rel_path} -> {filename}", "+")
 
-                        with urllib.request.urlopen(url) as response:
-                            final_url, content_type = resolve_effective_download_url(url)
+                        final_url, content_type = resolve_effective_download_url(url)
 
-                            if not final_url:
-                                show_message(f"Falha ao resolver download real (HTML detectado): {url}", "e")
-                                return
+                        if not final_url:
+                            show_message(f"Falha ao resolver download real (HTML detectado): {url}", "e")
+                            return
 
-                            # --- EXTENSÃO VIA CONTENT-TYPE (fallback seguro) ---
-                            def guess_ext_from_content_type(ct):
-                                if "application/x-msdownload" in ct or "application/octet-stream" in ct:
-                                    return None  # não força
-                                if "application/x-msi" in ct:
-                                    return "msi"
-                                if "application/zip" in ct:
-                                    return "zip"
-                                return None
+                        # --- EXTENSÃO VIA CONTENT-TYPE (fallback seguro) ---
+                        def guess_ext_from_content_type(ct):
+                            if "application/x-msdownload" in ct or "application/octet-stream" in ct:
+                                return None  # não força
+                            if "application/x-msi" in ct:
+                                return "msi"
+                            if "application/zip" in ct:
+                                return "zip"
+                            return None
 
-                            ext_from_ct = guess_ext_from_content_type(content_type or "")
+                        ext_from_ct = guess_ext_from_content_type(content_type or "")
 
-                            if "." not in filename and ext_from_ct:
-                                filename = f"{filename}.{ext_from_ct}"
-                                final_dest_path = os.path.join(dest_dir, filename)
+                        if "." not in filename and ext_from_ct:
+                            filename = f"{filename}.{ext_from_ct}"
+                            final_dest_path = os.path.join(dest_dir, filename)
 
-                            # --- DOWNLOAD REAL ---
-                            with urllib.request.urlopen(final_url) as response:
-                                total_size = int(response.headers.get('Content-Length', 0))
-                                chunk_size = 65536
+                        # --- DOWNLOAD REAL ---
+                        with urllib.request.urlopen(final_url) as response:
+                            total_size = int(response.headers.get('Content-Length', 0))
+                            chunk_size = 65536
 
-                                with Progress(
-                                    TextColumn("[bold lightmagenta]→ Download: {task.fields[name]}"),
-                                    BarColumn(),
-                                    TaskProgressColumn(),
-                                    DownloadColumn(),
-                                    TransferSpeedColumn(),
-                                    TimeRemainingColumn(),
-                                    transient=True
-                                ) as progress:
-                                    task = progress.add_task("", total=total_size, name=filename)
+                            with Progress(
+                                TextColumn("[bold lightmagenta]→ Download: {task.fields[name]}"),
+                                BarColumn(),
+                                TaskProgressColumn(),
+                                DownloadColumn(),
+                                TransferSpeedColumn(),
+                                TimeRemainingColumn(),
+                                transient=True
+                            ) as progress:
+                                task = progress.add_task("", total=total_size, name=filename)
 
-                                    with open(final_dest_path, 'wb') as out_file:
-                                        while True:
-                                            chunk = response.read(chunk_size)
-                                            if not chunk:
-                                                break
-                                            out_file.write(chunk)
-                                            progress.update(task, advance=len(chunk))                                                                    
-
-                                # --- VALIDAÇÃO LEVE (sem hash) ---
-                                if not expected_hash:
-                                    try:
-                                        file_size = os.path.getsize(final_dest_path)
-
-                                        # 1. Arquivo vazio
-                                        if file_size == 0:
-                                            raise Exception("arquivo vazio")
-
-                                        # 2. Validação por Content-Length (se disponível)
-                                        if total_size > 0 and file_size != total_size:
-                                            raise Exception(f"tamanho divergente ({file_size} != {total_size})")
-
-                                    except Exception as e:
-                                        show_message(f"Falha no download: {filename} ({e})", "e")
-
-                                        # 🧹 Remove arquivo corrompido antes do retry
-                                        try:
-                                            if os.path.exists(final_dest_path):
-                                                os.remove(final_dest_path)
-                                        except Exception:
-                                            pass
-
-                                        # 🔁 Integra com sistema de retry existente
-                                        if retry and path not in failed_files:
-                                            show_message(f"Adicionado para retentativa: {rel_path}", "w")
-                                            failed_files.append(path)
-
-                                        return                                                               
+                                with open(final_dest_path, 'wb') as out_file:
+                                    while True:
+                                        chunk = response.read(chunk_size)
+                                        if not chunk:
+                                            break
+                                        out_file.write(chunk)
+                                        progress.update(task, advance=len(chunk))                                                                                                                                                           
 
                         # Validação
                         # --- VALIDAÇÃO POR HASH EXTERNO (linha 2) ---
@@ -1404,7 +1444,31 @@ def origin_to_destination(path, retry, dry_run):
                                 if os.path.exists(final_dest_path):
                                     os.remove(final_dest_path)
                             except Exception:
-                                pass                                                
+                                pass       
+
+                        # =========================================================
+                        # SALVA CACHE NA ORIGEM
+                        # =========================================================
+                        if valid_download and os.path.exists(final_dest_path):
+                            try:
+                                origin_dir = os.path.dirname(path)
+                                origin_cached_path = os.path.join(origin_dir, filename)
+
+                                os.makedirs(origin_dir, exist_ok=True)
+
+                                shutil.copy2(final_dest_path, origin_cached_path)
+
+                                purge_similar_installers(origin_dir, filename)
+
+                                generate_sync_metadata(
+                                    final_dest_path=origin_cached_path,
+                                    url=url,
+                                    custom_filename=custom_filename,
+                                    github_ext=github_ext
+                                )
+
+                            except Exception as e:
+                                show_message(f"Falha ao cachear na origem: {e}", "w")                                                                 
 
                 except Exception as e:
                     show_message(f"Erro no .syncdownload {rel_path}: {e}", "e")
@@ -1501,14 +1565,33 @@ def main():
     recursive_directory_iteration(ORIGIN_PATH, origin_to_destination, True, dry_run)
 
     # 3. RETENTATIVA POR ÚLTIMO
-    if failed_files:
-        show_message(f"Etapa 3: Retentando {len(failed_files)} arquivos que falharam...", "warn")
-        retent_loop_count = 1
+    MAX_RETRIES = 2
+
+    retry_round = 1
+
+    while failed_files and retry_round <= MAX_RETRIES:
+        show_message(
+            f"Etapa 3: Retentativa {retry_round}/{MAX_RETRIES} ({len(failed_files)} arquivos)...",
+            "warn"
+        )
+
+        retent_loop_count = retry_round
+
         to_retry = failed_files[:]
-        failed_files = [] # Limpa para o relatório final
+        failed_files = []
+
         time.sleep(1)
+
         for path in to_retry:
             origin_to_destination(path, False, dry_run)
+
+        retry_round += 1
+
+    if failed_files:
+        show_message(
+            f"Falha definitiva após {MAX_RETRIES} tentativas: {len(failed_files)} arquivos",
+            "e"
+        )
 
     # 4. OCULTAR ITENS DO ROOT (PÓS-PROCESSAMENTO)
     show_message("Etapa 4: Aplicando ocultação no root...", "info")
