@@ -193,6 +193,9 @@ hash_cache = {}
 # Cache de resolução de .syncdownload (pré-processamento)
 sync_resolve_cache = {}
 
+# Cache global de downloads já realizados (url -> path destino)
+download_registry = {}
+
 # Caminhos
 destination_path = "?"
 ORIGIN_PATH = os.path.normpath(SCRIPT_DIR).rstrip(os.path.sep) + os.path.sep
@@ -784,7 +787,7 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
     custom_name = custom_name.strip()
 
     # --- REGRA: substituição de {} por versão remota (AFETA APENAS DESTINO) ---
-    original_custom_name = custom_name  # preserva nome canônico
+    original_custom_name = normalize_canonical_name(custom_name)
 
     if custom_name.count("{}") == 1:
         try:
@@ -796,16 +799,13 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
                 remote_headers = remote_info.get("headers", {})
             else:
                 remote_name = remote_info
-                remote_headers = {}
-
-            show_message(f"[DEBUG] remote_name (raw): {remote_name}", "d")
+                remote_headers = {}            
 
             base_source = None
 
             # --- valida se remote_name é útil (contém versão) ---
             if remote_name and re.search(r'\d+\.\d+', remote_name):
-                base_source = remote_name
-                show_message("[DEBUG] usando remote_name", "d")
+                base_source = remote_name                
             else:
                 used_header = False
 
@@ -814,16 +814,13 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
                     m = re.search(r'filename="?([^"]+)"?', cd)
                     if m:
                         base_source = m.group(1)
-                        used_header = True
-                        show_message("[DEBUG] usando header fallback", "d")
+                        used_header = True                        
 
                 if not used_header:
                     final_url, _ = resolve_final_url(url)
                     effective = final_url or url
 
-                    fallback_name = os.path.basename(effective.split("?")[0])
-
-                    show_message(f"[DEBUG] fallback_name: {fallback_name}", "d")
+                    fallback_name = os.path.basename(effective.split("?")[0])                    
 
                     base_source = fallback_name
 
@@ -831,13 +828,9 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
                 base = base_source.lower()
 
                 # remove extensão
-                base = re.sub(r'\.[a-z0-9]{2,5}$', '', base)
+                base = re.sub(r'\.[a-z0-9]{2,5}$', '', base)                
 
-                show_message(f"[DEBUG] base (sem extensão): {base}", "d")
-
-                tokens = normalize_tokens(base)
-
-                show_message(f"[DEBUG] tokens: {tokens}", "d")
+                tokens = normalize_tokens(base)                
 
                 version = None
                 extra = []
@@ -882,12 +875,6 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
                             if prev not in NOISE_TOKENS:
                                 extra.append(prev)
 
-                # DEBUG
-                show_message(f"[DEBUG] versão final: {version}", "d")
-                show_message(f"[DEBUG] extra final: {extra}", "d")
-
-                show_message(f"[DEBUG] extra: {extra}", "d")
-
                 if version:
                     # =====================================================
                     # 🔒 PRIORIDADE: TAGS DECLARADAS (spec ext|url)
@@ -925,19 +912,10 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
                     elif extra:
                         version_block = f"{extra[0]}-{version}"
                     else:
-                        version_block = version
+                        version_block = version                    
 
-                    show_message(f"[DEBUG] version_block: {version_block}", "d")
-
-                    custom_name = custom_name.replace("{}", version_block)
-
-                    show_message(f"[DEBUG] custom_name final: {custom_name}", "d")
-                else:
-                    show_message("[DEBUG] versão NÃO encontrada", "w")
-
-            else:
-                show_message("[DEBUG] remote_name vazio", "w")
-
+                    custom_name = custom_name.replace("{}", version_block)                                    
+                    
         except Exception as e:
             show_message(f"[DEBUG] erro na substituição {{}}: {e}", "e")
 
@@ -1043,7 +1021,10 @@ def parse_syncdownload(file_path):
         # --- Parser DSL resolution ---
         try:
             if has_parser_expression(url):
-                resolved = resolve_parser_expression(url)
+                resolved = resolve_parser_expression(
+                    url,
+                    context_name=os.path.basename(file_path)
+                )
 
                 if not isinstance(resolved, str):
                     raise Exception("Parser DSL não retornou URL válida")
@@ -1228,6 +1209,24 @@ def normalize_tokens(s):
     """
     return [t for t in re.split(r'[^a-z0-9]+', s.lower()) if t] 
 
+def normalize_canonical_name(name):
+    """
+    Normaliza nome canônico:
+    - remove {}
+    - trim de bordas não alfanuméricas
+    - mantém conteúdo interno intacto
+    """
+    if not name:
+        return None
+
+    name = name.replace("{}", "").strip()
+
+    # trim apenas nas bordas (não destrói estrutura interna)
+    name = re.sub(r'^[^a-zA-Z0-9]+', '', name)
+    name = re.sub(r'[^a-zA-Z0-9]+$', '', name)
+
+    return name or None
+
 def has_parser_expression(value):
     """has_parser_expression(value)
     Descrição: Detecta expressão DSL ${"..."}.
@@ -1407,7 +1406,7 @@ def fetch_and_parse(url):
     return data
 
 
-def resolve_data_path(obj, path):
+def resolve_data_path(obj, path, context_name=None):
     """
     Resolve caminho aninhado com suporte a:
     - índice: [0]
@@ -1432,7 +1431,9 @@ def resolve_data_path(obj, path):
         if isinstance(current, dict):
             current = current.get(key)
         else:
-            raise Exception("Parser DSL: estrutura inválida (esperado dict)")
+            raise Exception(
+                f"Parser DSL: estrutura inválida (esperado dict) | origem: {context_name}"
+            )
 
         # --- sem seletor ---
         if selector is None:
@@ -1470,7 +1471,7 @@ def resolve_data_path(obj, path):
 
     return current
 
-def resolve_parser_expression(expr):
+def resolve_parser_expression(expr, context_name=None):
     """
     Resolve expressão completa:
     ${"url"}.path.to.value
@@ -1495,7 +1496,7 @@ def resolve_parser_expression(expr):
 
     data = fetch_and_parse(url)
 
-    return resolve_data_path(data, path)       
+    return resolve_data_path(data, path, context_name=context_name)
 
 def resolve_syncdownload_cached(sync_path):
     """
@@ -1700,10 +1701,10 @@ def destination_cleanup(root, dry_run=False):
             continue
         
         # protege arquivos auxiliares de sync vinculados a arquivo existente
-        if has_local_sync and dest_full_path.lower().endswith((".sha256", ".syncado")):
+        if dest_full_path.lower().endswith((".sha256", ".syncado")):
             origin_equivalent_sync = origin_equivalent + ".syncdownload"
 
-            # 🔒 1. Proteção via .syncdownload (PRIORITÁRIO)
+            # 🔒 1. Se existir .syncdownload correspondente na origem → protege
             if os.path.exists(origin_equivalent_sync):
                 try:
                     resolved = resolve_syncdownload_cached(origin_equivalent_sync)
@@ -1719,14 +1720,15 @@ def destination_cleanup(root, dry_run=False):
                 except Exception:
                     pass
 
-            # 🔒 2. Fallback: base file
+            # 🔒 2. Se o arquivo base existir localmente → SEMPRE protege
             base_file = re.sub(r'\.(sha256|syncado)$', '', dest_full_path, flags=re.IGNORECASE)
 
             if os.path.exists(base_file):
-                show_message(f"Remoção protegida (metadata válida): {item}", "D")
+                show_message(f"Remoção protegida (arquivo base existente): {item}", "D")
                 continue
 
-            # metadata órfã → remover permitido                 
+            # 🔒 3. Só permite remoção se NÃO houver .syncdownload E NÃO houver base
+            show_message(f"Metadata órfã removida: {item}", "d")              
 
         if re.search(IGNORED_PATHS, dest_full_path, re.IGNORECASE):
             show_message(f"Remoção ignorada [regex]: {dest_full_path}", "W")
@@ -1855,7 +1857,14 @@ def is_cached_file_valid(path, expected_hash):
 
             current_name = os.path.basename(path)
 
-            return normalize_product_name(stored_name) == normalize_product_name(current_name)
+            stored_base = normalize_product_name(stored_name)
+            current_base = normalize_product_name(current_name)
+
+            # 🔒 comparação por produto (não nome bruto)
+            if is_same_product(stored_base, current_base):
+                return True
+
+            return False
         except:
             return False
 
@@ -2014,7 +2023,7 @@ def apply_root_hidden_attribute():
             show_message(f"Falha ao ocultar {item}: {e}", "e")            
 
 
-def purge_similar_installers_safe(dest_dir, target_name):
+def purge_similar_installers_safe(dest_dir, target_name, canonical_name=None):
     """
     Descrição: Remove versões antigas de forma segura.
     Parâmetros:
@@ -2028,7 +2037,13 @@ def purge_similar_installers_safe(dest_dir, target_name):
     if not os.path.exists(target_full):
         return
 
-    target_base = normalize_product_name(target_name)
+    # 🔒 prioridade: nome canônico da linha 3
+    if canonical_name:
+        canonical_clean = normalize_canonical_name(canonical_name)
+        target_base = normalize_product_name(canonical_clean)
+    else:
+        target_base = normalize_product_name(target_name)
+
     if not target_base:
         return
 
@@ -2129,7 +2144,11 @@ def process_single_syncdownload(path, dry_run):
                         copy_file_with_progress(origin_cached_path, final_dest_path)
 
                     if os.path.exists(final_dest_path):
-                        purge_similar_installers_safe(dest_dir, filename)
+                        purge_similar_installers_safe(
+                            dest_dir,
+                            filename,
+                            canonical_name=resolved.get("custom_filename")
+                        )
                 else:
                     show_message(f"[DRY-RUN] Copiaria do cache: {filename}", "d")
 
@@ -2152,6 +2171,33 @@ def process_single_syncdownload(path, dry_run):
         show_message(f"[DRY-RUN] Baixaria: {filename} ({final_url})", "d")
         return
 
+    # =========================================================
+    # 🔒 REUSO DE DOWNLOAD EM MEMÓRIA (evita redownload)
+    # =========================================================
+    if final_url in download_registry:
+        cached_path = download_registry[final_url]
+
+        if os.path.exists(cached_path):
+            show_message(f"Reuso de download (duplicado): {filename}", "w")
+
+            try:
+                os.makedirs(dest_dir, exist_ok=True)
+
+                if not os.path.exists(final_dest_path) or not is_cached_file_valid(final_dest_path, expected_hash):
+                    copy_file_with_progress(cached_path, final_dest_path)
+
+                if os.path.exists(final_dest_path):
+                    purge_similar_installers_safe(
+                        dest_dir,
+                        filename,
+                        canonical_name=resolved.get("custom_filename")
+                    )
+
+                return
+
+            except Exception as e:
+                show_message(f"Falha no reuso de download: {e}", "e")
+
     # === DOWNLOAD (INLINE, SEM FUNÇÃO EXTERNA) ===
     try:
         os.makedirs(dest_dir, exist_ok=True)
@@ -2161,6 +2207,9 @@ def process_single_syncdownload(path, dry_run):
         download_file_with_progress(final_url, final_dest_path)
 
         show_message(f"Download concluído: {filename}", "+")
+
+        # 🔒 registra download para reutilização futura
+        download_registry[final_url] = final_dest_path
 
     except Exception as e:
         show_message(f"Erro no download: {filename} -> {e}", "e")
@@ -2180,7 +2229,11 @@ def process_single_syncdownload(path, dry_run):
         return
 
     # === PURGE CONTROLADO ===
-    purge_similar_installers_safe(dest_dir, filename)
+    purge_similar_installers_safe(
+        dest_dir,
+        filename,
+        canonical_name=resolved.get("custom_filename")
+    )
 
     # === METADATA ===
     generate_sync_metadata(
