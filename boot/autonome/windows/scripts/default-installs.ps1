@@ -94,75 +94,118 @@
     4. Orquestração modular com validação individual de cada micro-função.
     5. Finalização auditável com log rastreável e saída determinística.
 
+    [INVOCAÇãO]
+    O script sempre auto identifica se foi importado ou executado:
+    1. Se executado diretatamente executa função main repassando parametros 
+       recebidos por linha de comando ou variáveis de ambiente.,
+    2. Se importado expõe as funções públicas para serem chamadas por outros
+       scripts sem executar nada.
+
 .COMPONENT
     Orquestrador de Software, Gestor de Listas (.lst) e Provisionador de Ambiente.
     Foco: Padronização de Workspace, Flexibilidade de Origem e Automação de Runtimes.
 #>
 
+function main {
+  param(
+    [scriptblock]$callback
+  )
 
-if (-not $in_system_context) {
-  show_log_title "Instalando APPs basiquissimos"
-  isowin_install_app "Oracle.JavaRuntimeEnvironment"
-  isowin_install_app "Microsoft.DirectX"
-  isowin_install_app "7zip.7zip"
-  isowin_install_app "Microsoft.VisualStudioCode" '/SILENT /mergetasks="!runcode,addcontextmenufiles,addcontextmenufolders,addtopath,associatewithfiles,quicklaunchicon"'
-  if ("$Env:install_mode" -eq "dev") {
-    wsl --install
-    wsl --set-default-version 2
-  }
-  show_log_title "Instalando demais APPs"
-  if ("$Env:install_mode" -ne "cru") {
-    show_log "Continuar padrão ou seguir 'apps.lst' do online/pendrive?"
-    $apps_lst = ""
-    # verifica se tem lista de apps no pendrive
-    $apps_lst = ""
+  if (-not $in_system_context) {
 
-    $baseListPath = Join-Path $appsinstall_folder $apps_list_dir
+    if ($callback) { & $callback "Instalando APPs basiquissimos" "t" } else { show_log_title "Instalando APPs basiquissimos" }
 
-    $mainList = Join-Path $baseListPath "apps.lst"
+    isowin_install_app "Oracle.JavaRuntimeEnvironment"
+    isowin_install_app "Microsoft.DirectX"
+    isowin_install_app "7zip.7zip"
+    isowin_install_app "Microsoft.VisualStudioCode" '/SILENT /mergetasks="!runcode,addcontextmenufiles,addcontextmenufolders,addtopath,associatewithfiles,quicklaunchicon"'
 
-    if (Test-Path $mainList) {
-      $apps_lst = $mainList
+    if ("$Env:install_mode" -eq "dev") {
+      wsl --install
+      wsl --set-default-version 2
     }
-    if (-Not ([string]::IsNullOrEmpty($apps_lst))) {
-      show_log "usando 'apps.lst do pendrive'..."
-      Install-AppList $apps_lst
-    }
-    else {
-      show_log "Obtendo lista online..."
-      $apps_f = "$path_log\apps-download.lst"
-      if ($url_apps_lst -notmatch '\.lst$') {
-        show_error "URL de apps inválida (não é .lst): $url_apps_lst"
+
+    if ($callback) { & $callback "Instalando demais APPs" "t" } else { show_log_title "Instalando demais APPs" }
+
+    if ("$Env:install_mode" -ne "cru") {
+
+      if ($callback) { & $callback "Continuar padrão ou seguir 'apps.lst' do online/pendrive?" "l" } else { show_log "Continuar padrão ou seguir 'apps.lst' do online/pendrive?" }
+
+      $apps_lst = ""
+      $apps_lst = ""
+
+      $baseListPath = Join-Path $appsinstall_folder $apps_list_dir
+      $mainList = Join-Path $baseListPath "apps.lst"
+
+      if (Test-Path $mainList) {
+        $apps_lst = $mainList
       }
-      download_save "$url_apps_lst" "$apps_f"
-      if (Test-Path "$apps_f") {
-        show_log "Lista de apps online encontrada, usando..."
-        Install-AppList $apps_f
+
+      if (-Not ([string]::IsNullOrEmpty($apps_lst))) {
+
+        if ($callback) { & $callback "usando 'apps.lst do pendrive'..." "l" } else { show_log "usando 'apps.lst do pendrive'..." }
+
+        Install-AppList $apps_lst
       }
       else {
-        show_log "Lista de apps online inexistente, usando o padrao..."
-        isowin_install_app "Microsoft.PowerToys"
-        isowin_install_app "QL-Win.QuickLook"
-        isowin_install_app "CodecGuide.K-LiteCodecPack.Mega"
-        isowin_install_app "VideoLAN.VLC"
-        isowin_install_app "Google.Chrome"
-        isowin_install_app "Brave.Brave"
-        isowin_install_app "SumatraPDF.SumatraPDF"
-        isowin_install_app "PDFsam.PDFsam"
-        isowin_install_app "Piriform.Defraggler"
-        isowin_install_app "CrystalDewWorld.CrystalDiskInfo"
-        isowin_install_app "qBittorrent.qBittorrent"
-        isowin_install_app "TheDocumentFoundation.LibreOffice"
+
+        if ($callback) { & $callback "Obtendo lista online..." "l" } else { show_log "Obtendo lista online..." }
+
+        $apps_f = "$path_log\apps-download.lst"
+
+        if ($url_apps_lst -notmatch '\.lst$') {
+          if ($callback) { & $callback "URL de apps inválida (não é .lst): $url_apps_lst" "e" } else { show_error "URL de apps inválida (não é .lst): $url_apps_lst" }
+        }
+
+        download_save "$url_apps_lst" "$apps_f"
+
+        if (Test-Path "$apps_f") {
+
+          if ($callback) { & $callback "Lista de apps online encontrada, usando..." "l" } else { show_log "Lista de apps online encontrada, usando..." }
+
+          Install-AppList $apps_f
+        }
+        else {
+
+          if ($callback) { & $callback "Lista de apps online inexistente, usando o padrao..." "l" } else { show_log "Lista de apps online inexistente, usando o padrao..." }
+
+          isowin_install_app "Microsoft.PowerToys"
+          isowin_install_app "QL-Win.QuickLook"
+          isowin_install_app "CodecGuide.K-LiteCodecPack.Mega"
+          isowin_install_app "VideoLAN.VLC"
+          isowin_install_app "Google.Chrome"
+          isowin_install_app "Brave.Brave"
+          isowin_install_app "SumatraPDF.SumatraPDF"
+          isowin_install_app "PDFsam.PDFsam"
+          isowin_install_app "Piriform.Defraggler"
+          isowin_install_app "CrystalDewWorld.CrystalDiskInfo"
+          isowin_install_app "qBittorrent.qBittorrent"
+          isowin_install_app "TheDocumentFoundation.LibreOffice"
+        }
+      }
+
+      if ($callback) { & $callback "Executar script offline do pendrive '$pendrive_script_name'?" "l" } else { show_log "Executar script offline do pendrive '$pendrive_script_name'?" }
+
+      if (Test-Path "$appsinstall_folder\$pendrive_script_name") {
+
+        if ($callback) { & $callback "Sim, executando..." "l" } else { show_log "Sim, executando..." }
+
+        run_command "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$appsinstall_folder\$pendrive_script_name`""
+      }
+      else {
+
+        if ($callback) { & $callback "Não, não localizado." "l" } else { show_log 'Não, não localizado.' }
       }
     }
-    show_log "Executar script offline do pendrive '$pendrive_script_name'?"
-    # tenta executar o script localizado no pendrive
-    if (Test-Path "$appsinstall_folder\$pendrive_script_name") {
-      show_log "Sim, executando..."
-      run_command "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$appsinstall_folder\$pendrive_script_name`""
-    }
-    else {
-      show_log 'Não, não localizado.'
-    }
+  }
+}
+
+
+# ==============================
+# INVOCACAO (auto-detect import vs execução)
+# ==============================
+if ($MyInvocation.InvocationName -ne '.') {
+  if (Get-Command main -ErrorAction SilentlyContinue) {
+    main @args
   }
 }

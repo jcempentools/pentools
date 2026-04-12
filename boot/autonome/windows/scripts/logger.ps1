@@ -91,12 +91,17 @@
     4. Orquestração modular com validação individual de cada micro-função.
     5. Finalização auditável com log rastreável e saída determinística.
 
+    [INVOCAÇãO]
+    O script sempre auto identifica se foi importado ou executado:
+    1. Se executado diretatamente executa função main repassando parametros 
+       recebidos por linha de comando ou variáveis de ambiente.,
+    2. Se importado expõe as funções públicas para serem chamadas por outros
+       scripts sem executar nada.    
+
 .COMPONENT
     Ponto único de saída de logs.
     Foco: Organização visual, legibilidade e compatibilidade de comportamento.
 #>
-
-
 
 # ==============================
 # VALIDATION GUARD (idempotência)
@@ -154,10 +159,19 @@ Tipo da mensagem.
 function _logger {
   param(
     [string]$str_menssagem,
-    [string]$type = "l"
+    [string]$type = "l",
+    [scriptblock]$callback
   )
 
   $msg = $str_menssagem
+
+  # ==============================
+  # CALLBACK (telemetria obrigatória quando fornecida)
+  # ==============================
+  if ($callback) {
+    & $callback $msg $type
+    return
+  }
 
   switch ($type) {
 

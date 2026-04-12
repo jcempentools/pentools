@@ -94,72 +94,98 @@
     4. Orquestração modular com validação individual de cada micro-função.
     5. Finalização auditável com log rastreável e saída determinística.
 
+    [INVOCAÇãO]
+    O script sempre auto identifica se foi importado ou executado:
+    1. Se executado diretatamente executa função main repassando parametros 
+       recebidos por linha de comando ou variáveis de ambiente.,
+    2. Se importado expõe as funções públicas para serem chamadas por outros
+       scripts sem executar nada.    
+
 .COMPONENT
     Orquestrador de Extensões, Executor de Gatilhos e Integrador de Pós-Instalação.
     Foco: Extensibilidade, Precedência de Formatos e Execução Contextual.
 #>
 
+function main {
+  param(
+    [scriptblock]$callback
+  )
 
-show_log_title "Executando gatilhos finais (scripts externos)"
-
-try {
-  if ([string]::IsNullOrEmpty($script:appsinstall_folder)) {
-    show_log "Pasta base não definida."
-    return
+  if ($callback) {
+    & $callback "Executando gatilhos finais (scripts externos)" "t"
+  }
+  else {
+    show_log_title "Executando gatilhos finais (scripts externos)"
   }
 
-  $scriptsPath = Join-Path $script:appsinstall_folder "$autonome_hooks"  
-
-  if (-not (Test-Path $scriptsPath)) {
-    show_log "Pasta de scripts não encontrada."
-    return
-  }
-
-  $baseName = "in.$local_exec"  
-
-  $orderedExt = @("reg", "ps1", "cmd", "bat")
-
-  foreach ($ext in $orderedExt) {    
-    $file = Join-Path $$scriptsPath "$baseName.$ext"
-
-    if (-not (Test-Path $file)) {
-      continue
+  try {
+    if ([string]::IsNullOrEmpty($script:appsinstall_folder)) {
+      if ($callback) { & $callback "Pasta base não definida." "w" } else { show_log "Pasta base não definida." }
+      return
     }
 
-    try {
-      $content = Get-Content $file -Raw -ErrorAction SilentlyContinue
-      if ([string]::IsNullOrWhiteSpace($content)) {
-        show_log "Ignorado (vazio): $file"
+    $scriptsPath = Join-Path $script:appsinstall_folder "$autonome_hooks"  
+
+    if (-not (Test-Path $scriptsPath)) {
+      if ($callback) { & $callback "Pasta de scripts não encontrada." "w" } else { show_log "Pasta de scripts não encontrada." }
+      return
+    }
+
+    $baseName = "in.$local_exec"  
+
+    $orderedExt = @("reg", "ps1", "cmd", "bat")
+
+    foreach ($ext in $orderedExt) {    
+      $file = Join-Path $scriptsPath "$baseName.$ext"
+
+      if (-not (Test-Path $file)) {
         continue
       }
-    }
-    catch {
-      show_warn "Falha ao ler conteúdo de $file"
-      continue
-    }
 
-    show_log "Executando gatilho: $file"
-
-    switch ($ext) {
-
-      "reg" {
-        run_command "reg.exe import `"$file`""
+      try {
+        $content = Get-Content $file -Raw -ErrorAction SilentlyContinue
+        if ([string]::IsNullOrWhiteSpace($content)) {
+          if ($callback) { & $callback "Ignorado (vazio): $file" "i" } else { show_log "Ignorado (vazio): $file" }
+          continue
+        }
+      }
+      catch {
+        if ($callback) { & $callback "Falha ao ler conteúdo de $file" "w" } else { show_warn "Falha ao ler conteúdo de $file" }
+        continue
       }
 
-      "ps1" {
-        run_command "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$file`""
-      }
+      if ($callback) { & $callback "Executando gatilho: $file" "l" } else { show_log "Executando gatilho: $file" }
 
-      "cmd" {
-        run_command "cmd.exe /c `"$file`""
-      }
+      switch ($ext) {
 
-      "bat" {
-        run_command "cmd.exe /c `"$file`""
+        "reg" {
+          run_command "reg.exe import `"$file`""
+        }
+
+        "ps1" {
+          run_command "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$file`""
+        }
+
+        "cmd" {
+          run_command "cmd.exe /c `"$file`""
+        }
+
+        "bat" {
+          run_command "cmd.exe /c `"$file`""
+        }
       }
     }
   }
+  catch {
+    if ($callback) { & $callback "Falha ao executar gatilhos finais" "w" } else { show_warn "Falha ao executar gatilhos finais" }
+  }
 }
-catch {
-  show_warn "Falha ao executar gatilhos finais"
+
+# ==============================
+# INVOCACAO (auto-detect import vs execução)
+# ==============================
+if ($MyInvocation.InvocationName -ne '.') {
+  if (Get-Command main -ErrorAction SilentlyContinue) {
+    main @args
+  }
 }

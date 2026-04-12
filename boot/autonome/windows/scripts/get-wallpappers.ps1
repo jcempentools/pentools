@@ -95,108 +95,147 @@
     4. Orquestração modular com validação individual de cada micro-função.
     5. Finalização auditável com log rastreável e saída determinística.
 
+    [INVOCAÇãO]
+    O script sempre auto identifica se foi importado ou executado:
+    1. Se executado diretatamente executa função main repassando parametros 
+       recebidos por linha de comando ou variáveis de ambiente.,
+    2. Se importado expõe as funções públicas para serem chamadas por outros
+       scripts sem executar nada.    
+
 .COMPONENT
     Gestor de Ativos Visuais, Personalização de UI e Sincronizador de Mídia.
     Foco: Identidade Visual, Resiliência Offline e Automação de Registro.
 #>
 
+function main {
+  param(
+    [scriptblock]$callback
+  )
 
-show_log_title "### WallPapers"
-$WallPapers_path = ""
-if (-Not ([string]::IsNullOrEmpty($appsinstall_folder))) {
-  $WallPapers_path = (get-item $appsinstall_folder).Parent.FullName
-  $WallPapers_path = "$WallPapers_path\WallPapers\images"
-}
-if ([string]::IsNullOrEmpty($image_folder)) { $image_folder = "$env:SystemDrive\Users\Default\Pictures" }
-$image_folder = "$image_folder\WallPapers"
-$img_count = 0
-if ((-Not ([string]::IsNullOrEmpty($WallPapers_path))) -And (Test-Path -Path "$WallPapers_path")) {
-  show_log "Obtendo WallPapers do pendrive, se exitir..."
-  foreach ($ee in @('png', 'jpg')) {
-    Get-ChildItem -Path "$WallPapers_path" -Filter "*.$ee" -Recurse -File | ForEach-Object {
-      try {
-        $nome = $_.BaseName
-        Copy-Item $_ "$image_folder\$nome.$ee" -Force
-        $img_count = $img_count + 1
+  if ($callback) {
+    & $callback "### WallPapers" "t"
+  }
+  else {
+    show_log_title "### WallPapers"
+  }
+
+  $WallPapers_path = ""
+  if (-Not ([string]::IsNullOrEmpty($appsinstall_folder))) {
+    $WallPapers_path = (get-item $appsinstall_folder).Parent.FullName
+    $WallPapers_path = "$WallPapers_path\WallPapers\images"
+  }
+
+  if ([string]::IsNullOrEmpty($image_folder)) { $image_folder = "$env:SystemDrive\Users\Default\Pictures" }
+  $image_folder = "$image_folder\WallPapers"
+
+  $img_count = 0
+
+  if ((-Not ([string]::IsNullOrEmpty($WallPapers_path))) -And (Test-Path -Path "$WallPapers_path")) {
+
+    if ($callback) { & $callback "Obtendo WallPapers do pendrive, se exitir..." "l" } else { show_log "Obtendo WallPapers do pendrive, se exitir..." }
+
+    foreach ($ee in @('png', 'jpg')) {
+      Get-ChildItem -Path "$WallPapers_path" -Filter "*.$ee" -Recurse -File | ForEach-Object {
+        try {
+          $nome = $_.BaseName
+          Copy-Item $_ "$image_folder\$nome.$ee" -Force
+          $img_count = $img_count + 1
+        }
+        catch {
+          # ignore
+        }
       }
-      catch {
-        # ignore
+    }
+
+    if ($callback) { & $callback "'$img_count' WallPaper(s) obdito(s) offline." "l" } else { show_log "'$img_count' WallPaper(s) obdito(s) offline." }
+  }
+
+  if (("$Env:install_mode" -ne "cru") -And ($img_count -le 0)) {
+
+    if ($callback) { & $callback "Obtendo WallPapers ONLINE..." "l" } else { show_log "Obtendo WallPapers ONLINE..." }
+
+    if (-Not (Test-Path -Path "$image_folder")) {
+      New-Item -Path "$image_folder" -Force -ItemType Directory
+    }
+
+    download_save "$url_WallPapers_lst" "$image_folder\download.lst"
+
+    if (Test-Path "$image_folder\download.lst") {
+
+      $i = 0
+      $ext = "png"
+
+      foreach ($line in Get-Content "$image_folder\download.lst") {
+        $line = $line.trim()
+
+        if (
+          [string]::IsNullOrEmpty($line) -or
+          ($line -match '^\s*$') -or
+          ($line -match '^\s*#')
+        ) {
+          continue
+        }
+
+        $destname = sha256($line)
+        download_save "$line" "$image_folder\$destname.$ext"
+        $i = $i + 1
       }
     }
-  }
-  show_log "'$img_count' WallPaper(s) obdito(s) offline."
-}
-if (("$Env:install_mode" -ne "cru") -And ($img_count -le 0)) {
-  show_log "Obtendo WallPapers ONLINE..."
-  if (-Not (Test-Path -Path "$image_folder")) {
-    New-Item -Path "$image_folder" -Force -ItemType Directory
-  }
-  download_save "$url_WallPapers_lst" "$image_folder\download.lst"
-  if (Test-Path "$image_folder\download.lst") {
-    $i = 0
-    $ext = "png"
-    foreach ($line in Get-Content "$image_folder\download.lst") {
-      $line = $line.trim()
-      if (
-        [string]::IsNullOrEmpty($line) -or
-        ($line -match '^\s*$') -or
-        ($line -match '^\s*#')
-      ) {
-        continue
-      }
-      #$destname = $i
-      $destname = sha256($line)
-      #$destname = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($line))
-      download_save "$line" "$image_folder\$destname.$ext"
-      #$shaname = (Get-FileHash "$image_folder\$i.$ext" -Algorithm SHA256).Hash
-      #try {
-      #  if (Test-Path "$image_folder\$shaname.$ext") {
-      #    Remove-Item "$image_folder\$shaname.$ext" -Force
-      #  }
-      #  Move-Item -Path "$image_folder\$i.$ext" "$image_folder\$shaname.$ext"
-      #}
-      #catch {
-      #}
-      $i = $i + 1
-    }
-  }
-  show_log_title "Definindo tela de bloqueio personalizada"
-  # now set the registry entry
-  $nome = download_to_string($url_lockscreen)
-  show_log "A setar '$nome'."
-  if (-Not (Test-Path "$image_folder\$nome.png")) {
-    show_warn "O WallPaper '$nome' não existe."
-  }
-  elseif (-Not ([string]::IsNullOrEmpty($nome) -Or ($nome -match '^\s*$'))) {
-    try {
-      setrgkey 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP' 'LockScreenImagePath' "$image_folder\$nome.png"
-      rundll32.exe user32.dll, UpdatePerUserSystemParameters
-      show_log "Definido."
-    }
-    catch {
-      show_error "FALHA ao definir tela de bloqueio."
-    }
-  }
-  ## DEFINIR WALLPAPPER APENAS SE ESTIVER EM USUÁRIO
-  if (-not $in_system_context) {
-    show_log_title "Definindo WallPaper"
-    # now set the registry entry
-    $nome = download_to_string($url_defWallPaper)
-    show_log "A setar '$nome'."
+
+    if ($callback) { & $callback "Definindo tela de bloqueio personalizada" "t" } else { show_log_title "Definindo tela de bloqueio personalizada" }
+
+    $nome = download_to_string($url_lockscreen)
+
+    if ($callback) { & $callback "A setar '$nome'." "l" } else { show_log "A setar '$nome'." }
+
     if (-Not (Test-Path "$image_folder\$nome.png")) {
-      show_warn "O WallPaper '$nome' não existe."
+      if ($callback) { & $callback "O WallPaper '$nome' não existe." "w" } else { show_warn "O WallPaper '$nome' não existe." }
     }
     elseif (-Not ([string]::IsNullOrEmpty($nome) -Or ($nome -match '^\s*$'))) {
       try {
-        setrgkey 'HKCU:\Control Panel\Desktop' 'WallPaper' "$image_folder\$nome.png"
-        setrgkey 'HKCU:\Control Panel\Desktop' 'WallPaperStyle' 10
-        setrgkey 'HKCU:\Control Panel\Desktop' 'TileWallpaper' 0
+        setrgkey 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP' 'LockScreenImagePath' "$image_folder\$nome.png"
         rundll32.exe user32.dll, UpdatePerUserSystemParameters
-        show_log "Definido."
+
+        if ($callback) { & $callback "Definido." "l" } else { show_log "Definido." }
       }
       catch {
-        show_error "FALHA ao definir WallPaper."
+        if ($callback) { & $callback "FALHA ao definir tela de bloqueio." "e" } else { show_error "FALHA ao definir tela de bloqueio." }
       }
     }
+
+    if (-not $in_system_context) {
+
+      if ($callback) { & $callback "Definindo WallPaper" "t" } else { show_log_title "Definindo WallPaper" }
+
+      $nome = download_to_string($url_defWallPaper)
+
+      if ($callback) { & $callback "A setar '$nome'." "l" } else { show_log "A setar '$nome'." }
+
+      if (-Not (Test-Path "$image_folder\$nome.png")) {
+        if ($callback) { & $callback "O WallPaper '$nome' não existe." "w" } else { show_warn "O WallPaper '$nome' não existe." }
+      }
+      elseif (-Not ([string]::IsNullOrEmpty($nome) -Or ($nome -match '^\s*$'))) {
+        try {
+          setrgkey 'HKCU:\Control Panel\Desktop' 'WallPaper' "$image_folder\$nome.png"
+          setrgkey 'HKCU:\Control Panel\Desktop' 'WallPaperStyle' 10
+          setrgkey 'HKCU:\Control Panel\Desktop' 'TileWallpaper' 0
+          rundll32.exe user32.dll, UpdatePerUserSystemParameters
+
+          if ($callback) { & $callback "Definido." "l" } else { show_log "Definido." }
+        }
+        catch {
+          if ($callback) { & $callback "FALHA ao definir WallPaper." "e" } else { show_error "FALHA ao definir WallPaper." }
+        }
+      }
+    }
+  }
+}
+
+# ==============================
+# INVOCACAO (auto-detect import vs execução)
+# ==============================
+if ($MyInvocation.InvocationName -ne '.') {
+  if (Get-Command main -ErrorAction SilentlyContinue) {
+    main @args
   }
 }

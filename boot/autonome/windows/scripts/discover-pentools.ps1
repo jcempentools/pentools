@@ -104,11 +104,17 @@
     4. Orquestração modular com validação individual de cada micro-função.
     5. Finalização auditável com log rastreável e saída determinística.
 
+    [INVOCAÇãO]
+    O script sempre auto identifica se foi importado ou executado:
+    1. Se executado diretatamente executa função main repassando parametros 
+       recebidos por linha de comando ou variáveis de ambiente.,
+    2. Se importado expõe as funções públicas para serem chamadas por outros
+       scripts sem executar nada.    
+
 .COMPONENT
     Função Universal: 'Get-PentoolsEnvironment'
     Foco: Localização ultra-resiliente de ativos offline em estágios iniciais de deploy.
 #>
-
 
 function Get-PentoolsEnvironment {
   param(

@@ -92,37 +92,66 @@
     4. Orquestração modular com validação individual de cada micro-função.
     5. Finalização auditável com log rastreável e saída determinística.
 
+    [INVOCAÇãO]
+    O script sempre auto identifica se foi importado ou executado:
+    1. Se executado diretatamente executa função main repassando parametros 
+       recebidos por linha de comando ou variáveis de ambiente.,
+    2. Se importado expõe as funções públicas para serem chamadas por outros
+       scripts sem executar nada.    
+
 .COMPONENT
     Reparador de Pacotes AppX, Gestor de Winget e Fix de Contexto.
     Foco: Confiabilidade de Provisionamento e Disponibilidade de Ferramentas.
 #>
 
+function main {
+  param(
+    [scriptblock]$callback
+  )
 
-if (-not $in_system_context) {
-  show_log_title "Fix winget, forçando disponibilização de winget no contexto do sistema"
-  try {
-    Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe | write-host
-  }
-  catch {
-    show_error "Falha ao executar Add-AppxPackage "
-  }
-  show_log_title "Winget setup fix 1"
-  try {
-    $ResolveWingetPath = Resolve-Path "$env:SystemDrive\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe"
-    if ($ResolveWingetPath) {
-      $WingetPath = $ResolveWingetPath[-1].Path
+  if (-not $in_system_context) {
+
+    if ($callback) { & $callback "Fix winget, forçando disponibilização de winget no contexto do sistema" "t" } else { show_log_title "Fix winget, forçando disponibilização de winget no contexto do sistema" }
+
+    try {
+      Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe | write-host
     }
-    Write-Host "-> winget: '$wingetpath'"
-    Set-Location "$wingetpath"
+    catch {
+      if ($callback) { & $callback "Falha ao executar Add-AppxPackage " "e" } else { show_error "Falha ao executar Add-AppxPackage " }
+    }
+
+    if ($callback) { & $callback "Winget setup fix 1" "t" } else { show_log_title "Winget setup fix 1" }
+
+    try {
+      $ResolveWingetPath = Resolve-Path "$env:SystemDrive\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe"
+      if ($ResolveWingetPath) {
+        $WingetPath = $ResolveWingetPath[-1].Path
+      }
+
+      if ($callback) { & $callback "-> winget: '$wingetpath'" "i" } else { Write-Host "-> winget: '$wingetpath'" }
+
+      Set-Location "$wingetpath"
+    }
+    catch {
+      if ($callback) { & $callback "FALHA ao executar FIX 1" "e" } else { show_error "FALHA ao executar FIX 1" }
+    }
+
+    if ($callback) { & $callback "Atual: $pwd" "i" } else { write-host "Atual: $pwd" }
+
+    if (-not $script:is_test_mode) {
+      isowin_winget_update
+    }
+    else {
+      if ($callback) { & $callback "TEST MODE: winget upgrade ignorado" "w" } else { show_log "TEST MODE: winget upgrade ignorado" }
+    }
   }
-  catch {
-    show_error "FALHA ao executar FIX 1"
-  }
-  write-host "Atual: $pwd"
-  if (-not $script:is_test_mode) {
-    isowin_winget_update
-  }
-  else {
-    show_log "TEST MODE: winget upgrade ignorado"
+}
+
+# ==============================
+# INVOCACAO (auto-detect import vs execução)
+# ==============================
+if ($MyInvocation.InvocationName -ne '.') {
+  if (Get-Command main -ErrorAction SilentlyContinue) {
+    main @args
   }
 }
