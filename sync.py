@@ -669,7 +669,7 @@ def parse_syncdownload(file_path):
         show_message(f"Erro ao ler .syncdownload {file_path}: {e}", "e")
         return None, None, None
 
-def manage_sync_metadata(final_dest_path, url, expected_hash, github_ext=None):
+def manage_sync_metadata(final_dest_path, url, expected_hash):
     """
     Decisão unificada de download (independente da origem)
 
@@ -773,7 +773,7 @@ def manage_sync_metadata(final_dest_path, url, expected_hash, github_ext=None):
         show_message(f"Erro na validação: {e}", "w")
         return True
     
-def generate_sync_metadata(final_dest_path, url, custom_filename, github_ext):
+def generate_sync_metadata(final_dest_path, url):
     """
     Gera arquivos auxiliares (.sha256 / .syncado)
     Universal (independente da origem)
@@ -1048,7 +1048,7 @@ def resolve_syncdownload_cached(sync_path):
                 if p.startswith("."):
                     ext = p[1:]
                     github_ext = ext
-                elif p in ("x86", "x64", "arm64"):
+                elif p in ("x86", "x64", "arm64", "amd64"):
                     arch = p
                 elif p.startswith("!"):
                     exclude_filters.append(p[1:])
@@ -1292,7 +1292,7 @@ def destination_cleanup(root, dry_run=False):
             except Exception as e:
                 show_message(f"Erro ao acessar subdiretório {dest_full_path}: {e}", "e")
 
-def is_cached_file_valid(path, expected_hash, url):
+def is_cached_file_valid(path, expected_hash):
     if not os.path.exists(path):
         return False
 
@@ -1355,41 +1355,21 @@ def origin_to_destination(path, retry, dry_run):
                     if not resolved:
                         return
 
+                    # BUG: REGRA VIOLADA: verificação e validação de url não é
+                    #                atribuição de origin_to_destination                     
                     url = resolved["url"]
-                    final_url = resolved.get("final_url")
-                    headers = resolved.get("headers", {})
-                    content_type = headers.get("Content-Type", "").lower()
-
-                    url = resolved["url"]
+                    final_url = resolved.get("final_url")                    
+                    
                     expected_hash = resolved["expected_hash"]                    
 
                     custom_filename = None
                     if resolved:
                         custom_filename = resolved.get("custom_filename")                    
 
-                    github_ext = resolved["github_ext"]                        
-
-                    # --- NORMALIZAÇÃO UNIVERSAL spec | url ---
-                    spec = None
-
-                    if url and "|" in url:
-                        try:
-                            left, right = url.split("|", 1)
-
-                            right = right.strip()
-
-                            # só aceita se lado direito for URL válida
-                            if right.startswith("http://") or right.startswith("https://"):
-                                spec = left.strip()
-                                url = right
-                            else:
-                                spec = None
-
-                        except Exception:
-                            spec = None                    
-
-                    if not url:
-                        return                                                      
+                    # BUG: REGRA VIOLADA: o nome do motor (github) é indiferente
+                    #                não cabe a esta função validar/verificar
+                    #                se a extensão é valida
+                    github_ext = resolved["github_ext"]
 
                     # Nome do arquivo (mesma lógica do cleanup)                    
                     # PRESERVA nome vindo do GitHub (se existir)                    
@@ -1410,8 +1390,7 @@ def origin_to_destination(path, retry, dry_run):
                     if os.path.exists(origin_cached_path):
                         origin_valid = is_cached_file_valid(
                             origin_cached_path,
-                            expected_hash,
-                            url
+                            expected_hash                            
                         )
 
                         if origin_valid:
@@ -1433,7 +1412,7 @@ def origin_to_destination(path, retry, dry_run):
                     # Verifica necessidade de download (centralizado)
                     need_download = manage_sync_metadata(
                         final_dest_path=final_dest_path,
-                        url=url,
+                        url=resolved["url"],
                         expected_hash=expected_hash,                        
                         github_ext=github_ext
                     )
@@ -1447,16 +1426,20 @@ def origin_to_destination(path, retry, dry_run):
 
                         show_message(f"Baixando: {rel_path} -> {filename}", "+")
 
+                        # BUG: REGRA VIOLADA: possivel falha, porque insitimo 
+                        #                     em tratar final_url, não é objetivo desta função
                         # --- RESOLUÇÃO CENTRALIZADA (HEAD antes do GET) ---
-                        final_url = resolved.get("final_url") or url
-                        headers = resolved.get("headers", {})
+                        final_url = resolved.get("final_url") or resolved["url"]                        
 
+
+                        # BUG: REGRA VIOLADA: possivel falha, porque insitimo 
+                        #                     em tratar final_url, não é objetivo desta função
+                        #                     # mover para função pertinente
                         if not final_url:
                             show_message(f"Falha ao resolver URL final: {url}", "e")
-                            return
-                        
-                        content_type = headers.get("Content-Type", "").lower()
+                            return                                                
 
+                        # BUG: o que HTML detectado tem a ver com final_url?
                         if not final_url:
                             show_message(f"Falha ao resolver download real (HTML detectado): {url}", "e")
                             return
@@ -1523,8 +1506,11 @@ def origin_to_destination(path, retry, dry_run):
                             # Metadata SEMPRE após sucesso
                             generate_sync_metadata(
                                 final_dest_path=final_dest_path,
-                                url=url,
+                                url=resolved["url"],
+                                # BUG: parâmetro ausente na função (provavelmente desnecessário)
                                 custom_filename=custom_filename,
+                                # BUG: VIOLA REGRAS: nome da motor é indiferente
+                                #                    parâmetro ausente na func'~ao
                                 github_ext=github_ext
                             )
                         else:
@@ -1553,8 +1539,11 @@ def origin_to_destination(path, retry, dry_run):
 
                                 generate_sync_metadata(
                                     final_dest_path=origin_cached_path,
-                                    url=url,
+                                    url=resolved["url"],
+                                    # BUG: parâmetro ausente na função (provavelmente desnecessário)
                                     custom_filename=custom_filename,
+                                    # BUG: VIOLA REGRAS: nome da motor é indiferente
+                                    #                    parâmetro ausente na func'~ao                                    
                                     github_ext=github_ext
                                 )
 
@@ -1627,6 +1616,7 @@ def apply_root_hidden_attribute():
                     ctypes.windll.kernel32.SetFileAttributesW(dest_full_path, attrs | FILE_ATTRIBUTE_HIDDEN)
                     show_message(f"Ocultado: {item}", "d")
             else:
+                # BUG: ESTE TRECHO  NUNCA É EXECUTADO - (FALHA NA IMPLEMENTAÇãO)
                 # Fallback Unix (renomeia com ponto)
                 if not os.path.basename(dest_full_path).startswith("."):
                     hidden_path = os.path.join(destination_path, "." + item)
