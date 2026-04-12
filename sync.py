@@ -142,9 +142,13 @@ from rich.progress import (
     TaskProgressColumn
 )
 
-PROVIDERS = {
-    "github.com": resolve_github
-}
+PROVIDERS = {}
+
+# Registro seguro de providers (evita NameError)
+try:
+    PROVIDERS["github.com"] = resolve_github
+except NameError:
+    pass  # provider não disponível
 
 __IGNORAR_GITHUB = False
 
@@ -153,7 +157,8 @@ ID_EXECUCAO = ''.join(random.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_FILE = os.path.join(SCRIPT_DIR, "sync.log")
-MAX_LOG_SIZE = 2 * 1024 * 1024  # 5 MB
+MAX_LOG_SIZE = 5 * 1024 * 1024  # 5 MB
+SyncDonwloadExtensions = ["exe", "msi", "iso", "img"]
 
 _log_iniciado = False
 retent_loop_count = 0
@@ -167,6 +172,9 @@ sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
 
 # Inicializa o console para mensagens estilizadas
 console = Console()
+
+# Cache de proteção global .syncdownload
+_sync_global_map = None
 
 # Dicionário para armazenar hashes temporários em RAM
 hash_cache = {}
@@ -340,8 +348,8 @@ def hash_file(filename, label):
         show_message(f"Erro ao calcular hash de {filename}: {e}", "e")
         return None
 
-def resolve_filename_from_url(url, fallback_path=None):
-    """Resolve nome de arquivo a partir de URL, header ou fallback (.syncdownload)"""
+def _resolve_filename_from_url(url, fallback_path=None):
+    """INTERNAL: uso exclusivo por resolve_final_filename"""
     filename = None
 
     # 1. URL
@@ -370,7 +378,7 @@ def resolve_filename_from_url(url, fallback_path=None):
 
     return filename  
 
-def resolve_effective_remote_name(url):
+def _resolve_effective_remote_name(url):
     """
     Resolve nome REAL do arquivo após redirects (SourceForge, etc).
     Prioriza:
@@ -403,29 +411,6 @@ def resolve_effective_remote_name(url):
 
     # 3. fallback existente
     return resolve_filename_from_url(url)
-
-def resolve_effective_download_url(url):
-    """
-    Resolve URL final real do arquivo (especialmente SourceForge).
-    Segue redirects até obter o binário.
-    """
-    try:
-        import urllib.request
-
-        req = urllib.request.Request(url, method="GET")
-
-        with urllib.request.urlopen(req) as response:
-            final_url = response.geturl()
-            content_type = response.headers.get("Content-Type", "").lower()
-
-            # Se ainda for HTML, tenta fallback (SourceForge edge case)
-            if "text/html" in content_type:
-                return None, content_type
-
-            return final_url, content_type
-
-    except Exception:
-        return None, None    
 
 def normalize_product_name(filename):
     """
@@ -506,9 +491,9 @@ def purge_similar_installers(dest_dir, target_name):
 
         if not os.path.isfile(full):
             continue
-
-        # 🔒 Nunca tocar em metadata
-        if f.lower().endswith((".sha256", ".syncado")):
+        
+        # 🔒 Nunca tocar em metadata ou arquivos de controle
+        if f.lower().endswith((".sha256", ".syncado", ".syncdownload")):
             continue
 
         base = normalize_product_name(f)
@@ -551,7 +536,14 @@ def purge_similar_installers(dest_dir, target_name):
     if len(candidates) <= 1:
         return
 
-    # 🔒 Garante que o target está presente
+    target_full = os.path.join(dest_dir, target_name)
+
+    # 🔒 Só permite purge se o alvo (latest) EXISTE fisicamente
+    if not os.path.exists(target_full):
+        show_message(f"Purga abortada: alvo ainda não existe fisicamente ({target_name})", "d")
+        return
+
+    # 🔒 Garante que o target está presente no grupo
     if target_name not in candidates:
         show_message(f"Purga abortada: alvo não encontrado entre candidatos ({target_name})", "w")
         return
@@ -590,7 +582,7 @@ def resolve_final_filename(url, path, custom_name=None, github_ext=None):
 
     # --- SEM linha 3 → comportamento original ---
     if not custom_name:
-        return resolve_filename_from_url(url, path)
+        return _resolve_filename_from_url(url, path)
 
     custom_name = custom_name.strip()
 
@@ -607,9 +599,20 @@ def resolve_final_filename(url, path, custom_name=None, github_ext=None):
         ext = existing_ext
     else:
         # fallback URL
-        remote_name = resolve_effective_remote_name(url)
+        remote_name = _resolve_effective_remote_name(url)
+
         if remote_name and "." in remote_name:
             ext = remote_name.split(".")[-1].lower()
+
+    # --- GARANTIA DE EXTENSÃO ---
+    if not ext:
+        raise Exception(f"Extensão não resolvida para: {custom_name or url}")
+
+    ext = ext.lower()
+
+    # --- VALIDAÇÃO CONTRA REGRA DE NEGÓCIO ---
+    if ext not in SyncDonwloadExtensions:
+        raise Exception(f"Extensão não permitida pela regra de negócio: .{ext}")
 
     # --- NORMALIZA NOME DO PRODUTO ---
     base_name = normalize_product_name(custom_name)
@@ -651,7 +654,9 @@ def parse_syncdownload(file_path):
             show_message(f"Erro ao resolver parser DSL: {e}", "e")
             return None, None, None
         
-        expected_hash = raw_lines[1].strip() if len(raw_lines) > 1 and raw_lines[1].strip() else None
+        expected_hash = None
+        if len(raw_lines) > 1 and raw_lines[1].strip():
+            expected_hash = raw_lines[1].strip().split()[0]
         custom_filename = raw_lines[2].strip() if len(raw_lines) > 2 and raw_lines[2].strip() else None
 
         return url, expected_hash, custom_filename
@@ -660,7 +665,7 @@ def parse_syncdownload(file_path):
         show_message(f"Erro ao ler .syncdownload {file_path}: {e}", "e")
         return None, None, None
 
-def manage_sync_metadata(final_dest_path, url, expected_hash, github_ext):    
+def manage_sync_metadata(final_dest_path, url, expected_hash, github_ext=None):
     """
     Decisão unificada de download (independente da origem)
 
@@ -695,7 +700,7 @@ def manage_sync_metadata(final_dest_path, url, expected_hash, github_ext):
         with open(sync_file, "r", encoding="utf-8") as f:
             stored_name = f.read().strip()
 
-        current_name = resolve_effective_remote_name(url)
+        current_name = _resolve_effective_remote_name(url)
 
         if not current_name:
             show_message("Não foi possível resolver nome atual → download", "w")
@@ -788,7 +793,7 @@ def generate_sync_metadata(final_dest_path, url, custom_filename, github_ext):
             f.write(sha_line + "\n")
 
         # .syncado sempre registra nome remoto real (controle de versão)
-        original_name = resolve_effective_remote_name(url)
+        original_name = _resolve_effective_remote_name(url)
 
         if original_name:
             with open(final_dest_path + ".syncado", "w", encoding="utf-8") as f:
@@ -842,19 +847,7 @@ def is_same_product(a, b):
     intersect = ta & tb
 
     # pelo menos 1 token relevante em comum
-    return len(intersect) >= 1   
-
-def is_same_product(a, b):
-    if not a or not b:
-        return False
-
-    ta = set(a.split("."))
-    tb = set(b.split("."))
-
-    intersect = ta & tb
-
-    # pelo menos 1 token relevante em comum
-    return len(intersect) >= 1            
+    return len(intersect) >= 1         
 
 def has_resolvable_url(value):
     """Detecta URL direta OU indireta (parser DSL)"""
@@ -1131,7 +1124,14 @@ def resolve_download_context(sync_path):
     if not resolved:
         return None
 
-    final_url, headers = resolve_final_url(resolved["url"])
+    cached = sync_resolve_cache.get(sync_path)
+    if cached and cached.get("final_url"):
+        final_url = cached["final_url"]
+        headers = cached.get("headers", {})
+    else:
+        final_url, headers = resolve_final_url(resolved["url"])
+        resolved["final_url"] = final_url
+        resolved["headers"] = headers
 
     return {
         **resolved,
@@ -1141,10 +1141,24 @@ def resolve_download_context(sync_path):
 
 def destination_cleanup(root, dry_run=False):
     """Remove arquivos/pastas no destino que não existem na origem"""
+    global _sync_global_map
+    # --- CACHE LOCAL DE PROTEÇÃO POR DIRETÓRIO (.syncdownload) ---
+    local_sync_files = []
+    try:
+        origin_dir_equiv = os.path.join(ORIGIN_PATH, os.path.relpath(root, destination_path))
+        if os.path.exists(origin_dir_equiv):
+            for f in os.listdir(origin_dir_equiv):
+                if f.lower().endswith(".syncdownload"):
+                    local_sync_files.append(os.path.join(origin_dir_equiv, f))
+    except Exception:
+        local_sync_files = []
+
+    has_local_sync = len(local_sync_files) > 0
+
     for item in os.listdir(root):        
         dest_full_path = os.path.join(root, item)
         rel_path = os.path.relpath(dest_full_path, destination_path)
-        origin_equivalent = os.path.join(ORIGIN_PATH, rel_path)
+        origin_equivalent = os.path.join(ORIGIN_PATH, rel_path)        
 
         # --- IGNORA PASTAS RAIZ apps/ e Drivers/ NO DESTINO ---
         # Se estiver na raiz do destino e for uma dessas pastas, ignora completamente
@@ -1153,7 +1167,7 @@ def destination_cleanup(root, dry_run=False):
             continue
         
         # protege arquivos auxiliares de sync vinculados a arquivo existente
-        if dest_full_path.lower().endswith((".sha256", ".syncado")):
+        if has_local_sync and dest_full_path.lower().endswith((".sha256", ".syncado")):
             origin_equivalent_sync = origin_equivalent + ".syncdownload"
 
             # 🔒 1. Proteção via .syncdownload (PRIORITÁRIO)
@@ -1163,7 +1177,8 @@ def destination_cleanup(root, dry_run=False):
 
                     if resolved:
                         expected_name = resolved.get("filename")
-                        expected_full = os.path.join(os.path.dirname(dest_full_path), expected_name)
+                        base_dir = os.path.dirname(dest_full_path)
+                        expected_full = os.path.join(base_dir, expected_name)
 
                         if os.path.exists(expected_full):
                             show_message(f"Remoção protegida (.syncdownload válido): {item}", "D")
@@ -1187,7 +1202,50 @@ def destination_cleanup(root, dry_run=False):
         # --- TRATAMENTO PARA ARQUIVOS GERADOS POR .syncdownload ---
         origin_equivalent_sync = origin_equivalent + ".syncdownload"
 
+        # --- PROTEÇÃO CONDICIONAL POR DIRETÓRIO ---
+        has_local_sync = len(local_sync_files) > 0
+
+        # =========================================================
+        # 🔒 PROTEÇÃO CANÔNICA DE ARQUIVOS GERADOS POR .syncdownload
+        # =========================================================
+
+        try:
+            origin_equivalent_sync = origin_equivalent + ".syncdownload"
+
+            if os.path.exists(origin_equivalent_sync):
+                resolved = resolve_syncdownload_cached(origin_equivalent_sync)
+
+                if resolved:
+                    expected_name = resolved.get("filename")
+
+                    if expected_name:
+                        expected_full = os.path.join(root, expected_name)
+
+                        # 🔒 proteção direta (nome resolvido)
+                        if os.path.abspath(dest_full_path) == os.path.abspath(expected_full):
+                            show_message(f"Protegido (.syncdownload resolvido): {item}", "D")
+                            continue
+
+                        # 🔒 proteção por presença do arquivo esperado
+                        if os.path.exists(expected_full):
+                            current_base = normalize_product_name(os.path.basename(dest_full_path))
+                            expected_base = normalize_product_name(expected_name)
+
+                            if is_same_product(current_base, expected_base):
+                                show_message(f"Protegido (grupo do .syncdownload): {item}", "D")
+                                continue
+
+        except Exception:
+            pass        
+
         if not os.path.exists(origin_equivalent):
+            # --- PROTEÇÃO INTELIGENTE DE DOWNLOADS ---
+            if has_local_sync:
+                ext = os.path.splitext(dest_full_path)[1].lower().lstrip(".")
+                if ext in SyncDonwloadExtensions:
+                    show_message(f"Protegido (extensão gerenciada por .syncdownload): {item}", "D")
+                    continue
+
             # Verifica se existe um .syncdownload correspondente na origem
             if os.path.exists(origin_equivalent_sync):
                 try:
@@ -1230,11 +1288,36 @@ def is_cached_file_valid(path, expected_hash, url):
     if not os.path.exists(path):
         return False
 
+    sha_file = path + ".sha256"
+
+    # =========================================================
+    # 1. HASH EXTERNO (linha 2 do .syncdownload) → prioridade máxima
+    # =========================================================
     if expected_hash:
         current_hash = hash_file(path, "Cache")
         return current_hash == expected_hash.lower()
 
-    # fallback leve
+    # =========================================================
+    # 2. VALIDAÇÃO POR .sha256 (INTEGRIDADE LOCAL)
+    # =========================================================
+    if os.path.exists(sha_file):
+        try:
+            with open(sha_file, "r", encoding="utf-8") as f:
+                line = f.readline().strip()
+                saved_hash = line.split()[0] if line else None
+
+            if not saved_hash:
+                return False
+
+            current_hash = hash_file(path, "Cache")
+            return current_hash == saved_hash.lower()
+
+        except Exception:
+            return False
+
+    # =========================================================
+    # 3. FALLBACK LEVE (APENAS SE NÃO HÁ METADATA)
+    # =========================================================
     try:
         return os.path.getsize(path) > 0
     except:
@@ -1260,10 +1343,14 @@ def origin_to_destination(path, retry, dry_run):
                 show_message(f"Sincronização online: {os.path.splitext(os.path.basename(path))[0]}")
 
                 try:
-                    resolved = resolve_syncdownload_cached(path)
-
+                    resolved = resolve_download_context(path)
                     if not resolved:
                         return
+
+                    url = resolved["url"]
+                    final_url = resolved.get("final_url")
+                    headers = resolved.get("headers", {})
+                    content_type = headers.get("Content-Type", "").lower()
 
                     url = resolved["url"]
                     expected_hash = resolved["expected_hash"]                    
@@ -1327,7 +1414,9 @@ def origin_to_destination(path, retry, dry_run):
                                 os.makedirs(dest_dir, exist_ok=True)
                                 shutil.copy2(origin_cached_path, final_dest_path)
 
-                                purge_similar_installers(dest_dir, filename)
+                                # 🔒 Purge somente após garantir latest físico no destino
+                                if os.path.exists(final_dest_path):
+                                    purge_similar_installers(dest_dir, filename)
                             except Exception as e:
                                 show_message(f"Erro ao copiar cache da origem: {e}", "e")
 
@@ -1350,27 +1439,19 @@ def origin_to_destination(path, retry, dry_run):
 
                         show_message(f"Baixando: {rel_path} -> {filename}", "+")
 
-                        final_url, content_type = resolve_effective_download_url(url)
+                        # --- RESOLUÇÃO CENTRALIZADA (HEAD antes do GET) ---
+                        final_url = resolved.get("final_url") or url
+                        headers = resolved.get("headers", {})
+
+                        if not final_url:
+                            show_message(f"Falha ao resolver URL final: {url}", "e")
+                            return
+                        
+                        content_type = headers.get("Content-Type", "").lower()
 
                         if not final_url:
                             show_message(f"Falha ao resolver download real (HTML detectado): {url}", "e")
                             return
-
-                        # --- EXTENSÃO VIA CONTENT-TYPE (fallback seguro) ---
-                        def guess_ext_from_content_type(ct):
-                            if "application/x-msdownload" in ct or "application/octet-stream" in ct:
-                                return None  # não força
-                            if "application/x-msi" in ct:
-                                return "msi"
-                            if "application/zip" in ct:
-                                return "zip"
-                            return None
-
-                        ext_from_ct = guess_ext_from_content_type(content_type or "")
-
-                        if "." not in filename and ext_from_ct:
-                            filename = f"{filename}.{ext_from_ct}"
-                            final_dest_path = os.path.join(dest_dir, filename)
 
                         # --- DOWNLOAD REAL ---
                         with urllib.request.urlopen(final_url) as response:
@@ -1458,7 +1539,9 @@ def origin_to_destination(path, retry, dry_run):
 
                                 shutil.copy2(final_dest_path, origin_cached_path)
 
-                                purge_similar_installers(origin_dir, filename)
+                                # 🔒 Purge somente após garantir latest físico na origem
+                                if os.path.exists(origin_cached_path):
+                                    purge_similar_installers(origin_dir, filename)
 
                                 generate_sync_metadata(
                                     final_dest_path=origin_cached_path,
@@ -1583,7 +1666,7 @@ def main():
         time.sleep(1)
 
         for path in to_retry:
-            origin_to_destination(path, False, dry_run)
+            retry_sync(lambda: origin_to_destination(path, False, dry_run))
 
         retry_round += 1
 
