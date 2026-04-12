@@ -391,7 +391,7 @@ def hash_file(filename, label):
 
             hasher = hashlib.sha256() if use_sha256 else xxhash.xxh3_64()
             file_name = os.path.basename(filename)  
-            with create_progress("# Hash", "yellow") as progress:
+            with create_progress("# Hash", "bold yellow") as progress:
                 task = progress.add_task("", total=file_size, label=label, name=file_name)
                 while chunk := file.read(65536):
                     hasher.update(chunk)
@@ -811,7 +811,9 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
 
                     base_source = fallback_name
 
-            if base_source:                
+            if base_source:
+                base = base_source.lower()
+
                 # remove extensão
                 base = re.sub(r'\.[a-z0-9]{2,5}$', '', base)                
 
@@ -1165,7 +1167,7 @@ def generate_sync_metadata(final_dest_path, url):
             total_size = os.path.getsize(final_dest_path)
 
             with open(final_dest_path, "rb") as f:
-                with create_progress("# Hash", "yellow") as progress:
+                with create_progress("# Hash", "bold yellow") as progress:
 
                     task = progress.add_task(
                         "",
@@ -1190,11 +1192,18 @@ def generate_sync_metadata(final_dest_path, url):
         # =========================================================
         # 2. .syncado → SEMPRE
         # =========================================================
-        original_name = _resolve_effective_remote_name(url)
+        original_info = _resolve_effective_remote_name(url)
+
+        original_name = None
+
+        if isinstance(original_info, dict):
+            original_name = original_info.get("name")
+        elif isinstance(original_info, str):
+            original_name = original_info
 
         if original_name:
             with open(final_dest_path + ".syncado", "w", encoding="utf-8") as f:
-                f.write(original_name)
+                f.write(str(original_name))
 
     except Exception as e:
         show_message(f"Erro ao gerar arquivos auxiliares: {e}", "w")
