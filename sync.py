@@ -2039,13 +2039,22 @@ def purge_similar_installers_safe(dest_dir, target_name, canonical_name=None):
 
     # 🔒 prioridade: nome canônico da linha 3
     if canonical_name:
-        canonical_clean = normalize_canonical_name(canonical_name)
-        target_base = normalize_product_name(canonical_clean)
+        target_base = normalize_canonical_name(canonical_name)
     else:
         target_base = normalize_product_name(target_name)
 
     if not target_base:
         return
+
+    # =========================================================
+    # 🔒 MODO ESTRITO (quando há subtipo explícito no canônico)
+    # =========================================================
+    strict_mode = False
+
+    if canonical_name:
+        canonical_clean = normalize_canonical_name(canonical_name)
+        if canonical_clean and "-" in canonical_clean:
+            strict_mode = True        
 
     candidates = []
 
@@ -2060,9 +2069,28 @@ def purge_similar_installers_safe(dest_dir, target_name, canonical_name=None):
 
         base = normalize_product_name(f)
 
+        # =========================================================
+        # 🔒 PRIORIDADE: comparação canônica (linha 3)
+        # =========================================================
+        candidate_canonical = normalize_canonical_name(f)
+
+        if candidate_canonical and target_base:
+            if candidate_canonical == target_base:
+                candidates.append(f)
+                continue
+
+            # 🔒 modo estrito → não permite fallback
+            if strict_mode:
+                continue
+
+        # =========================================================
+        # fallback (compatibilidade antiga)
+        # =========================================================
+        base = normalize_product_name(f)
+
         if is_same_product(base, target_base):
             candidates.append(f)
-
+            
     if len(candidates) <= 1:
         return
 
