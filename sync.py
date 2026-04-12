@@ -391,7 +391,7 @@ def hash_file(filename, label):
 
             hasher = hashlib.sha256() if use_sha256 else xxhash.xxh3_64()
             file_name = os.path.basename(filename)  
-            with create_progress("# Hash", "bold yellow") as progress:
+            with create_progress("# Hash", "yellow") as progress:
                 task = progress.add_task("", total=file_size, label=label, name=file_name)
                 while chunk := file.read(65536):
                     hasher.update(chunk)
@@ -1167,7 +1167,7 @@ def generate_sync_metadata(final_dest_path, url):
             total_size = os.path.getsize(final_dest_path)
 
             with open(final_dest_path, "rb") as f:
-                with create_progress("# Hash", "bold yellow") as progress:
+                with create_progress("# Hash", "yellow") as progress:
 
                     task = progress.add_task(
                         "",
