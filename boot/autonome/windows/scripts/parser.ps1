@@ -32,7 +32,7 @@
     RESTRIÇÕES ESPECÍFICAS (HARD RULES):
     - ❌ VEDAÇÃO: Proibido parsing de HTML ou técnicas de Scraping.
     - ❌ VEDAÇÃO: Proibida execução de código arbitrário (Bloqueio de Invoke-Expression).
-    - ❌ VEDAÇÃO: Proibido encadeamento ou aninhamento de múltiplas expressões DSL.
+    - ❌ VEDAÇÃO: Proibido encadeamento ou aninhamento de múltiplas expressões DSL (limitar deept em 10).
     - ❌ VEDAÇÃO: Operação estritamente de leitura (Idempotência HTTP GET).
 
     FAIL-SAFE & TRATAMENTO DE ERROS:
