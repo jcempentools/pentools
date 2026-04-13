@@ -432,7 +432,8 @@ def copy_file_with_progress(src, dst):
             task = progress.add_task(
                 "",
                 total=file_size,
-                name=os.path.basename(src)
+                name=os.path.basename(src),
+                op=get_op_icon("copy")
             )
 
             while chunk := src_f.read(65536):
@@ -1239,7 +1240,8 @@ def generate_sync_metadata(final_dest_path, url):
                     task = progress.add_task(
                         "",
                         total=total_size,
-                        name=os.path.basename(final_dest_path)
+                        name=os.path.basename(final_dest_path),
+                         op=get_op_icon("download")
                     )
 
                     while True:
@@ -2005,6 +2007,18 @@ def _normalize_color(color: str):
     return style, base_color
 
 from rich.progress import Progress, TextColumn, BarColumn, DownloadColumn, TransferSpeedColumn, TimeRemainingColumn
+
+def get_op_icon(op_type, direction=None):
+    if op_type == "hash":
+        return "🔍⬅" if direction == "source" else "🔍➜"
+
+    if op_type == "download":
+        return "⬇⬇"
+
+    if op_type == "copy":
+        return "➜➜"
+
+    return "  "  # fallback 2 chars
 
 def create_progress(color="cyan"):
     style, base_color = _normalize_color(color)
