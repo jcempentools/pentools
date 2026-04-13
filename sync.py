@@ -2305,9 +2305,44 @@ def process_single_syncdownload(path, dry_run):
             if is_cached_file_valid(origin_cached_path, expected_hash):
                 show_message(f"Cache válido na origem: {filename}", "k")
 
+                # =========================================================
+                # 🔒 STATUS DO DESTINO
+                # =========================================================
+                dest_exists = os.path.exists(final_dest_path)
+                dest_valid = dest_exists and is_cached_file_valid(final_dest_path, expected_hash)
+
+                if dest_valid:
+                    show_message(f"Cache válido no destino: {filename}", "k")
+                    show_message(f"Sincronizado (sem ação): {filename}", "d")
+                    show_message(f"Sync completo: {filename}", "s")
+                    return
+
+                if dest_exists and not dest_valid:
+                    show_message(f"Destino inválido → cópia necessária: {filename}", "w")
+                elif not dest_exists:
+                    show_message(f"Destino inexistente → cópia necessária: {filename}", "i")
+
+                # =========================================================
+                # 🔒 DECISÕES
+                # =========================================================
+                show_message(f"Download não necessário: {filename}", "d")
+
                 if not dry_run:
-                    if not os.path.exists(final_dest_path) or not is_cached_file_valid(final_dest_path, expected_hash):
-                        copy_file_with_progress(origin_cached_path, final_dest_path)
+                    copy_file_with_progress(origin_cached_path, final_dest_path)
+
+                    # 🔒 propaga metadata também
+                    for ext_meta in (".sha256", ".syncado"):
+                        src_meta = origin_cached_path + ext_meta
+                        dst_meta = final_dest_path + ext_meta
+
+                        if os.path.exists(src_meta):
+                            try:
+                                copy_file_with_progress(src_meta, dst_meta)
+                            except Exception:
+                                pass
+
+                    show_message(f"Arquivo sincronizado via cache: {filename}", "s")
+                    show_message(f"Sync completo: {filename}", "s")
 
                     if os.path.exists(final_dest_path):
                         purge_similar_installers_safe(
@@ -2438,6 +2473,7 @@ def process_single_syncdownload(path, dry_run):
     # =========================================================
     # 🔒 COPIA PARA DESTINO (ARQUIVO + METADATA)
     # =========================================================
+    # === CACHE NA ORIGEM ===
     try:
         # arquivo
         if not os.path.exists(final_dest_path) or not is_cached_file_valid(final_dest_path, expected_hash):
@@ -2453,6 +2489,8 @@ def process_single_syncdownload(path, dry_run):
                     copy_file_with_progress(src_meta, dst_meta)
                 except Exception:
                     pass
+
+        show_message(f"Sync completo: {filename}", "s")
 
     except Exception as e:
         show_message(f"Inconsistência: falha ao propagar cache→destino: {e}", "e")
