@@ -446,14 +446,43 @@ def copy_file_with_progress(src, dst):
         pass
 
 def _resolve_filename_from_url(url, fallback_path=None):
-    """
-    INTERNAL: uso exclusivo por resolve_final_filename
-    Descrição: Resolve nome de arquivo a partir de URL ou fallback.
+    """    
+    Descrição: Resolve nome final normalizado com extensão válida, sem duplicação e com base no nome canônico do produto.
+    Garante:
+    - Nome estável (ex: powershell.msi)
+    - Não duplicação de extensão
+    - Compatibilidade com purge    
+    - Nome fixado na terceira linha representa nome canônico do software
+      para fins comparação (limpeza e purge), desconsiderando o conteúdo:
+        1. terminações contidas em SyncDonwloadExtensions (incluindo o ponto)
+        2. o `{}`, que representa versiojamenteo a ser incorporado no nome do
+           arquivo final
+        3. caracteres não alfanuméricos imediatamente ao entorno de `{}` que
+           estarão presentes apenas no nome do arquivo final
+
+    Regras:
+    - Força extensão compatível (mime-type ou inferida)
+    - Evita duplicação de extensão
+    - Normaliza basename para manter apenas o nome do software
+    - Garante compatibilidade com purge e dedup
+
+    Exemplos de arquivo (todos representam apenas um software canonico = 7zip):
+    - 7zip.7zip -> 7zip.7zip.msi
+    - 7zip.7zip.msi -> 7zip.7zip.msi
+    - 7zip -> 7zip.msi
+    - 7zip.msi -> 7zip.msi
+    - Microsoft.PowerShell-7.6.0-rc.1-win-x64.msi -> powershell.msi
+    - 7zip{} -> 7zip-7.6.0.msi (substitui {} por versão unificada)
+    - 7zip-{}.7zip.msi -> 7zip-7.6.0.7zip.msi (substitui {} por versão unificada, mantém extensão original)
+
     Parâmetros:
     - url (str): URL do recurso.
     - fallback_path (str|None): Caminho alternativo.
     Retorno:
-    - str|None: Nome do arquivo resolvido.
+    - str|None: Nome do arquivo resolvido.    
+
+    Retorno:
+    - str: Nome final do arquivo.   
     """
     filename = None
 
