@@ -335,7 +335,20 @@ def show_message(txt, tipo=None, cor="white", bold=True, inline=False):
     if retent_loop_count > 0:
         txt = f"(Retry: {retent_loop_count}) {txt}"
 
-    style = f"{'bold ' if bold else ''}{cor}"
+    style_extra, base_color = _normalize_color(cor)
+
+    # 🔒 evita duplicação de bold
+    final_style = []
+
+    if bold and "bold" not in style_extra:
+        final_style.append("bold")
+
+    if style_extra:
+        final_style.append(style_extra)
+
+    final_style.append(base_color)
+
+    style = " ".join(final_style).strip()
 
     if inline:
         terminal_width = os.get_terminal_size().columns
@@ -1935,25 +1948,52 @@ def is_cached_file_valid(path, expected_hash):
     # =========================================================
     return os.path.getsize(path) > 0
 
+def _normalize_color(color: str):
+    """
+    Separa estilo e cor base.
+    Ex:
+    - 'yellow' → ('', 'yellow')
+    - 'bold yellow' → ('bold', 'yellow')
+    - 'bright_red' → ('', 'red')
+    """
+    if not color:
+        return "", "cyan"
+
+    parts = color.strip().lower().split()
+
+    # pega última parte como cor
+    base_color = parts[-1]
+
+    # remove prefixo bright_ se vier
+    base_color = base_color.replace("bright_", "")
+
+    # resto vira estilo
+    style = " ".join(parts[:-1])
+
+    return style, base_color
+
+from rich.progress import Progress, TextColumn, BarColumn, DownloadColumn, TransferSpeedColumn, TimeRemainingColumn
+
 def create_progress(task_label, color="cyan"):
-    """
-    Cria barra de progresso padronizada para operações de I/O (download, hash, cópia).
+    style, base_color = _normalize_color(color)
 
-    Parâmetros:
-    - task_label (str): Prefixo visual da operação (ex: '↓ Download', '# Hash')
+    # 🔒 monta estilo completo com reset explícito
+    label_style = f"{style} {base_color}".strip()
 
-    Retorno:
-    - Progress: Instância configurada
-    """
     return Progress(
-        TextColumn(f"[bold {color}]{task_label}: {{task.fields[name]}}"),
-        BarColumn(complete_style=color, finished_style=f"bright_{color}"),
-        TextColumn("[white]{task.percentage:>3.0f}%[/] "),
+        TextColumn(f"[{label_style}]{{task.description}}: {{task.fields[name]}}[/]"),
+        
+        BarColumn(
+            complete_style=base_color,
+            finished_style=f"bright_{base_color}"
+        ),
+
+        TextColumn("[white]{task.percentage:>3.0f}%[/]"),
         DownloadColumn(),
         TransferSpeedColumn(),
         TimeRemainingColumn(),
         transient=True
-    )    
+    )
 
 def download_file_with_progress(url, dst):
     """
