@@ -165,255 +165,255 @@ Set-StrictMode -Version Latest
 # [UTIL] UTF-8 SAFE LOAD (MULTI-FALLBACK)
 # -------------------------
 function _read_source {
-    param(
-        [Parameter(Mandatory)][string]$source
-    )
+  param(
+    [Parameter(Mandatory)][string]$source
+  )
 
-    if ([string]::IsNullOrWhiteSpace($source)) {
-        throw "Fonte inválida ou vazia."
+  if ([string]::IsNullOrWhiteSpace($source)) {
+    throw "Fonte inválida ou vazia."
+  }
+
+  # URL (prioridade para evitar falso positivo em Test-Path)
+  if ($source -match '^https?://') {
+    try {
+      $wc = New-Object System.Net.WebClient
+      $wc.Encoding = [System.Text.Encoding]::UTF8
+      return $wc.DownloadString($source)
     }
-
-    # URL (prioridade para evitar falso positivo em Test-Path)
-    if ($source -match '^https?://') {
-        try {
-            $wc = New-Object System.Net.WebClient
-            $wc.Encoding = [System.Text.Encoding]::UTF8
-            return $wc.DownloadString($source)
-        }
-        catch {
-            throw "Falha ao carregar URL: $source"
-        }
+    catch {
+      throw "Falha ao carregar URL: $source"
     }
+  }
 
-    # Path local
-    if ($source -match '^[a-zA-Z]:\\|^\.\\|^\/' -and (Test-Path $source)) {
-        try {
-            $resolved = (Resolve-Path $source).ProviderPath
-            $bytes = [System.IO.File]::ReadAllBytes($resolved)
-            return [System.Text.Encoding]::UTF8.GetString($bytes)
-        }
-        catch {
-            throw "Falha ao ler arquivo local: $source"
-        }
-    }    
+  # Path local
+  if ($source -match '^[a-zA-Z]:\\|^\.\\|^\/' -and (Test-Path $source)) {
+    try {
+      $resolved = (Resolve-Path $source).ProviderPath
+      $bytes = [System.IO.File]::ReadAllBytes($resolved)
+      return [System.Text.Encoding]::UTF8.GetString($bytes)
+    }
+    catch {
+      throw "Falha ao ler arquivo local: $source"
+    }
+  }    
     
 
-    return $source
+  return $source
 }
 
 # -------------------------
 # [UTIL] YAML/JSON PARSER (DEFENSIVO)
 # -------------------------
 function _parse_yaml {
-    param(
-        [Parameter(Mandatory)][string]$content
-    )
+  param(
+    [Parameter(Mandatory)][string]$content
+  )
 
-    try {
-        $trim = $content.Trim()
+  try {
+    $trim = $content.Trim()
 
-        # JSON direto
-        if ($trim.StartsWith("{") -or $trim.StartsWith("[")) {
-            return $content | ConvertFrom-Json -ErrorAction Stop
-        }
-
-        # YAML mínimo -> tentativa via conversão indireta (fallback)
-        if ($PSVersionTable.PSVersion.Major -ge 7) {
-            try {
-                if (Get-Command ConvertFrom-Yaml -ErrorAction SilentlyContinue) {
-                    return ConvertFrom-Yaml $content -ErrorAction Stop
-                }
-            }
-            catch {}
-        }
-
-        throw "Parser YAML indisponível no runtime atual."
+    # JSON direto
+    if ($trim.StartsWith("{") -or $trim.StartsWith("[")) {
+      return $content | ConvertFrom-Json -ErrorAction Stop
     }
-    catch {
-        throw "Erro de parsing: formato não suportado ou inválido. Conteúdo inicial: $($content.Substring(0, [Math]::Min(120, $content.Length)))"
+
+    # YAML mínimo -> tentativa via conversão indireta (fallback)
+    if ($PSVersionTable.PSVersion.Major -ge 7) {
+      try {
+        if (Get-Command ConvertFrom-Yaml -ErrorAction SilentlyContinue) {
+          return ConvertFrom-Yaml $content -ErrorAction Stop
+        }
+      }
+      catch {}
     }
+
+    throw "Parser YAML indisponível no runtime atual."
+  }
+  catch {
+    throw "Erro de parsing: formato não suportado ou inválido. Conteúdo inicial: $($content.Substring(0, [Math]::Min(120, $content.Length)))"
+  }
 }
 
 # -------------------------
 # [VALIDATION - HARDENED]
 # -------------------------
 function _validate_manifest {
-    param(
-        [Parameter(Mandatory)]$manifest
-    )
+  param(
+    [Parameter(Mandatory)]$manifest
+  )
 
-    if (-not $manifest.apps -or -not ($manifest.apps -is [System.Collections.IEnumerable])) {
-        throw "Campo obrigatório inválido: apps"
+  if (-not $manifest.apps -or -not ($manifest.apps -is [System.Collections.IEnumerable])) {
+    throw "Campo obrigatório inválido: apps"
+  }
+
+  if (-not $manifest.profiles -or -not ($manifest.profiles -is [System.Collections.IEnumerable])) {
+    throw "Campo obrigatório inválido: profiles"
+  }
+
+  foreach ($app in $manifest.apps) {
+    if (-not $app.id -or -not ($app.id -is [string])) {
+      throw "App inválido: id obrigatório e deve ser string."
+    }
+  }
+
+  foreach ($profile in $manifest.profiles) {
+    if (-not $profile.name -or -not ($profile.name -is [string])) {
+      throw "Profile inválido: name obrigatório."
     }
 
-    if (-not $manifest.profiles -or -not ($manifest.profiles -is [System.Collections.IEnumerable])) {
-        throw "Campo obrigatório inválido: profiles"
+    if (-not ($profile.items -or $profile.include_profiles)) {
+      throw "Profile inválido: items ou include_profiles obrigatório."
     }
+  }
 
-    foreach ($app in $manifest.apps) {
-        if (-not $app.id -or -not ($app.id -is [string])) {
-            throw "App inválido: id obrigatório e deve ser string."
-        }
-    }
-
-    foreach ($profile in $manifest.profiles) {
-        if (-not $profile.name -or -not ($profile.name -is [string])) {
-            throw "Profile inválido: name obrigatório."
-        }
-
-        if (-not ($profile.items -or $profile.include_profiles)) {
-            throw "Profile inválido: items ou include_profiles obrigatório."
-        }
-    }
-
-    return $true
+  return $true
 }
 
 # -------------------------
 # [INDEX BUILD - IMMUTABLE SAFE]
 # -------------------------
 function _build_index {
-    param(
-        [Parameter(Mandatory)]$manifest
-    )
+  param(
+    [Parameter(Mandatory)]$manifest
+  )
 
-    $index = @{}
+  $index = @{}
 
-    foreach ($app in $manifest.apps) {
-        if ($index.ContainsKey($app.id)) {
-            throw "Duplicidade de id detectada: $($app.id)"
-        }
-
-        # clone defensivo (evita mutação externa)
-        $cloned = ($app | ConvertTo-Json -Depth 10 | ConvertFrom-Json)
-
-        if ($cloned.url -and $cloned.url -is [string]) {
-            if (Get-Command has_parser_expression -ErrorAction SilentlyContinue) {
-                if (has_parser_expression $cloned.url) {
-                    if (Get-Command resolve_dsl -ErrorAction SilentlyContinue) {
-                        $resolved = resolve_dsl $cloned.url { param($x) return $null }
-                        if ($resolved) {
-                            $cloned.url_resolved = $resolved
-                        }
-                    }
-                }
-            }
-        }
-
-        $index[$app.id] = $cloned                
+  foreach ($app in $manifest.apps) {
+    if ($index.ContainsKey($app.id)) {
+      throw "Duplicidade de id detectada: $($app.id)"
     }
 
-    return $index
+    # clone defensivo (evita mutação externa)
+    $cloned = ($app | ConvertTo-Json -Depth 10 | ConvertFrom-Json)
+
+    if ($cloned.url -and $cloned.url -is [string]) {
+      if (Get-Command has_parser_expression -ErrorAction SilentlyContinue) {
+        if (has_parser_expression $cloned.url) {
+          if (Get-Command resolve_dsl -ErrorAction SilentlyContinue) {
+            $resolved = resolve_dsl $cloned.url { param($x) return $null }
+            if ($resolved) {
+              $cloned.url_resolved = $resolved
+            }
+          }
+        }
+      }
+    }
+
+    $index[$app.id] = $cloned                
+  }
+
+  return $index
 }
 
 # -------------------------
 # [PUBLIC] load_manifest
 # -------------------------
 function load_manifest {
-    param(
-        [Parameter(Mandatory)][string]$source
-    )
+  param(
+    [Parameter(Mandatory)][string]$source
+  )
 
-    $raw = _read_source -source $source
-    $manifest = _parse_yaml -content $raw
+  $raw = _read_source -source $source
+  $manifest = _parse_yaml -content $raw
 
-    _validate_manifest -manifest $manifest | Out-Null
+  _validate_manifest -manifest $manifest | Out-Null
 
-    $index = _build_index -manifest $manifest
+  $index = _build_index -manifest $manifest
 
-    return [PSCustomObject]@{
-        raw      = $raw
-        manifest = $manifest
-        index    = $index
-    }
+  return [PSCustomObject]@{
+    raw      = $raw
+    manifest = $manifest
+    index    = $index
+  }
 }
 
 # -------------------------
 # [PUBLIC] get_app (FIX: retorno consistente)
 # -------------------------
 function get_app {
-    param(
-        [Parameter(Mandatory)]$ctx,
-        [Parameter(Mandatory)][string]$id
-    )
+  param(
+    [Parameter(Mandatory)]$ctx,
+    [Parameter(Mandatory)][string]$id
+  )
 
-    if ($ctx.index.ContainsKey($id)) {
-        return $ctx.index[$id]
+  if ($ctx.index.ContainsKey($id)) {
+    return $ctx.index[$id]
+  }
+
+  # fallback externo (normalizado para app único)
+  if ($id -match '^https?://' -or (Test-Path $id)) {
+    $ext = load_manifest -source $id
+
+    if (-not $ext.manifest.apps -or $ext.manifest.apps.Count -ne 1) {
+      throw "Manifesto externo inválido (esperado 1 app)."
     }
 
-    # fallback externo (normalizado para app único)
-    if ($id -match '^https?://' -or (Test-Path $id)) {
-        $ext = load_manifest -source $id
+    $app = $ext.manifest.apps[0]
+    return ($app | ConvertTo-Json -Depth 10 | ConvertFrom-Json)
+  }
 
-        if (-not $ext.manifest.apps -or $ext.manifest.apps.Count -ne 1) {
-            throw "Manifesto externo inválido (esperado 1 app)."
-        }
-
-        $app = $ext.manifest.apps[0]
-        return ($app | ConvertTo-Json -Depth 10 | ConvertFrom-Json)
-    }
-
-    return $null
+  return $null
 }
 
 # -------------------------
 # [PUBLIC] get_apps_by_tag (FIX ENUM BUG)
 # -------------------------
 function get_apps_by_tag {
-    param(
-        [Parameter(Mandatory)]$ctx,
-        [Parameter(Mandatory)][string]$tag
-    )
+  param(
+    [Parameter(Mandatory)]$ctx,
+    [Parameter(Mandatory)][string]$tag
+  )
 
-    $result = @()
+  $result = @()
 
-    foreach ($app in $ctx.manifest.apps) {
-        if ($null -ne $app.tags) {
+  foreach ($app in $ctx.manifest.apps) {
+    if ($null -ne $app.tags) {
 
-            if ($app.tags -is [string]) {
-                if ($app.tags -eq $tag) {
-                    $result += $app
-                }
-            }
-            elseif ($app.tags -is [array]) {
-                if ($app.tags -contains $tag) {
-                    $result += $app
-                }
-            }
+      if ($app.tags -is [string]) {
+        if ($app.tags -eq $tag) {
+          $result += $app
         }
+      }
+      elseif ($app.tags -is [array]) {
+        if ($app.tags -contains $tag) {
+          $result += $app
+        }
+      }
     }
+  }
 
-    return $result
+  return $result
 }
 
 # -------------------------
 # [PUBLIC] get_value (SAFE ACCESS)
 # -------------------------
 function get_value {
-    param(
-        [Parameter(Mandatory)]$ctx,
-        [Parameter(Mandatory)][string]$app_id,
-        [Parameter(Mandatory)][string]$key
-    )
+  param(
+    [Parameter(Mandatory)]$ctx,
+    [Parameter(Mandatory)][string]$app_id,
+    [Parameter(Mandatory)][string]$key
+  )
 
-    $app = get_app -ctx $ctx -id $app_id
+  $app = get_app -ctx $ctx -id $app_id
 
-    if (-not $app) {
-        return $null
-    }
-
-    if ($app.PSObject.Properties.Name -contains $key) {
-        if ($key -eq 'url' -and $app.url_resolved) {
-            $value = $app.url_resolved
-        }
-        else {
-            $value = $app.$key
-        }
-
-        return $value
-    }
-
+  if (-not $app) {
     return $null
+  }
+
+  if ($app.PSObject.Properties.Name -contains $key) {
+    if ($key -eq 'url' -and $app.url_resolved) {
+      $value = $app.url_resolved
+    }
+    else {
+      $value = $app.$key
+    }
+
+    return $value
+  }
+
+  return $null
 }
 
 # -------------------------
@@ -425,76 +425,76 @@ $global:_PROFILE_DEPTH_LIMIT = 32
 # [PUBLIC] resolve_profile (HARDENED)
 # -------------------------
 function resolve_profile {
-    param(
-        [Parameter(Mandatory)]$ctx,
-        [Parameter(Mandatory)][string]$profile_name,
-        [int]$depth = 0,
-        [hashtable]$visited = @{}
-    )
+  param(
+    [Parameter(Mandatory)]$ctx,
+    [Parameter(Mandatory)][string]$profile_name,
+    [int]$depth = 0,
+    [hashtable]$visited = @{}
+  )
 
-    if ($depth -gt $global:_PROFILE_DEPTH_LIMIT) {
-        throw "Limite de recursão excedido (possível loop de herança)."
+  if ($depth -gt $global:_PROFILE_DEPTH_LIMIT) {
+    throw "Limite de recursão excedido (possível loop de herança)."
+  }
+
+  if ($visited.ContainsKey($profile_name)) {
+    return @()
+  }
+
+  $visited[$profile_name] = $true
+
+  $profile = $ctx.manifest.profiles | Where-Object { $_.name -eq $profile_name }
+
+  if (-not $profile -or $profile.Count -ne 1) {
+    throw "Profile inválido ou duplicado: $profile_name"
+  }
+
+  $result = @()
+
+  # Herança
+  if ($profile.include_profiles) {
+    foreach ($p in $profile.include_profiles) {
+      $result += resolve_profile -ctx $ctx -profile_name $p -depth ($depth + 1) -visited $visited
     }
+  }
 
-    if ($visited.ContainsKey($profile_name)) {
-        return @()
-    }
+  # Items
+  if ($profile.items) {
+    foreach ($item in $profile.items) {
 
-    $visited[$profile_name] = $true
+      if ($item.ref) {
 
-    $profile = $ctx.manifest.profiles | Where-Object { $_.name -eq $profile_name }
-
-    if (-not $profile -or $profile.Count -ne 1) {
-        throw "Profile inválido ou duplicado: $profile_name"
-    }
-
-    $result = @()
-
-    # Herança
-    if ($profile.include_profiles) {
-        foreach ($p in $profile.include_profiles) {
-            $result += resolve_profile -ctx $ctx -profile_name $p -depth ($depth + 1) -visited $visited
+        if (-not ($item.ref -is [string])) {
+          throw "Ref inválido (tipo não suportado)."
         }
-    }
 
-    # Items
-    if ($profile.items) {
-        foreach ($item in $profile.items) {
+        $app = get_app -ctx $ctx -id $item.ref
 
-            if ($item.ref) {
-
-                if (-not ($item.ref -is [string])) {
-                    throw "Ref inválido (tipo não suportado)."
-                }
-
-                $app = get_app -ctx $ctx -id $item.ref
-
-                if (-not $app) {
-                    throw "Ref inválido: $($item.ref)"
-                }
-
-                $result += $app
-            }
-            else {
-                if (-not $item.id) {
-                    throw "Inline AppObject sem id."
-                }
-
-                $result += ($item | ConvertTo-Json -Depth 10 | ConvertFrom-Json)
-            }
+        if (-not $app) {
+          throw "Ref inválido: $($item.ref)"
         }
-    }
 
-    # Deduplicação determinística
-    $seen = @{}
-    $final = @()
-
-    foreach ($app in $result) {
-        if ($app.id -and -not $seen.ContainsKey($app.id)) {
-            $seen[$app.id] = $true
-            $final += $app
+        $result += $app
+      }
+      else {
+        if (-not $item.id) {
+          throw "Inline AppObject sem id."
         }
-    }
 
-    return $final
+        $result += ($item | ConvertTo-Json -Depth 10 | ConvertFrom-Json)
+      }
+    }
+  }
+
+  # Deduplicação determinística
+  $seen = @{}
+  $final = @()
+
+  foreach ($app in $result) {
+    if ($app.id -and -not $seen.ContainsKey($app.id)) {
+      $seen[$app.id] = $true
+      $final += $app
+    }
+  }
+
+  return $final
 }
