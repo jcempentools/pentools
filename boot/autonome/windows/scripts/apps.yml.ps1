@@ -158,3 +158,290 @@
     2. Se importado expõe as funções públicas para serem chamadas por outros
        scripts sem executar nada.    
 #>
+
+# =========================
+# SAIS Reader - Core Engine
+# =========================
+
+Set-StrictMode -Version Latest
+
+# -------------------------
+# [UTIL] UTF-8 SAFE LOAD
+# -------------------------
+function _read_source {
+    param(
+        [Parameter(Mandatory)][string]$source
+    )
+
+    if ([string]::IsNullOrWhiteSpace($source)) {
+        throw "Fonte inválida ou vazia."
+    }
+
+    # Path local
+    if (Test-Path $source) {
+        return [System.Text.Encoding]::UTF8.GetString(
+            [System.IO.File]::ReadAllBytes((Resolve-Path $source))
+        )
+    }
+
+    # URL
+    if ($source -match '^https?://') {
+        try {
+            $wc = New-Object System.Net.WebClient
+            $wc.Encoding = [System.Text.Encoding]::UTF8
+            return $wc.DownloadString($source)
+        }
+        catch {
+            throw "Falha ao carregar URL: $source"
+        }
+    }
+
+    # Raw string
+    return $source
+}
+
+# -------------------------
+# [UTIL] YAML PARSER (SAFE FALLBACK)
+# -------------------------
+function _parse_yaml {
+    param(
+        [Parameter(Mandatory)][string]$content
+    )
+
+    # Fail-fast: YAML parsing limitado sem libs externas
+    try {
+        if ($content.Trim().StartsWith("{")) {
+            return $content | ConvertFrom-Json -ErrorAction Stop
+        }
+
+        # Tentativa leve (não completa YAML spec)
+        throw "Parser YAML não disponível sem dependências externas."
+    }
+    catch {
+        throw "Erro de parsing: formato não suportado ou inválido."
+    }
+}
+
+# -------------------------
+# [VALIDATION]
+# -------------------------
+function _validate_manifest {
+    param(
+        [Parameter(Mandatory)]$manifest
+    )
+
+    if (-not $manifest.apps) {
+        throw "Campo obrigatório ausente: apps"
+    }
+
+    if (-not $manifest.profiles) {
+        throw "Campo obrigatório ausente: profiles"
+    }
+
+    foreach ($app in $manifest.apps) {
+        if (-not $app.id) {
+            throw "App inválido: id obrigatório."
+        }
+    }
+
+    foreach ($profile in $manifest.profiles) {
+        if (-not $profile.name) {
+            throw "Profile inválido: name obrigatório."
+        }
+
+        if (-not ($profile.items -or $profile.include_profiles)) {
+            throw "Profile inválido: items ou include_profiles obrigatório."
+        }
+    }
+
+    return $true
+}
+
+# -------------------------
+# [INDEX BUILD - IMMUTABLE MAP]
+# -------------------------
+function _build_index {
+    param(
+        [Parameter(Mandatory)]$manifest
+    )
+
+    $index = @{}
+
+    foreach ($app in $manifest.apps) {
+        if ($index.ContainsKey($app.id)) {
+            throw "Duplicidade de id detectada: $($app.id)"
+        }
+
+        $index[$app.id] = $app
+    }
+
+    return $index
+}
+
+# -------------------------
+# [PUBLIC] load_manifest
+# -------------------------
+function load_manifest {
+    param(
+        [Parameter(Mandatory)][string]$source
+    )
+
+    $raw = _read_source -source $source
+    $manifest = _parse_yaml -content $raw
+
+    _validate_manifest -manifest $manifest | Out-Null
+
+    $index = _build_index -manifest $manifest
+
+    return [PSCustomObject]@{
+        raw      = $raw
+        manifest = $manifest
+        index    = $index
+    }
+}
+
+# -------------------------
+# [PUBLIC] get_app
+# -------------------------
+function get_app {
+    param(
+        [Parameter(Mandatory)]$ctx,
+        [Parameter(Mandatory)][string]$id
+    )
+
+    if ($ctx.index.ContainsKey($id)) {
+        return $ctx.index[$id]
+    }
+
+    # fallback: tratar como path externo
+    if ($id -match '^https?://' -or (Test-Path $id)) {
+        return load_manifest -source $id
+    }
+
+    return $null
+}
+
+# -------------------------
+# [PUBLIC] get_apps_by_tag
+# -------------------------
+function get_apps_by_tag {
+    param(
+        [Parameter(Mandatory)]$ctx,
+        [Parameter(Mandatory)][string]$tag
+    )
+
+    $result = @()
+
+    foreach ($app in $ctx.manifest.apps) {
+        if ($app.tags) {
+            if ($app.tags -is [string] -and $app.tags -eq $tag) {
+                $result += $app
+            }
+            elseif ($app.tags -is [System.Collections.IEnumerable]) {
+                if ($app.tags -contains $tag) {
+                    $result += $app
+                }
+            }
+        }
+    }
+
+    return $result
+}
+
+# -------------------------
+# [PUBLIC] get_value
+# -------------------------
+function get_value {
+    param(
+        [Parameter(Mandatory)]$ctx,
+        [Parameter(Mandatory)][string]$app_id,
+        [Parameter(Mandatory)][string]$key
+    )
+
+    $app = get_app -ctx $ctx -id $app_id
+
+    if (-not $app) {
+        return $null
+    }
+
+    return $app.$key
+}
+
+# -------------------------
+# [RECURSION GUARD]
+# -------------------------
+$global:_PROFILE_DEPTH_LIMIT = 32
+
+# -------------------------
+# [PUBLIC] resolve_profile
+# -------------------------
+function resolve_profile {
+    param(
+        [Parameter(Mandatory)]$ctx,
+        [Parameter(Mandatory)][string]$profile_name,
+        [int]$depth = 0,
+        [hashtable]$visited = @{}
+    )
+
+    if ($depth -gt $global:_PROFILE_DEPTH_LIMIT) {
+        throw "Limite de recursão excedido (possível loop de herança)."
+    }
+
+    if ($visited.ContainsKey($profile_name)) {
+        return @()
+    }
+
+    $visited[$profile_name] = $true
+
+    $profile = $ctx.manifest.profiles | Where-Object { $_.name -eq $profile_name }
+
+    if (-not $profile) {
+        throw "Profile não encontrado: $profile_name"
+    }
+
+    $result = @()
+
+    # Herança
+    if ($profile.include_profiles) {
+        foreach ($p in $profile.include_profiles) {
+            $result += resolve_profile -ctx $ctx -profile_name $p -depth ($depth + 1) -visited $visited
+        }
+    }
+
+    # Items
+    if ($profile.items) {
+        foreach ($item in $profile.items) {
+
+            if ($item.ref) {
+                $app = get_app -ctx $ctx -id $item.ref
+
+                if (-not $app) {
+                    throw "Ref inválido: $($item.ref)"
+                }
+
+                $result += $app
+            }
+            else {
+                # Inline AppObject
+                if (-not $item.id) {
+                    throw "Inline AppObject sem id."
+                }
+
+                $result += $item
+            }
+        }
+    }
+
+    # Deduplicação por id
+    $seen = @{}
+    $final = @()
+
+    foreach ($app in $result) {
+        if (-not $seen.ContainsKey($app.id)) {
+            $seen[$app.id] = $true
+            $final += $app
+        }
+    }
+
+    return $final
+}
