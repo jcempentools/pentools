@@ -27,22 +27,27 @@
     ESQUEMA DE OBJETOS 'PROFILES' (ProfileObject):
       - name:             (string) Nome identificador do perfil.
       - include_profiles: (lista)  Nomes de outros perfis para herança (recursivo).
-      - items:            (lista)  Objetos contendo 'ref' (ID de um app existente) 
+      - items:            (lista)  Objetos contendo 'ref' (ID ou Path Externo) 
                                    OU definição local (Inline AppObject).
 
     [MODUS OPERANDI (FLUXO LÓGICO)]
     1. INICIALIZAÇÃO: Carregamento seguro da fonte (Caminho Local, URL ou String YAML).
-    2. RESOLUÇÃO: Mapeamento de referências ('ref') locais para os objetos globais 'apps'.
-    3. HERANÇA: Processamento de 'include_profiles' (Flattening da hierarquia para lista linear).
-    4. INTEGRIDADE: Validação de tipos obrigatórios e detecção de referências circulares.
-    5. ENTREGA: Disponibilização de um iterador idempotente com metadados resolvidos.
+    2. RESOLUÇÃO: Mapeamento de 'ref' locais para 'apps' globais. Se inexistente,
+       tratar 'ref' como Path (URL/Local) para arquivo .syncdownload ou .yml externo.
+    3. PARSING POSICIONAL (.syncdownload):
+       - L1: Origem (ext[+tag]|url) ou DSL [@attr='val']. Deve resolver URL final.
+       - L2: SHA256 esperado (Hex). Prioridade absoluta na validação de integridade.
+       - L3: Nome Customizado/Canônico com placeholders {version}, {arch}, {lang}.
+    4. HERANÇA: Processamento de 'include_profiles' (Flattening para lista linear).
+    5. INTEGRIDADE: Validação de tipos obrigatórios e detecção de referências circulares.
+    6. ENTREGA: Disponibilização de um iterador idempotente com metadados resolvidos.
 
     [IMPLEMENTATION_CONTRACT - INTERFACE DE ACESSO]
     As funções abaixo devem ser implementadas seguindo a lógica de retorno de objetos:
     - load_manifest(source: String) -> Object
         - Ponto de entrada. Aceita Path, URL ou String bruta. Retorna o objeto validado.
     - get_app(id: String) -> AppObject
-        - Busca um app no dicionário global. Retorna $null/None se não encontrado.
+        - Busca no dicionário global ou resolve via Path externo. Retorna $null se falhar.
     - get_apps_by_tag(tag: String) -> List<AppObject>
         - Filtra e retorna todos os apps que contenham a tag especificada.
     - get_value(app_id: String, key: String) -> Any
@@ -59,9 +64,10 @@
     - ❌ PROIBIDO: Mutação de dados; o leitor não deve alterar o manifesto original.
 
     [FAIL-SAFE / RESILIÊNCIA]
-    - Erros de Sintaxe: Interromper imediatamente e reportar posição (linha/coluna se possível).
-    - Referência Ausente (ref): Marcar o item como "Broken Reference" ou lançar exceção de integridade.
-    - Herança Infinita: Implementar trava de profundidade máxima (Recursion Limit) para evitar loops.
+    - Erros de Sintaxe: Interromper imediatamente e reportar posição (linha/coluna).
+    - Referência Ausente (ref): Se não for Path ou ID, lançar exceção de integridade.
+    - Divergência de Hash: Linha 2 do .syncdownload invalida cache e força reprocessamento.
+    - Herança Infinita: Trava de profundidade máxima (Recursion Limit) para evitar loops.
 
     [COMPATIBILIDADE / ESTILO]
     - Runtime: PowerShell 7.4+ | Python 5.1 | PHP 8.x | Node.js
@@ -86,9 +92,9 @@
     [CAPACIDADES TÉCNICAS (REAPROVEITÁVEIS)]
     - COMPATIBILIDADE: Identificação de versão/subversão para comandos adequados.
     - RESILIÊNCIA: Retry com backoff progressivo e múltiplas formas de tentativa.
-    - OFFLINE-FIRST: Lógica global de priorização de recursos locais vs rede.
-                    configurável para Online-FIRST.
-    - DETERMINISMO: Validação de estado real pós-operação (não apenas ExitCode).
+    - OFFLINE-FIRST: Lógica de priorização de recursos locais vs rede (Online-FIRST).
+    - DETERMINISMO: Nome Canônico para deduplicação, purge e sincronização confiável.
+    - VALIDAÇÃO: Consistência garantida via (Hash > Metadata > Heurística).
 
     [EVENTOS & TELEMETRIA (CALLBACK)]
     - DESACOPLAMENTO: Script não gerencia arquivos de log ou console diretamente,
@@ -138,3 +144,4 @@
 .COMPONENT
     PARSER TÉCNICO, RESOLUTOR DE DEPENDÊNCIAS E ITERADOR DETERMINÍSTICO.
 #>
+
