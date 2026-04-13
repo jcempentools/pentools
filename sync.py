@@ -2287,15 +2287,15 @@ def process_single_syncdownload(path, dry_run):
     # === CACHE NA ORIGEM ===
     origin_cached_path = os.path.join(os.path.dirname(path), filename)
 
+    valid_metadata = False    
+
     if os.path.exists(origin_cached_path):
 
         # 🔒 valida presença de metadata CORRETA por tipo
         ext = os.path.splitext(origin_cached_path)[1].lower()
 
         has_sha = os.path.exists(origin_cached_path + ".sha256")
-        has_syncado = os.path.exists(origin_cached_path + ".syncado")
-
-        valid_metadata = False
+        has_syncado = os.path.exists(origin_cached_path + ".syncado")        
 
         if ext in (".iso", ".img"):
             if has_sha:
