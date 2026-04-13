@@ -173,8 +173,20 @@ function _read_source {
         throw "Fonte inválida ou vazia."
     }
 
-    # Path local (fallback robusto PS 5.1 / 7+)
-    if (Test-Path $source) {
+    # URL (prioridade para evitar falso positivo em Test-Path)
+    if ($source -match '^https?://') {
+        try {
+            $wc = New-Object System.Net.WebClient
+            $wc.Encoding = [System.Text.Encoding]::UTF8
+            return $wc.DownloadString($source)
+        }
+        catch {
+            throw "Falha ao carregar URL: $source"
+        }
+    }
+
+    # Path local
+    if ($source -match '^[a-zA-Z]:\\|^\.\\|^\/' -and (Test-Path $source)) {
         try {
             $resolved = (Resolve-Path $source).ProviderPath
             $bytes = [System.IO.File]::ReadAllBytes($resolved)
@@ -183,34 +195,8 @@ function _read_source {
         catch {
             throw "Falha ao ler arquivo local: $source"
         }
-    }
-
-    # URL (fallback entre WebClient e HttpClient)
-    if ($source -match '^https?://') {
-        try {
-            if ($PSVersionTable.PSVersion.Major -ge 6) {
-                try {
-                    $resp = Invoke-WebRequest -Uri $source -UseBasicParsing -ErrorAction Stop
-                    return [System.Text.Encoding]::UTF8.GetString($resp.Content)
-                }
-                catch {
-                    # fallback HttpClient
-                    $handler = New-Object System.Net.Http.HttpClientHandler
-                    $client = New-Object System.Net.Http.HttpClient($handler)
-                    $bytes = $client.GetByteArrayAsync($source).Result
-                    return [System.Text.Encoding]::UTF8.GetString($bytes)
-                }
-            }
-            else {
-                $wc = New-Object System.Net.WebClient
-                $wc.Encoding = [System.Text.Encoding]::UTF8
-                return $wc.DownloadString($source)
-            }
-        }
-        catch {
-            throw "Falha ao carregar URL: $source"
-        }
-    }
+    }    
+    
 
     return $source
 }
@@ -244,7 +230,7 @@ function _parse_yaml {
         throw "Parser YAML indisponível no runtime atual."
     }
     catch {
-        throw "Erro de parsing: formato não suportado ou inválido."
+        throw "Erro de parsing: formato não suportado ou inválido. Conteúdo inicial: $($content.Substring(0, [Math]::Min(120, $content.Length)))"
     }
 }
 
@@ -299,7 +285,22 @@ function _build_index {
         }
 
         # clone defensivo (evita mutação externa)
-        $index[$app.id] = ($app | ConvertTo-Json -Depth 10 | ConvertFrom-Json)
+        $cloned = ($app | ConvertTo-Json -Depth 10 | ConvertFrom-Json)
+
+        if ($cloned.url -and $cloned.url -is [string]) {
+            if (Get-Command has_parser_expression -ErrorAction SilentlyContinue) {
+                if (has_parser_expression $cloned.url) {
+                    if (Get-Command resolve_dsl -ErrorAction SilentlyContinue) {
+                        $resolved = resolve_dsl $cloned.url { param($x) return $null }
+                        if ($resolved) {
+                            $cloned.url_resolved = $resolved
+                        }
+                    }
+                }
+            }
+        }
+
+        $index[$app.id] = $cloned                
     }
 
     return $index
@@ -344,11 +345,12 @@ function get_app {
     if ($id -match '^https?://' -or (Test-Path $id)) {
         $ext = load_manifest -source $id
 
-        if ($ext.manifest.apps.Count -eq 1) {
-            return $ext.manifest.apps[0]
+        if (-not $ext.manifest.apps -or $ext.manifest.apps.Count -ne 1) {
+            throw "Manifesto externo inválido (esperado 1 app)."
         }
 
-        throw "Manifesto externo deve conter exatamente 1 app para uso como ref."
+        $app = $ext.manifest.apps[0]
+        return ($app | ConvertTo-Json -Depth 10 | ConvertFrom-Json)
     }
 
     return $null
@@ -401,7 +403,14 @@ function get_value {
     }
 
     if ($app.PSObject.Properties.Name -contains $key) {
-        return $app.$key
+        if ($key -eq 'url' -and $app.url_resolved) {
+            $value = $app.url_resolved
+        }
+        else {
+            $value = $app.$key
+        }
+
+        return $value
     }
 
     return $null
@@ -453,6 +462,11 @@ function resolve_profile {
         foreach ($item in $profile.items) {
 
             if ($item.ref) {
+
+                if (-not ($item.ref -is [string])) {
+                    throw "Ref inválido (tipo não suportado)."
+                }
+
                 $app = get_app -ctx $ctx -id $item.ref
 
                 if (-not $app) {
