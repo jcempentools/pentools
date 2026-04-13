@@ -2301,14 +2301,42 @@ def process_single_syncdownload(path, dry_run):
             if has_sha:
                 valid_metadata = True
             else:
-                show_message(f"Cache sem .sha256 → inválido: {filename}", "w")
+                show_message(f"Cache sem .sha256 → inválido (tratado como inexistente): {filename}", "w")
         else:
             if has_syncado:
                 valid_metadata = True
             else:
-                show_message(f"Cache sem .syncado → inválido: {filename}", "w")
+                show_message(f"Cache sem .syncado → inválido (tratado como inexistente): {filename}", "w")
 
-        if valid_metadata:
+        # =========================================================
+        # 🔒 FORÇA REPROCESSAMENTO COMO SE NÃO EXISTISSE
+        # =========================================================
+        if not valid_metadata:
+            try:
+                os.remove(origin_cached_path)
+                show_message(f"Cache inválido removido: {filename}", "w")
+            except Exception:
+                pass
+
+            # 🔒 remove qualquer metadata residual
+            for ext_meta in (".sha256", ".syncado"):
+                try:
+                    meta_path = origin_cached_path + ext_meta
+                    if os.path.exists(meta_path):
+                        os.remove(meta_path)
+                except Exception:
+                    pass
+
+            # =========================================================
+            # 🔒 FORÇA REPROCESSAMENTO NA MESMA EXECUÇÃO
+            # =========================================================
+            show_message(f"Forçando reprocessamento imediato: {filename}", "i")
+
+            # 🔒 ignora completamente cache (origem)
+            origin_cached_path = None                
+
+            # 🔒 segue fluxo normal (download obrigatório)
+        else:
             if is_cached_file_valid(origin_cached_path, expected_hash):
                 show_message(f"Cache válido na origem: {filename}", "k")
 
