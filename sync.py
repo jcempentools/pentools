@@ -869,9 +869,7 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
     # =========================================================
     # 🔒 EXTRAÇÃO DE VERSÃO (SIMPLES E CONFIÁVEL)
     # =========================================================
-    def extract_version(name):
-        show_message(f"[DEBUG] extraindo versão de: '{name}'", "d")
-
+    def extract_version(name):        
         if not name:
             raise Exception("Nome não fornecido para extração de versão")
 
@@ -884,9 +882,7 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
             r'([a-z]?\d+(?:[.\-,]\d+)+[a-z]?)',
             base_clean,
             re.I
-        )
-
-        show_message(f"[DEBUG] regex de versão encontrou: '{m.group(1) if m else None}'", "d")
+        )        
 
         # 🔒 CONTRATO: não pode falhar silenciosamente
         if not m:
@@ -907,9 +903,7 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
         tokens = re.split(r'[^a-zA-Z0-9]+', prefix)
         tokens = [t for t in tokens if t]
 
-        extra = tokens[-1] if tokens else None
-
-        show_message(f"[DEBUG] versão final: '{version}', extra: '{extra}'", "d")
+        extra = tokens[-1] if tokens else None        
 
         return version, extra
 
@@ -1502,12 +1496,32 @@ def resolve_data_path(obj, path, context_name=None):
         key = m.group(1)
         selector = m.group(3)  # conteúdo dentro []
 
-        # --- acesso base ---
+        # --- acesso base (dict OU lista) ---
         if isinstance(current, dict):
             current = current.get(key)
+
+        elif isinstance(current, list):
+            # 🔒 tenta resolver key dentro de lista (estrutura comum em APIs)
+            next_list = []
+
+            for item in current:
+                if isinstance(item, dict) and key in item:
+                    next_list.append(item.get(key))
+
+            if not next_list:
+                raise Exception(
+                    f"Parser DSL: chave '{key}' não encontrada em lista | origem: {context_name}"
+                )
+
+            # 🔒 flatten simples se possível
+            if len(next_list) == 1:
+                current = next_list[0]
+            else:
+                current = next_list
+
         else:
             raise Exception(
-                f"Parser DSL: estrutura inválida (esperado dict) | origem: {context_name}"
+                f"Parser DSL: estrutura inválida (esperado dict/list) | origem: {context_name}"
             )
 
         # --- sem seletor ---
@@ -1516,6 +1530,9 @@ def resolve_data_path(obj, path, context_name=None):
 
         # --- índice numérico ---
         if re.match(r'^\d+$', selector):
+            if not isinstance(current, list):
+                raise Exception("Parser DSL: índice aplicado em estrutura não-lista")
+
             current = current[int(selector)]
             continue
 
@@ -1526,15 +1543,23 @@ def resolve_data_path(obj, path, context_name=None):
             attr = m_filter.group(1)
             value = m_filter.group(2)
 
+            # 🔒 garante lista (mesmo se veio item único)
+            if isinstance(current, dict):
+                current = [current]
+
             if not isinstance(current, list):
                 raise Exception("Parser DSL: filtro aplicado em estrutura não-lista")
 
             match_item = None
 
             for item in current:
-                if isinstance(item, dict) and str(item.get(attr)) == value:
-                    match_item = item
-                    break
+                if isinstance(item, dict):
+                    v = item.get(attr)
+
+                    # 🔒 comparação tolerante (string)
+                    if v is not None and str(v).strip() == value:
+                        match_item = item
+                        break
 
             if match_item is None:
                 raise Exception(f"Parser DSL: nenhum match para {attr}={value}")
