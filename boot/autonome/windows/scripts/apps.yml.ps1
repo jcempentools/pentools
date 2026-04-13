@@ -159,14 +159,10 @@
        scripts sem executar nada.    
 #>
 
-# =========================
-# SAIS Reader - Core Engine
-# =========================
-
 Set-StrictMode -Version Latest
 
 # -------------------------
-# [UTIL] UTF-8 SAFE LOAD
+# [UTIL] UTF-8 SAFE LOAD (MULTI-FALLBACK)
 # -------------------------
 function _read_source {
     param(
@@ -177,45 +173,75 @@ function _read_source {
         throw "Fonte inválida ou vazia."
     }
 
-    # Path local
+    # Path local (fallback robusto PS 5.1 / 7+)
     if (Test-Path $source) {
-        return [System.Text.Encoding]::UTF8.GetString(
-            [System.IO.File]::ReadAllBytes((Resolve-Path $source))
-        )
+        try {
+            $resolved = (Resolve-Path $source).ProviderPath
+            $bytes = [System.IO.File]::ReadAllBytes($resolved)
+            return [System.Text.Encoding]::UTF8.GetString($bytes)
+        }
+        catch {
+            throw "Falha ao ler arquivo local: $source"
+        }
     }
 
-    # URL
+    # URL (fallback entre WebClient e HttpClient)
     if ($source -match '^https?://') {
         try {
-            $wc = New-Object System.Net.WebClient
-            $wc.Encoding = [System.Text.Encoding]::UTF8
-            return $wc.DownloadString($source)
+            if ($PSVersionTable.PSVersion.Major -ge 6) {
+                try {
+                    $resp = Invoke-WebRequest -Uri $source -UseBasicParsing -ErrorAction Stop
+                    return [System.Text.Encoding]::UTF8.GetString($resp.Content)
+                }
+                catch {
+                    # fallback HttpClient
+                    $handler = New-Object System.Net.Http.HttpClientHandler
+                    $client = New-Object System.Net.Http.HttpClient($handler)
+                    $bytes = $client.GetByteArrayAsync($source).Result
+                    return [System.Text.Encoding]::UTF8.GetString($bytes)
+                }
+            }
+            else {
+                $wc = New-Object System.Net.WebClient
+                $wc.Encoding = [System.Text.Encoding]::UTF8
+                return $wc.DownloadString($source)
+            }
         }
         catch {
             throw "Falha ao carregar URL: $source"
         }
     }
 
-    # Raw string
     return $source
 }
 
 # -------------------------
-# [UTIL] YAML PARSER (SAFE FALLBACK)
+# [UTIL] YAML/JSON PARSER (DEFENSIVO)
 # -------------------------
 function _parse_yaml {
     param(
         [Parameter(Mandatory)][string]$content
     )
 
-    # Fail-fast: YAML parsing limitado sem libs externas
     try {
-        if ($content.Trim().StartsWith("{")) {
+        $trim = $content.Trim()
+
+        # JSON direto
+        if ($trim.StartsWith("{") -or $trim.StartsWith("[")) {
             return $content | ConvertFrom-Json -ErrorAction Stop
         }
 
-        # Tentativa leve (não completa YAML spec)
-        throw "Parser YAML não disponível sem dependências externas."
+        # YAML mínimo -> tentativa via conversão indireta (fallback)
+        if ($PSVersionTable.PSVersion.Major -ge 7) {
+            try {
+                if (Get-Command ConvertFrom-Yaml -ErrorAction SilentlyContinue) {
+                    return ConvertFrom-Yaml $content -ErrorAction Stop
+                }
+            }
+            catch {}
+        }
+
+        throw "Parser YAML indisponível no runtime atual."
     }
     catch {
         throw "Erro de parsing: formato não suportado ou inválido."
@@ -223,29 +249,29 @@ function _parse_yaml {
 }
 
 # -------------------------
-# [VALIDATION]
+# [VALIDATION - HARDENED]
 # -------------------------
 function _validate_manifest {
     param(
         [Parameter(Mandatory)]$manifest
     )
 
-    if (-not $manifest.apps) {
-        throw "Campo obrigatório ausente: apps"
+    if (-not $manifest.apps -or -not ($manifest.apps -is [System.Collections.IEnumerable])) {
+        throw "Campo obrigatório inválido: apps"
     }
 
-    if (-not $manifest.profiles) {
-        throw "Campo obrigatório ausente: profiles"
+    if (-not $manifest.profiles -or -not ($manifest.profiles -is [System.Collections.IEnumerable])) {
+        throw "Campo obrigatório inválido: profiles"
     }
 
     foreach ($app in $manifest.apps) {
-        if (-not $app.id) {
-            throw "App inválido: id obrigatório."
+        if (-not $app.id -or -not ($app.id -is [string])) {
+            throw "App inválido: id obrigatório e deve ser string."
         }
     }
 
     foreach ($profile in $manifest.profiles) {
-        if (-not $profile.name) {
+        if (-not $profile.name -or -not ($profile.name -is [string])) {
             throw "Profile inválido: name obrigatório."
         }
 
@@ -258,7 +284,7 @@ function _validate_manifest {
 }
 
 # -------------------------
-# [INDEX BUILD - IMMUTABLE MAP]
+# [INDEX BUILD - IMMUTABLE SAFE]
 # -------------------------
 function _build_index {
     param(
@@ -272,7 +298,8 @@ function _build_index {
             throw "Duplicidade de id detectada: $($app.id)"
         }
 
-        $index[$app.id] = $app
+        # clone defensivo (evita mutação externa)
+        $index[$app.id] = ($app | ConvertTo-Json -Depth 10 | ConvertFrom-Json)
     }
 
     return $index
@@ -301,7 +328,7 @@ function load_manifest {
 }
 
 # -------------------------
-# [PUBLIC] get_app
+# [PUBLIC] get_app (FIX: retorno consistente)
 # -------------------------
 function get_app {
     param(
@@ -313,16 +340,22 @@ function get_app {
         return $ctx.index[$id]
     }
 
-    # fallback: tratar como path externo
+    # fallback externo (normalizado para app único)
     if ($id -match '^https?://' -or (Test-Path $id)) {
-        return load_manifest -source $id
+        $ext = load_manifest -source $id
+
+        if ($ext.manifest.apps.Count -eq 1) {
+            return $ext.manifest.apps[0]
+        }
+
+        throw "Manifesto externo deve conter exatamente 1 app para uso como ref."
     }
 
     return $null
 }
 
 # -------------------------
-# [PUBLIC] get_apps_by_tag
+# [PUBLIC] get_apps_by_tag (FIX ENUM BUG)
 # -------------------------
 function get_apps_by_tag {
     param(
@@ -333,11 +366,14 @@ function get_apps_by_tag {
     $result = @()
 
     foreach ($app in $ctx.manifest.apps) {
-        if ($app.tags) {
-            if ($app.tags -is [string] -and $app.tags -eq $tag) {
-                $result += $app
+        if ($null -ne $app.tags) {
+
+            if ($app.tags -is [string]) {
+                if ($app.tags -eq $tag) {
+                    $result += $app
+                }
             }
-            elseif ($app.tags -is [System.Collections.IEnumerable]) {
+            elseif ($app.tags -is [array]) {
                 if ($app.tags -contains $tag) {
                     $result += $app
                 }
@@ -349,7 +385,7 @@ function get_apps_by_tag {
 }
 
 # -------------------------
-# [PUBLIC] get_value
+# [PUBLIC] get_value (SAFE ACCESS)
 # -------------------------
 function get_value {
     param(
@@ -364,7 +400,11 @@ function get_value {
         return $null
     }
 
-    return $app.$key
+    if ($app.PSObject.Properties.Name -contains $key) {
+        return $app.$key
+    }
+
+    return $null
 }
 
 # -------------------------
@@ -373,7 +413,7 @@ function get_value {
 $global:_PROFILE_DEPTH_LIMIT = 32
 
 # -------------------------
-# [PUBLIC] resolve_profile
+# [PUBLIC] resolve_profile (HARDENED)
 # -------------------------
 function resolve_profile {
     param(
@@ -395,8 +435,8 @@ function resolve_profile {
 
     $profile = $ctx.manifest.profiles | Where-Object { $_.name -eq $profile_name }
 
-    if (-not $profile) {
-        throw "Profile não encontrado: $profile_name"
+    if (-not $profile -or $profile.Count -ne 1) {
+        throw "Profile inválido ou duplicado: $profile_name"
     }
 
     $result = @()
@@ -422,22 +462,21 @@ function resolve_profile {
                 $result += $app
             }
             else {
-                # Inline AppObject
                 if (-not $item.id) {
                     throw "Inline AppObject sem id."
                 }
 
-                $result += $item
+                $result += ($item | ConvertTo-Json -Depth 10 | ConvertFrom-Json)
             }
         }
     }
 
-    # Deduplicação por id
+    # Deduplicação determinística
     $seen = @{}
     $final = @()
 
     foreach ($app in $result) {
-        if (-not $seen.ContainsKey($app.id)) {
+        if ($app.id -and -not $seen.ContainsKey($app.id)) {
             $seen[$app.id] = $true
             $final += $app
         }
