@@ -15,6 +15,8 @@
     - Deep Nesting: Suporta acesso a membros (.campo) e índices de arrays ([0]).
     - Hibridismo: Compatível com strings de metadados (ex: ".exe,x64 | ${DSL}").
     - Deve resolver também indices semânticos, ex.: [@attr="img"] e [@attr='img']
+      onde "attr" indica onome de qualquer atributo (ex. src, name, href...) que deve
+      cadar com o valor de exemplo 'img', DLS, retorna a primeira ocorrência de casar.
 
     PIPELINE DE RESOLUÇÃO:
     1. DETECÇÃO: Identificação de expressões DSL via 'has_parser_expression'.
