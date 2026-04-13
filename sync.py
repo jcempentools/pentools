@@ -2287,7 +2287,7 @@ def process_single_syncdownload(path, dry_run):
     # === CACHE NA ORIGEM ===
     origin_cached_path = os.path.join(os.path.dirname(path), filename)
 
-    if os.path.exists(origin_cached_path):
+    if origin_cached_path and os.path.exists(origin_cached_path):
 
         # 🔒 valida presença de metadata CORRETA por tipo
         ext = os.path.splitext(origin_cached_path)[1].lower()
