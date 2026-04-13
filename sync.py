@@ -2402,24 +2402,35 @@ def process_single_syncdownload(path, dry_run):
         canonical_name=resolved.get("custom_filename")
     )
 
-    # === METADATA ===
+    # =========================================================
+    # 🔒 METADATA PRIMEIRO NO CACHE (ORIGEM)
+    # =========================================================
     generate_sync_metadata(
-        final_dest_path=final_dest_path,
+        final_dest_path=origin_cached_path,
         url=resolved["url"]
     )
-    
-    # === CACHE NA ORIGEM ===
-    try:
-        copy_file_with_progress(final_dest_path, origin_cached_path)
 
-        # 🔒 GARANTE METADATA NA ORIGEM
-        generate_sync_metadata(
-            final_dest_path=origin_cached_path,
-            url=resolved["url"]
-        )
+    # =========================================================
+    # 🔒 COPIA PARA DESTINO (ARQUIVO + METADATA)
+    # =========================================================
+    try:
+        # arquivo
+        if not os.path.exists(final_dest_path) or not is_cached_file_valid(final_dest_path, expected_hash):
+            copy_file_with_progress(origin_cached_path, final_dest_path)
+
+        # metadata associada (se existir)
+        for ext_meta in (".sha256", ".syncado"):
+            src_meta = origin_cached_path + ext_meta
+            dst_meta = final_dest_path + ext_meta
+
+            if os.path.exists(src_meta):
+                try:
+                    copy_file_with_progress(src_meta, dst_meta)
+                except Exception:
+                    pass
 
     except Exception as e:
-        show_message(f"Inconsistência: falha ao atualizar cache origem: {e}", "e")
+        show_message(f"Inconsistência: falha ao propagar cache→destino: {e}", "e")
 
 def process_syncdownloads(root, dry_run):
     """
