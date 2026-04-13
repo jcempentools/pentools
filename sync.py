@@ -1142,7 +1142,14 @@ def manage_sync_metadata(final_dest_path, url, expected_hash):
         with open(sync_file, "r", encoding="utf-8") as f:
             stored_name = f.read().strip()
 
-        current_name = _resolve_effective_remote_name(url)
+        current_info = _resolve_effective_remote_name(url)
+
+        current_name = None
+
+        if isinstance(current_info, dict):
+            current_name = current_info.get("name")
+        elif isinstance(current_info, str):
+            current_name = current_info
 
         if not current_name:
             show_message("Não foi possível resolver nome atual → download", "w")
@@ -1154,7 +1161,7 @@ def manage_sync_metadata(final_dest_path, url, expected_hash):
                 "i"
             )
             return True
-
+        
         show_message(f"Mesmo release detectado: {current_name}", "d")
 
         # =====================================================
