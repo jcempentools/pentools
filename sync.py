@@ -404,7 +404,7 @@ def hash_file(filename, label):
 
             hasher = hashlib.sha256() if use_sha256 else xxhash.xxh3_64()
             file_name = os.path.basename(filename)  
-            with create_progress("# Hash", "bold yellow") as progress:
+            with create_progress("bold yellow") as progress:
                 task = progress.add_task("", total=file_size, label=label, name=file_name)
                 while chunk := file.read(65536):
                     hasher.update(chunk)
@@ -428,7 +428,7 @@ def copy_file_with_progress(src, dst):
     file_size = os.path.getsize(src)
 
     with open(src, 'rb') as src_f, open(dst, 'wb') as dst_f:
-        with create_progress("# Cópia", "green") as progress:
+        with create_progress("green") as progress:
             task = progress.add_task(
                 "",
                 total=file_size,
@@ -1234,7 +1234,7 @@ def generate_sync_metadata(final_dest_path, url):
             total_size = os.path.getsize(final_dest_path)
 
             with open(final_dest_path, "rb") as f:
-                with create_progress("# Hash", "bold yellow") as progress:
+                with create_progress("bold yellow") as progress:
 
                     task = progress.add_task(
                         "",
@@ -2006,7 +2006,7 @@ def _normalize_color(color: str):
 
 from rich.progress import Progress, TextColumn, BarColumn, DownloadColumn, TransferSpeedColumn, TimeRemainingColumn
 
-def create_progress(task_label, color="cyan"):
+def create_progress(color="cyan"):
     style, base_color = _normalize_color(color)
 
     # 🔒 monta estilo completo com reset explícito
@@ -2044,7 +2044,7 @@ def download_file_with_progress(url, dst):
         total_size = int(total_size) if total_size else None
 
         with open(dst, 'wb') as out_file:
-            with create_progress("# Hash", "cyan") as progress:
+            with create_progress("cyan") as progress:
                 task = progress.add_task(
                     "",
                     total=total_size,
