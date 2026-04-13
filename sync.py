@@ -2287,7 +2287,7 @@ def process_single_syncdownload(path, dry_run):
     # === CACHE NA ORIGEM ===
     origin_cached_path = os.path.join(os.path.dirname(path), filename)
 
-    if origin_cached_path and os.path.exists(origin_cached_path):
+    if os.path.exists(origin_cached_path):
 
         # 🔒 valida presença de metadata CORRETA por tipo
         ext = os.path.splitext(origin_cached_path)[1].lower()
@@ -2328,12 +2328,11 @@ def process_single_syncdownload(path, dry_run):
                     pass
 
             # =========================================================
-            # 🔒 FORÇA REPROCESSAMENTO NA MESMA EXECUÇÃO
+            # 🔒 FORÇA DOWNLOAD SEM USAR CACHE (SEM QUEBRAR FLUXO)
             # =========================================================
             show_message(f"Forçando reprocessamento imediato: {filename}", "i")
 
-            # 🔒 ignora completamente cache (origem)
-            origin_cached_path = None                
+            need_download = True           
 
             # 🔒 segue fluxo normal (download obrigatório)
         else:
@@ -2415,11 +2414,14 @@ def process_single_syncdownload(path, dry_run):
                     pass
 
     # === DECISÃO ===
-    need_download = manage_sync_metadata(
-        final_dest_path=final_dest_path,
-        url=final_url or resolved["url"],
-        expected_hash=expected_hash
-    )
+    if not valid_metadata:
+        need_download = True
+    else:
+        need_download = manage_sync_metadata(
+            final_dest_path=final_dest_path,
+            url=final_url or resolved["url"],
+            expected_hash=expected_hash
+        )
 
     if not need_download:
         return
