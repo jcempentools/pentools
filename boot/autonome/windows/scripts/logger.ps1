@@ -38,7 +38,7 @@
 
     [CAPACIDADES GERAIS]
     Orquestração determinística, resiliente e idempotente para Windows.
-    Compatibilidade Dual-Engine (5.1 + 7.4+) em contextos SYSTEM e USER.
+    Compatibilidade Dual-Engine (5.1 + 7.4+) em contextos SYSTEM, WINPE e USER.
 
     [ESTILO, DESIGN & RASTREABILIDADE]
     - Design: Imutabilidade, Baixo Acoplamento e suporte a camelCase/snake_case.
