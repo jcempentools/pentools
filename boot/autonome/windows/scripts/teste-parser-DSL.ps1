@@ -64,8 +64,8 @@ $tests = @(
   '${"https://api.github.com/repos/PowerShell/PowerShell"}.owner.avatar_url',
   '${"https://api.github.com/repos/microsoft/vscode"}.owner.html_url',
   '${"https://api.github.com/repos/nodejs/node"}.owner.avatar_url',
-  '${"https://api.github.com/repos/PowerShell/PowerShell/releases"}[0].html_url',
-  '${"https://api.github.com/repos/microsoft/vscode/commits"}[0].html_url'
+  '${"https://api.github.com/repos/PowerShell/PowerShell/releases"}[@draft="false"].url',
+  '${"https://api.github.com/repos/microsoft/vscode/commits"}[1].url'
 )
 
 # =========================
