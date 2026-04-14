@@ -226,6 +226,8 @@
 [... CABEÇALHO ORIGINAL PRESERVADO INTEGRALMENTE ...]
 #>
 
+$script:__MANIFEST_BASE = $null
+
 #region GLOBALS (imutáveis)
 Set-StrictMode -Version Latest
 
@@ -254,10 +256,35 @@ function _is_url([string]$s) {
   return $s -match '^https?://'
 }
 
+function _resolve_path([string]$path) {
+  if ([string]::IsNullOrWhiteSpace($path)) {
+    return $path
+  }
+
+  # URL → não mexe
+  if (_is_url $path) {
+    return $path
+  }
+
+  # absoluto → retorna direto
+  if ([System.IO.Path]::IsPathRooted($path)) {
+    return $path
+  }
+
+  # relativo → resolve contra manifesto
+  if ($script:__MANIFEST_BASE) {
+    return Join-Path $script:__MANIFEST_BASE $path
+  }
+
+  return $path
+}
+
 function _read_source([string]$source) {
   if ([string]::IsNullOrWhiteSpace($source)) {
     _fail "source vazio"
   }
+
+  $source = _resolve_path $source
 
   $attempts = 0
   $max = 3
@@ -414,7 +441,10 @@ function _validate_manifest($m) {
     foreach ($a in $m.apps) {
       if (-not $a.id) { _fail "app sem id" }
 
-      if (-not ($a.name -or $a.path)) {
+      $hasName = $a.PSObject.Properties.Match('name').Count -gt 0
+      $hasPath = $a.PSObject.Properties.Match('path').Count -gt 0
+
+      if (-not ($hasName -or $hasPath)) {
         _fail "app '$($a.id)' inválido (name ou path obrigatório)"
       }
     }
@@ -422,7 +452,10 @@ function _validate_manifest($m) {
 
   foreach ($p in $m.profiles) {
     if (-not $p.name) { _fail "profile sem name" }
-    if (-not ($p.items -or $p.include)) {
+    $hasItems = $p.PSObject.Properties.Match('items').Count -gt 0
+    $hasInclude = $p.PSObject.Properties.Match('include').Count -gt 0
+
+    if (-not ($hasItems -or $hasInclude)) {
       _fail "profile '$($p.name)' inválido"
     }
   }
@@ -550,7 +583,15 @@ function _canonical([string]$name) {
 
 #region CORE API
 function load_manifest([string]$source) {
-  $raw = _read_source $source
+  if (Test-Path $source) {
+    $resolved = Resolve-Path $source
+    $script:__MANIFEST_BASE = Split-Path -Parent $resolved
+    $raw = _read_source $resolved
+  }
+  else {
+    $script:__MANIFEST_BASE = $null
+    $raw = _read_source $source
+  }
   $obj = _parse_json $raw
   _validate_manifest $obj
   _index_manifest $obj
@@ -571,9 +612,9 @@ function get_app([string]$id) {
     $app = $script:__APP_INDEX[$id]
 
     # resolução via path (novo comportamento)
-    if ($app.path) {
+    if ($app.PSObject.Properties.Match('path').Count -gt 0 -and $app.path) {
       return _lazy $app "__resolved_path" {
-        $raw = _read_source $app.path
+        $raw = _read_source (_resolve_path $app.path)
 
         if ($path -match '\.syncdownload$') {
           $parsed = _parse_syncdownload $raw
@@ -704,12 +745,15 @@ function resolve_profile($manifest, [string]$profile_name) {
         # modo objeto com ref
         # modo inline AppObject
         if ($i.id) {
-          if (-not ($i.name -or $i.path)) {
+          $hasName = $i.PSObject.Properties.Match('name').Count -gt 0
+          $hasPath = $i.PSObject.Properties.Match('path').Count -gt 0
+
+          if (-not ($hasName -or $hasPath)) {
             _fail "inline app '$($i.id)' inválido"
           }
 
-          if ($i.path) {
-            $raw = _read_source $i.path
+          if ($i.PSObject.Properties.Match('path').Count -gt 0 -and $i.path) {
+            $raw = _read_source (_resolve_path $i.path)
 
             # suporte a .json (2.a)
             if ($i.path -match '\.json$') {

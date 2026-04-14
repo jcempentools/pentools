@@ -120,8 +120,13 @@
 # =========================
 # ESTADO GLOBAL (CACHE)
 # =========================
-if (-not $script:__PARSER_CACHE) {
-  $script:__PARSER_CACHE = @{}
+try {
+  if (-not $script:__PARSER_CACHE) {
+    $script:__PARSER_CACHE = @{}
+  }  
+}
+catch {
+  <#Do this if a terminating exception happens#>
 }
 
 # =========================
