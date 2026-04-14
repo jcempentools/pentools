@@ -476,8 +476,24 @@ function _lazy($app, [string]$key, [ScriptBlock]$resolver) {
   return $script:__CACHE[$app.id][$key]
 }
 
+function _resolve_url($app) {
+  return _lazy $app "url_resolved" {
+    $url = $app.url
+
+    if (-not $url) { return $null }
+
+    if (has_parser_expression $url) {
+      $resolved = resolve_dsl $url { param($u) $u }
+      if (-not $resolved) { return $null }
+      return $resolved
+    }
+
+    return $url
+  }
+}
+
 function _infer_extension([string]$url) {
-  if (-not $url) { return $null }
+  if ([string]::IsNullOrWhiteSpace($url)) { return $null }
 
   if ($url -match '\.(exe|msi|zip|7z|gz)(\?|$)') {
     return ".$($Matches[1])"
@@ -507,7 +523,7 @@ function _infer_extension([string]$url) {
 }
 
 function _infer_version([string]$url) {
-  if (-not $url) { return $null }
+  if ([string]::IsNullOrWhiteSpace($url)) { return $null }
 
   if ($url -match '\b(\d+(?:[.\-]\d+){1,2})(?:[-_]?(rc|beta|alfa))?\b') {
     return $Matches[1]
@@ -520,7 +536,7 @@ function _canonical([string]$name) {
   if (-not $name) { return $null }
 
   # remove {} e conteúdo posterior
-  $name = $name -replace '\{.*?\}', ''
+  $name = $name -replace '\{.*$', ''
 
   # remove não alfanuméricos nas bordas
   $name = $name -replace '^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$', ''
@@ -549,6 +565,7 @@ function load_manifest([string]$source) {
   return $obj
 }
 
+
 function get_app([string]$id) {
   if ($script:__APP_INDEX.ContainsKey($id)) {
     $app = $script:__APP_INDEX[$id]
@@ -558,7 +575,7 @@ function get_app([string]$id) {
       return _lazy $app "__resolved_path" {
         $raw = _read_source $app.path
 
-        if ($raw -match '\|') {
+        if ($path -match '\.syncdownload$') {
           $parsed = _parse_syncdownload $raw
 
           $clone = [PSCustomObject]@{}
@@ -615,12 +632,7 @@ function get_value([string]$app_id, [string]$key) {
       return _lazy $app $key {
         if ($app.extension) { return $app.extension }
 
-        $url = $app.url
-        if (has_parser_expression $url) {
-          $url = resolve_dsl $url { param($u) $u }
-          if (-not $url) { return $null }
-        }
-
+        $url = _resolve_url $app
         return _infer_extension $url
       }
     }
@@ -628,18 +640,13 @@ function get_value([string]$app_id, [string]$key) {
       return _lazy $app $key {
         if ($app.version) { return $app.version }
 
-        $url = $app.url
-        if (has_parser_expression $url) {
-          $url = resolve_dsl $url { param($u) $u }
-          if (-not $url) { return $null }
-        }
-
+        $url = _resolve_url $app
         return _infer_version $url
       }
     }
     "filename" {
       return _lazy $app $key {
-        $name = (_canonical $app.name)
+        $name = get_value $app.id "canonico"
         $ver = get_value $app.id "version"
         $ext = get_value $app.id "extension"
 
@@ -711,7 +718,7 @@ function resolve_profile($manifest, [string]$profile_name) {
               continue
             }
 
-            if ($raw -match '\|') {
+            if ($path -match '\.syncdownload$') {
               $parsed = _parse_syncdownload $raw
 
               $clone = [PSCustomObject]@{}
