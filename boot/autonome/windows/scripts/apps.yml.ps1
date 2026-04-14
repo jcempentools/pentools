@@ -1,98 +1,159 @@
+#requires -version 5.1
 <#
 .SYNOPSIS
-    Standard Autonomous Installer Specification (SAIS) - v1.5
+    BIBLIOTECA PARSER DSL (PowerShell 5.1 + 7.4+).    
     Biblioteca "Reader" para Manifestos de Instalação Cross-Language.
 
 .DESCRIPTION
-    Define o padrão para o componente LEITOR. Sua função é estritamente de Parsing, 
-    Validação e Iteração. A biblioteca NÃO executa instalações nem downloads; 
-    ela processa a árvore de dependências e entrega dados saneados para o Orquestrador.
+    Define o padrão para o componente LEITOR. Sua função é estritamente de
+    parsing, validação e iteração. A biblioteca NÃO executa instalações nem
+    downloads; ela processa a árvore de dependências e entrega dados saneados
+    para o Orquestrador.
 
     ESTRUTURA DO DOCUMENTO (DATA SCHEMA)
     ------------------------------------------------------------------------------
     RAIZ:
       apps:     [Lista!] Definições globais de pacotes (Obrigatório: id, name).
-      profiles: [Lista!] Grupos de execução (Obrigatório: name, items OU include_profiles).
+      profiles: [Lista!] Grupos de execução (Obrigatório: name, items OU
+                include_profiles).
 
     ESQUEMA DE OBJETOS 'APPS' (AppObject):
-      - id:        (string) Identificador único para referenciamento interno.
-      - name:      (string) Nome fixo canonico referencial de filename (igual à linha 3 de .syncdownload) (opcional)
-      - canonico():(string) Nome fixo canonico, verdadeiro, um nome de software identificável,
-                            baseado em name, conforme regras de negócio (inalterável)
-      - extension: (string) Extensão preferencial (ex: exe, msi) (opcional - na ausência 
-                            inferida, a partir da url ou HEADER).
-      - url:       (string) Link direto ou Notação Parser DSL para resolução dinâmica.
-                            * a presença se DSL é automaticamente resolvida pelo script
-      - hash:      (string) Checksum sha256 puro (ex: sha256) (opcional, apenas
+      - id():      (string) Identificador único para referenciamento interno no
+                            estilo Winget (mesmo que não exista no Winget).
+      - name():    (string) Nome fixo de referência (equivalente à linha 3 de
+                            .syncdownload) (opcional)
+      - canonico():(string) Nome canônico fixo e identificável, baseado em name,
+                            conforme regras de negócio (inalterável).
+                            Tokenizável de forma aglutinada; por exemplo,
+                            Photoshop-Elevel e Photoshop-Crima são tratados como
+                            softwares distintos.
+                            * a presença de DSL é resolvida automaticamente pelo
+                              script uma única vez (lazy resolution) e armazenada
+                              para acesso futuro.
+                            * não contém tags como x64, x86, arm32, arm64,
+                              amd64, etc.;
+                            * '{}', não alfanuméricos adjacentes a '{}', e os
+                              posteriores a '{}': não canônicos;
+                            * caracteres não alfanuméricos nas bordas (left/right):
+                              não canônicos;
+      - extension(): (string) Extensão preferencial (permitidas: .exe, .msi, .7z,
+                            .zip e .gz) (opcional). Na ausência, é inferida a
+                            partir da URL ou HEADER.
+                            Resolvida uma única vez (lazy resolution) e
+                            armazenada para acesso futuro.
+      - url():     (string) Link direto ou notação Parser DSL para resolução
+                            dinâmica.
+                            * a presença de DSL é resolvida automaticamente pelo
+                              script uma única vez (lazy resolution) e armazenada
+                              para acesso futuro.
+      - version(): (string) Versão do software (opcional; inferida da URL ou
+                            HEADER).
+                            Resolvida uma única vez (lazy resolution) e
+                            armazenada para acesso futuro.
+                            Conteúdo: [\d]([,\.\-][\d]){0,2}(rc|beta|alfa)?
+      - filename(): (string) Nome do arquivo final, baseado em regras de negócio
+                            específicas (opcional; inferido da URL ou HEADER).
+                            Resolvido uma única vez (lazy resolution) e
+                            armazenado para acesso futuro.
+                            Baseado em name ou canonico, com placeholders para
+                            version, subversão, build e extensão.
+                             - utiliza separadores normalizados para ".";
+                             - garante extensão compatível com URL ou mimetype;
+                             - nome em minúsculas, sem espaços.
+      - hash():    (string) Checksum sha256 puro (ex: sha256) (opcional, apenas
                             para fixar versão).
-      - tags:      (lista)  Metadados para filtragem e agrupamento (opcional).      
-      - script:    (string) Comando CLI (ps1/bash) para instalação silenciosa (opcional).
+      - tags():    (lista)  Metadados para filtragem e agrupamento (x86, x64,
+                            arm32, amd64, arm64, etc.) (opcional).
+      - script():  (string) Comando CLI (cmd/ps1/bash) para instalação silenciosa
+                            (opcional).
 
     ESQUEMA DE OBJETOS 'PROFILES' (ProfileObject):
       - name:             (string) Nome identificador do perfil.
-      - include_profiles: (lista)  Nomes de outros perfis para herança (recursivo).
-      - items:            (lista)  Objetos contendo 'ref' (ID ou Path Externo) 
+      - include_profiles: (lista)  Nomes de outros perfis para herança
+                                   (recursivo).
+      - items:            (lista)  Objetos contendo 'ref' (ID ou Path externo)
                                    OU definição local (Inline AppObject).
 
     [MODUS OPERANDI (FLUXO LÓGICO)]
-    1. INICIALIZAÇÃO: Carregamento seguro da fonte (Caminho Local, URL ou String YAML).
+    1. INICIALIZAÇÃO: Carregamento seguro da fonte (caminho local, URL ou string
+       YAML).
     2. RESOLUÇÃO: Mapeamento de 'ref' locais para 'apps' globais. Se inexistente,
-       tratar 'ref' como Path (URL/Local) para arquivo .syncdownload ou .yml externo.
+       tratar 'ref' como path (URL/local) para arquivo .syncdownload ou .yml
+       externo.
     3. PARSING POSICIONAL (inferir propriedade a partir de .syncdownload):
-       - L1: Origem Link direto, (ext[+tag]|url) ou DSL [@attr='val']. Deve resolver URL final.
+       - L1: Origem (link direto), (ext[+tag]|url) ou DSL [@attr='val'].
+             Deve resolver a URL final.
        - L2: SHA256 (opcional) (Hex). Fixa versão do software;
-       - L3: Nome Customizado/Canônico com placeholders espcífico para
-             version, subversão, build - para nomeação do arquivo final.
-             - o '{}', os não alfanuméricos (imediatamente interligados) ao '{}', 
-               e aqueles posteriores ao '{}': não canónico;
-             - caracteres não alfanuméricos de bordas (left/right): não canônicos;             
-        Todas as resoluções devem usar apenas url ou HEADER para metadados, sincronamente,
-        baixando o destino real apenas se necessário.
-    4. HERANÇA: Processamento de 'include_profiles' (Flattening para lista linear).
-    5. INTEGRIDADE: Validação de tipos obrigatórios e detecção de referências circulares.
-    6. ENTREGA: Disponibilização de um iterador idempotente com metadados resolvidos.    
+       - L3: Nome customizado/canônico com placeholders específicos para version,
+             subversão, build (nomeação do arquivo final).
+             - '{}', não alfanuméricos adjacentes a '{}', e posteriores a '{}':
+               não canônicos;
+             - caracteres não alfanuméricos nas bordas: não canônicos;
+       Todas as resoluções devem usar apenas URL ou HEADER para metadados,
+       de forma síncrona, baixando o destino real apenas se necessário.
+    4. HERANÇA: Processamento de 'include_profiles' (flattening para lista
+       linear).
+    5. INTEGRIDADE: Validação de tipos obrigatórios e detecção de referências
+       circulares.
+    6. ENTREGA: Disponibilização de um iterador idempotente com metadados
+       resolvidos.
+    * O processamento de DSL/URL é síncrono; todos os dados lazy (canonico,
+      extensão, versão, filename) devem ser resolvidos apenas a partir da URL ou
+      HEADER e armazenados para acesso futuro.
 
     [IMPLEMENTATION_CONTRACT - INTERFACE DE ACESSO]
-    As funções abaixo devem ser implementadas seguindo a lógica de retorno de objetos:
+    As funções abaixo devem ser implementadas seguindo a lógica de retorno de
+    objetos:
     - load_manifest(source: String) -> Object
-        - Ponto de entrada. Aceita Path, URL ou String bruta. Retorna o objeto validado.
+        - Ponto de entrada. Aceita path, URL ou string bruta. Retorna o objeto
+          validado.
     - get_app(id: String) -> AppObject
-        - Busca no dicionário global ou resolve via Path externo. Retorna $null se falhar.
-    - get_apps_by_tag(tag: String) -> List<AppObject>        
-        - Filtra apps onde a tag informada esteja contida no campo (seja ele String ou Lista/vetor).
+        - Busca no dicionário global ou resolve via path externo. Retorna $null
+          se falhar.
+    - get_apps_by_tag(tag: String) -> List<AppObject>
+        - Filtra apps onde a tag esteja contida no campo (string ou lista).
     - get_value(app_id: String, key: String) -> Any
         - Acesso direto a uma propriedade específica de um app via ID.
     - resolve_profile(manifest: Object, profile_name: String) -> List<AppObject>
         - Resolve heranças e referências de um perfil específico.
-        - Retorno: Lista linear, ordenada e sem duplicatas de AppObjects prontos.
+        - Retorno: lista linear, ordenada e sem duplicatas de AppObjects prontos.
 
     [RESTRIÇÕES / VEDAÇÕES (HARD RULES)]
-    - ❌ PROIBIDO: Realizar download de binários ou execução de scripts (Papel do Orquestrador).
-    - ❌ PROIBIDO: Permitir inconsistência de tipos ou ausência de campos obrigatórios.
-    - ❌ PROIBIDO: Omitir erros de parsing; o leitor deve "falhar rápido" (Fail-Fast).
-    - ❌ PROIBIDO: Assumir codificação; o processamento deve ser estritamente UTF-8 
-                   (não na origem [não administrável], mas cnvertido na recepção).
-    - ❌ PROIBIDO: Mutação de dados; o leitor não deve alterar o manifesto original.
+    - ❌ PROIBIDO: Realizar download de binários ou execução de scripts (papel do
+                   Orquestrador).
+    - ❌ PROIBIDO: Permitir inconsistência de tipos ou ausência de campos
+                   obrigatórios.
+    - ❌ PROIBIDO: Omitir erros de parsing; o leitor deve falhar rápido
+                   (fail-fast).
+    - ❌ PROIBIDO: Assumir codificação; o processamento deve ser estritamente
+                   UTF-8 (não na origem, mas convertido na recepção).
+    - ❌ PROIBIDO: Mutação de dados; o leitor não deve alterar o manifesto
+                   original.
 
     [FAIL-SAFE / RESILIÊNCIA]
-    - Erros de Sintaxe: Interromper imediatamente e reportar posição (linha/coluna).
-    - Referência Ausente (ref): Se não for Path ou ID, lançar exceção de integridade.
-    - Divergência de Hash: Linha 2 do .syncdownload invalida cache e força reprocessamento.
-    - Herança Infinita: Trava de profundidade máxima (Recursion Limit) para evitar loops.
+    - Erros de sintaxe: interromper imediatamente e reportar posição
+      (linha/coluna).
+    - Referência ausente (ref): se não for path ou ID, lançar exceção de
+      integridade.
+    - Divergência de hash: linha 2 do .syncdownload invalida cache e força
+      reprocessamento.
+    - Herança infinita: limite máximo de profundidade (recursion limit) para
+      evitar loops.
 
     [COMPATIBILIDADE / ESTILO]
     - Runtime: PowerShell 5.1 | PowerShell 7.4+ | PHP 8.x | Node.js
-    - OS Context: Windows 11+ | Linux | WinPE | SYSTEM Context.    
+    - OS Context: Windows 11+ | Linux | WinPE | SYSTEM Context.
 
-    [PARSER]    
-
+    [PARSER]
     - Parser em ./parser.ps1:
-        - has_parser_expression ([string]$source) -> [bool]: Valida presença de expressão DSL ${"..."}.
-        - resolve_dsl ([string]$source, [ScriptBlock]$callback) -> [string]: Resolve DSL para URL final ou $null.
+        - has_parser_expression ([string]$source) -> [bool]:
+          Valida presença de expressão DSL ${"..."}.
+        - resolve_dsl ([string]$source, [ScriptBlock]$callback) -> [string]:
+          Resolve DSL para URL final ou $null.
 
 .NOTES
     ================================================================================
-    REGRAS DE NEGÓCIO GLOBAIS DO PROJETO
+    REGRAS DE NEGÓCIO GLOBAIS DO PROJETO    
     POWERSHELL MISSION-CRITICAL FRAMEWORK - ESPECIFICAÇÃO DE EXECUÇÃO
     ================================================================================
 
@@ -156,7 +217,7 @@
     1. Se executado diretatamente executa função main repassando parametros 
        recebidos por linha de comando ou variáveis de ambiente.,
     2. Se importado expõe as funções públicas para serem chamadas por outros
-       scripts sem executar nada.    
+       scripts sem executar nada.       
 #>
 
 Set-StrictMode -Version Latest

@@ -23,6 +23,9 @@
     2. FETCH: Requisição remota com identificação automática de tipo (JSON/YAML/XML).
     3. NAVEGAÇÃO: Resolução determinística do path sobre o objeto retornado.
     4. CONVERSÃO: Retorno obrigatório do valor final como [string] de URL.
+    5. encadeamento/Aninhamento/Profundidade: Suporte a até MAX_PROFUNDIDADE (default 7) e MAX_ENCADEAMENTOS (default 3) níveis de aninhamento
+       de expressões DSL limitado a um timeout por demanda inicial (conjunto total de resoluções aninhadas+encadeadas) de MAX_BUSCA_TIMEOUT (default 30s) e
+       timeout global (todas as resoluçoes do runtime) de MAX_TIMEOUT_GLOBAL (default 90s).
 
     GESTÃO DE CACHE & PERFORMANCE:
     - Escopo: Cache em memória persistente na sessão (__PARSER_CACHE).
@@ -32,7 +35,7 @@
     RESTRIÇÕES ESPECÍFICAS (HARD RULES):
     - ❌ VEDAÇÃO: Proibido parsing de HTML ou técnicas de Scraping.
     - ❌ VEDAÇÃO: Proibida execução de código arbitrário (Bloqueio de Invoke-Expression).
-    - ❌ VEDAÇÃO: Proibido encadeamento ou aninhamento de múltiplas expressões DSL (limitar deept em 10).
+    - ❌ VEDAÇÃO: Proibido encadeamento de múltiplas expressões DSL (limitar deept em 10).
     - ❌ VEDAÇÃO: Operação estritamente de leitura (Idempotência HTTP GET).
 
     FAIL-SAFE & TRATAMENTO DE ERROS:
