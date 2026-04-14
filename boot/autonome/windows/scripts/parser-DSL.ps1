@@ -405,11 +405,18 @@ function _navigate {
     }
 
     # índice numérico
-    if ($token -match '(.+?)\[(\d+)\]') {
-      $name = $matches[1]
-      $idx = [int]$matches[2]
+    # índice numérico (com ou sem propriedade)
+    if ($token -match '^(.+?)\[(\d+)\]$' -or $token -match '^\[(\d+)\]$') {
 
-      $current = __get_prop $current $name
+      if ($matches.Count -eq 3) {
+        $name = $matches[1]
+        $idx = [int]$matches[2]
+        $current = __get_prop $current $name
+      }
+      else {
+        $idx = [int]$matches[1]
+      }
+
       if ($null -eq $current) { return $null }
 
       if ($current -is [System.Collections.IEnumerable] -and $current -isnot [string]) {
@@ -422,13 +429,20 @@ function _navigate {
       }
     }
 
-    # filtro semântico
-    elseif ($token -match '(.+?)\[@(.+?)=["''](.+?)["'']\]') {
-      $name = $matches[1]
-      $attr = $matches[2]
-      $val = $matches[3]
+    # filtro semântico (com ou sem propriedade)
+    elseif ($token -match '^(.+?)\[@(.+?)=["''](.+?)["'']\]$' -or $token -match '^\[@(.+?)=["''](.+?)["'']\]$') {
 
-      $current = __get_prop $current $name
+      if ($matches.Count -eq 4) {
+        $name = $matches[1]
+        $attr = $matches[2]
+        $val = $matches[3]
+        $current = __get_prop $current $name
+      }
+      else {
+        $attr = $matches[1]
+        $val = $matches[2]
+      }
+
       if ($null -eq $current) { return $null }
 
       if ($current -is [System.Collections.IEnumerable] -and $current -isnot [string]) {
