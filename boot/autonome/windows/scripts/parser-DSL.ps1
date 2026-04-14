@@ -191,7 +191,9 @@ function _extract_dsl {
 # CACHE
 # =========================
 function _cache_get {
-  param($key)
+  param($key, [ref]$found)
+
+  $found.Value = $false
 
   if (-not $script:__PARSER_CACHE.ContainsKey($key)) {
     return $null
@@ -204,6 +206,7 @@ function _cache_get {
     return $null
   }
 
+  $found.Value = $true
   return $entry.value
 }
 
@@ -226,7 +229,12 @@ function _fetch_raw {
   )
 
   $methods = @(
-    { Invoke-RestMethod -Uri $url -Method GET -TimeoutSec 15 -Headers @{ "User-Agent" = "Mozilla/5.0 (Windows NT; DSLParser)" } -ErrorAction Stop },
+    { Invoke-RestMethod -Uri $url -Method GET -TimeoutSec 15 `
+        -Headers @{ 
+        "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        "Accept"     = "application/json"
+      } `
+        -ErrorAction Stop },
     {
       if ($PSVersionTable.PSVersion.Major -lt 6) {
         Invoke-WebRequest -Uri $url -Method GET -TimeoutSec 15 -UseBasicParsing -Headers @{ "User-Agent" = "Mozilla/5.0 (Windows NT; DSLParser)" } -ErrorAction Stop | Select-Object -ExpandProperty Content
@@ -245,6 +253,15 @@ function _fetch_raw {
       }
     }
   )
+
+  # fast-fail offline (evita retry inútil em WINPE)
+  try {
+    $null = [System.Net.Dns]::GetHostEntry(($url -replace '^https?://', '').Split('/')[0])
+  }
+  catch {
+    _emit "offline or dns failure" "e" $callback
+    return $null
+  }
 
   $start = _now
   foreach ($method in $methods) {
@@ -433,9 +450,14 @@ function _navigate {
 # RESOLVER DSL
 # =========================
 function resolve_parser_expression {
+  [CmdletBinding()]
   param(
+    [Parameter(Mandatory = $true, Position = 0)]
     [string]$source,
+
+    [Parameter(Position = 1)]
     [ScriptBlock]$callback,
+
     [int]$__depth = 0,
     [int]$__chain = 0
   )
@@ -462,6 +484,13 @@ function resolve_parser_expression {
   }
 
   if ($matchesAll.Count -eq 0) {
+
+    # proteção contra DSL malformado residual
+    if ($source -match '\$\{') {
+      _emit "malformed DSL" "e" $callback
+      return $null
+    }
+
     return $source
   }
 
@@ -477,19 +506,30 @@ function resolve_parser_expression {
     return $null
   }
 
-  $cached = _cache_get $key
-  if ($null -ne $cached) {
+  $found = $false
+  $cached = _cache_get -key $key -found ([ref]$found)
+
+  if ($found) {
     return [string]$cached
   }
 
   $raw = _fetch_raw -url $dsl.url -callback $callback
-  if (-not $raw) { return $null }
+  if (-not $raw) {
+    _cache_set $key $null  # negative cache
+    return $null
+  }
 
   $parsed = _parse_content -raw $raw -callback $callback
-  if (-not $parsed) { return $null }
+  if (-not $parsed) {
+    _cache_set $key $null
+    return $null
+  }
 
   $value = _navigate -obj $parsed -path $dsl.path -callback $callback
-  if ($null -eq $value) { return $null }
+  if ($null -eq $value) {
+    _cache_set $key $null
+    return $null
+  }
 
   $value = [string]$value
   
@@ -540,9 +580,11 @@ function _release_mutex {
 # =========================
 # CONTEXTO / COMPAT
 # =========================
-function _init_runtime {
+function _init_runtime {  
   try {
     # TLS seguro (PS 5.1)
+    [Net.ServicePointManager]::Expect100Continue = $false
+    [Net.ServicePointManager]::DefaultConnectionLimit = 50
     [Net.ServicePointManager]::SecurityProtocol = `
       [Net.SecurityProtocolType]::Tls12 -bor `
       [Net.SecurityProtocolType]::Tls11 -bor `
@@ -562,7 +604,7 @@ function _init_runtime {
 # =========================
 function main {
   param(
-    [string]$input,
+    [string]$sourceInput,
     [ScriptBlock]$callback
   )
 
@@ -575,13 +617,13 @@ function main {
   }
 
   try {
-    if (-not $input) {
+    if (-not $sourceInput) {
       _emit "no input" "w" $callback
       return $null
     }
 
     $script:__DSL_RUNTIME_START = [DateTime]::UtcNow
-    return resolve_parser_expression -source $input -callback $callback
+    return resolve_parser_expression -source:$sourceInput -callback:$callback
   }
   catch {
     _emit "main failure: $($_.Exception.Message)" "e" $callback
@@ -604,7 +646,7 @@ try {
     $inputValue = if ($argInput) { $argInput } else { $envInput }
 
     if ($inputValue) {
-      main -input $inputValue
+      main -sourceInput $inputValue
     }
   }
 }
