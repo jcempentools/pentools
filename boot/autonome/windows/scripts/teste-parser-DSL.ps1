@@ -1,6 +1,5 @@
 # =========================
-# TESTE DSL PARSER (STRICT MODE)
-# USO EXCLUSIVO: resolve_parser_expression
+# TESTE DSL PARSER (REAL-TIME LOG)
 # =========================
 
 # --- IMPORT DA BIBLIOTECA ---
@@ -10,35 +9,41 @@ if (-not (Test-Path $libPath)) {
   throw "Biblioteca não encontrada em: $libPath"
 }
 
-# isolamento: remove possíveis versões já carregadas
 if (Get-Command resolve_parser_expression -ErrorAction SilentlyContinue) {
   Remove-Item function:resolve_parser_expression -ErrorAction SilentlyContinue
 }
 
 . $libPath
 
-# assertiva: garantir que a função veio da lib
-$cmd = Get-Command resolve_parser_expression -ErrorAction SilentlyContinue
-if (-not $cmd) {
-  throw "resolve_parser_expression não foi carregada"
+if (-not (Get-Command resolve_parser_expression -ErrorAction SilentlyContinue)) {
+  throw "resolve_parser_expression não carregada"
 }
 
 # =========================
-# CALLBACK (neutro)
+# CALLBACK (LOG STREAM)
 # =========================
 $callback = {
   param($msg, $type)
+
+  $prefix = switch ($type) {
+    "e" { "[ERROR]" }
+    "w" { "[WARN ]" }
+    "i" { "[INFO ]" }
+    "l" { "[LOG  ]" }
+    "t" { "[STEP ]" }
+    default { "[.... ]" }
+  }
+
+  Write-Host "$prefix $msg"
 }
 
 # =========================
-# VALIDAÇÃO (SEM PARSER)
+# VALIDAÇÃO
 # =========================
 function Test-IsValidUrl {
   param([string]$value)
 
   if (-not $value) { return $false }
-
-  # regra crítica: nenhuma DSL residual
   if ($value -match '\$\{') { return $false }
 
   try {
@@ -51,45 +56,60 @@ function Test-IsValidUrl {
 }
 
 # =========================
-# MASSA DE TESTE (100% DSL)
+# MASSA DE TESTE
 # =========================
 $tests = @(
   '${"https://api.github.com"}.current_user_url',
-
   '${"https://api.github.com/repos/PowerShell/PowerShell"}.html_url',
   '${"https://api.github.com/repos/PowerShell/PowerShell"}.owner.avatar_url',
-
   '${"https://api.github.com/repos/microsoft/vscode"}.owner.html_url',
-
   '${"https://api.github.com/repos/nodejs/node"}.owner.avatar_url',
-
   '${"https://api.github.com/repos/PowerShell/PowerShell/releases"}[0].html_url',
   '${"https://api.github.com/repos/microsoft/vscode/commits"}[0].html_url'
 )
 
 # =========================
-# EXECUÇÃO (APENAS LIB)
+# EXECUÇÃO COM LOG EM TEMPO REAL
 # =========================
 $results = @()
+$index = 0
+
+Write-Host "`n=== INÍCIO TESTE DSL (REAL-TIME) ===`n"
 
 foreach ($input in $tests) {
 
-  # garante que TODO input exige parser
+  $index++
+
+  Write-Host "-------------------------------------"
+  Write-Host "[TEST $index/$($tests.Count)]"
+  Write-Host "INPUT : $input"
+
   if (-not (has_parser_expression $input)) {
-    throw "Entrada inválida (sem DSL): $input"
+    Write-Host "[ERROR] Entrada não contém DSL válida"
+    continue
   }
 
   $output = $null
 
   try {
-    # 🔒 ÚNICO ponto de resolução permitido
+    Write-Host "[STEP ] Resolvendo..."
     $output = resolve_parser_expression -source $input -callback $callback
   }
   catch {
+    Write-Host "[ERROR] Exceção: $($_.Exception.Message)"
     $output = $null
   }
 
+  Write-Host "[INFO ] OUTPUT: $output"
+
   $isValid = Test-IsValidUrl $output
+
+  if ($isValid) {
+    Write-Host "[PASS ] URL válida"
+  }
+  else {
+    Write-Host "[FAIL ] URL inválida ou resolução falhou"
+  }
 
   $results += [PSCustomObject]@{
     Input  = $input
@@ -100,21 +120,19 @@ foreach ($input in $tests) {
 }
 
 # =========================
-# RELATÓRIO
+# RESUMO FINAL
 # =========================
 $pass = ($results | Where-Object Status -eq "PASS").Count
 $fail = ($results | Where-Object Status -eq "FAIL").Count
 
-Write-Host "`n=== DSL PARSER TEST (STRICT LIB MODE) ==="
+Write-Host "`n====================================="
+Write-Host "RESUMO FINAL"
+Write-Host "====================================="
 Write-Host "TOTAL: $($results.Count)"
 Write-Host "PASS : $pass"
-Write-Host "FAIL : $fail`n"
+Write-Host "FAIL : $fail"
+Write-Host "====================================="
 
-$results | Format-Table -AutoSize
-
-# =========================
-# ASSERTIVA FINAL (FAIL HARD)
-# =========================
 if ($fail -gt 0) {
   throw "Teste falhou: $fail casos inválidos"
 }
