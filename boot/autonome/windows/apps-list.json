@@ -1,0 +1,201 @@
+{
+  "apps": [
+    {
+      "id": "CodecGuide.K-LiteCodecPack.Mega",
+      "path": "./apps/CodecGuide.K-LiteCodecPack.Mega.syncdownload"
+    },
+    {
+      "id": "Piriform.Defraggler",
+      "path": "./apps/Piriform.Defraggler.syncdownload"
+    },
+    {
+      "id": "CrystalDewWorld.CrystalDiskInfo",
+      "path": "./apps/CrystalDewWorld.CrystalDiskInfo.syncdownload"
+    },
+    {
+      "id": "CrystalDewWorld.CrystalDiskMark",
+      "path": "./apps/CrystalDewWorld.CrystalDiskMark.syncdownload"
+    },
+    {
+      "id": "TechPowerUp.GPU-Z",
+      "path": "./apps/TechPowerUp.GPU-Z.syncdownload"
+    },
+    {
+      "id": "CPUID.CPU-Z",
+      "path": "./apps/CPUID.CPU-Z.syncdownload"
+    },
+
+    {
+      "id": "Microsoft.PowerToys",
+      "path": "./apps/Microsoft.PowerToys.syncdownload"
+    },
+    {
+      "id": "QL-Win.QuickLook",
+      "path": "./apps/QL-Win.QuickLook.syncdownload"
+    },
+    {
+      "id": "CharlesMilette.TranslucentTB",
+      "path": "./apps/CharlesMilette.TranslucentTB.syncdownload"
+    },
+    {
+      "id": "SumatraPDF.SumatraPDF",
+      "path": "./apps/SumatraPDF.SumatraPDF.syncdownload"
+    },
+    {
+      "id": "PDFsam.PDFsam",
+      "path": "./apps/PDFsam.PDFsam.syncdownload"
+    },
+    {
+      "id": "Google.Chrome",
+      "path": "./apps/Google.Chrome.syncdownload"
+    },
+    {
+      "id": "Brave.Brave",
+      "path": "./apps/Brave.Brave.syncdownload"
+    },
+    {
+      "id": "qBittorrent.qBittorrent",
+      "path": "./apps/qBittorrent.qBittorrent.syncdownload"
+    },
+    {
+      "id": "TheDocumentFoundation.LibreOffice",
+      "path": "./apps/TheDocumentFoundation.LibreOffice.syncdownload"
+    },
+
+    {
+      "id": "Inkscape.Inkscape",
+      "path": "./apps/Inkscape.Inkscape.syncdownload"
+    },
+    {
+      "id": "Upscayl.Upscayl",
+      "path": "./apps/Upscayl.Upscayl.syncdownload"
+    },
+    { "id": "ffmpeg", "path": "./apps/ffmpeg.syncdownload" },
+    {
+      "id": "MoritzBunkus.MKVToolNix",
+      "path": "./apps/MoritzBunkus.MKVToolNix.syncdownload"
+    },
+
+    { "id": "Git.Git", "path": "./apps/Git.Git.syncdownload" },
+    { "id": "GitHub.CLI", "path": "./apps/GitHub.CLI.syncdownload" },
+    {
+      "id": "Oracle.VirtualBox",
+      "path": "./apps/Oracle.VirtualBox.syncdownload"
+    },
+    {
+      "id": "Python.Python.3.13",
+      "path": "./apps/Python.Python.3.13.syncdownload"
+    },
+    {
+      "id": "PHP.PHP.8.4",
+      "path": "./apps/PHP.PHP.8.4.syncdownload"
+    },
+    {
+      "id": "OpenJS.NodeJS",
+      "path": "./apps/OpenJS.NodeJS.syncdownload"
+    },
+    {
+      "id": "Mikrotik.Winbox",
+      "path": "./apps/Mikrotik.Winbox.syncdownload"
+    },
+    {
+      "id": "Mozilla.Firefox",
+      "path": "./apps/Mozilla.Firefox.syncdownload"
+    },
+    {
+      "id": "PuTTY.PuTTY",
+      "path": "./apps/PuTTY.PuTTY.syncdownload"
+    },
+
+    {
+      "id": "Valve.Steam",
+      "path": "./apps/Valve.Steam.syncdownload"
+    },
+    {
+      "id": "EpicGames.EpicGamesLauncher",
+      "path": "./apps/EpicGames.EpicGamesLauncher.syncdownload"
+    }
+  ],
+  "profiles": [
+    {
+      "name": "essencial",
+      "items": [
+        "CodecGuide.K-LiteCodecPack.Mega",
+        "Piriform.Defraggler",
+        "CrystalDewWorld.CrystalDiskInfo",
+        "CrystalDewWorld.CrystalDiskMark",
+        "TechPowerUp.GPU-Z",
+        "CPUID.CPU-Z"
+      ]
+    },
+    {
+      "name": "basico",
+      "include": ["essencial"],
+      "items": [
+        "Microsoft.PowerToys",
+        "QL-Win.QuickLook",
+        "CharlesMilette.TranslucentTB",
+        "SumatraPDF.SumatraPDF",
+        "PDFsam.PDFsam",
+        "Google.Chrome",
+        "Brave.Brave",
+        "qBittorrent.qBittorrent",
+        "TheDocumentFoundation.LibreOffice"
+      ]
+    },
+    {
+      "name": "designer",
+      "include": ["essencial"],
+      "items": [
+        "Inkscape.Inkscape",
+        "Upscayl.Upscayl",
+        "ffmpeg",
+        "MoritzBunkus.MKVToolNix"
+      ]
+    },
+    {
+      "name": "designer.plus",
+      "include": ["basico", "designer"]
+    },
+    {
+      "name": "dev",
+      "include": ["essencial"],
+      "items": [
+        "Git.Git",
+        "GitHub.CLI",
+        "Oracle.VirtualBox",
+        "Python.Python.3.13",
+        "PHP.PHP.8.4",
+        "OpenJS.NodeJS",
+        "Mikrotik.Winbox",
+        "Mozilla.Firefox",
+        "PuTTY.PuTTY"
+      ]
+    },
+    {
+      "name": "dev.plus",
+      "include": ["basico", "dev"]
+    },
+    {
+      "name": "dev.plus.plus",
+      "include": ["dev.plus", "designer"]
+    },
+    {
+      "name": "gamer",
+      "include": ["essencial"],
+      "items": ["Valve.Steam", "EpicGames.EpicGamesLauncher"]
+    },
+    {
+      "name": "gamer.plus",
+      "include": ["basico", "gamer"]
+    },
+    {
+      "name": "gamer.plus.plus",
+      "include": ["designer", "gamer.plus"]
+    },
+    {
+      "name": "full",
+      "include": ["gamer.plus.plus", "dev.plus.plus"]
+    }
+  ]
+}
