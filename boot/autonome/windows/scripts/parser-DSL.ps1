@@ -116,6 +116,18 @@
     Foco: Abstração Universal de Origens e Determinismo de Endpoints.
 #>
 
+# =========================
+# LIMITES DSL (CONTROLE)
+# =========================
+$script:__DSL_MAX_DEPTH = 7
+$script:__DSL_MAX_CHAIN = 3
+$script:__DSL_TIMEOUT_SEC = 30
+$script:__DSL_GLOBAL_TIMEOUT_SEC = 90
+
+# init lazy (evita chamada antes da definição de função)
+if (-not $script:__DSL_RUNTIME_START) {
+  $script:__DSL_RUNTIME_START = [DateTime]::UtcNow
+}
 
 # =========================
 # ESTADO GLOBAL (CACHE)
@@ -135,7 +147,6 @@ catch {
 function _now {
   return [DateTime]::UtcNow
 }
-
 function _emit {
   param($msg, $type, $callback)
   if ($callback -and $callback -is [ScriptBlock]) {
@@ -149,7 +160,7 @@ function _emit {
 function has_parser_expression {
   param([string]$source)
   if (-not $source) { return $false }
-  return ($source -match '\$\{\s*["''].*?["'']\s*\}')
+  return ($source -match '\$\{\s*(["'']).+?\1\s*\}')
 }
 
 # =========================
@@ -158,13 +169,15 @@ function has_parser_expression {
 function _extract_dsl {
   param([string]$source)
 
-  if ($source -notmatch '\$\{\s*(["''])(.*?)\1\s*\}(.*)') {
+  if ($source -notmatch '\$\{\s*(["''])(.*?)\1\s*\}([^\|]*)') {
     return $null
   }
 
+  $path = if ($matches[3]) { $matches[3].Trim() } else { "" }
+
   return @{
     url  = $matches[2]
-    path = $matches[3]
+    path = $path
   }
 }
 
@@ -180,7 +193,7 @@ function _cache_get {
 
   $entry = $script:__PARSER_CACHE[$key]
 
-  if ((_now) -gt $entry.expire) {
+  if (-not $entry -or -not $entry.expire -or (_now) -gt $entry.expire) {
     $script:__PARSER_CACHE.Remove($key)
     return $null
   }
@@ -208,15 +221,33 @@ function _fetch_raw {
 
   $methods = @(
     { Invoke-RestMethod -Uri $url -Method GET -TimeoutSec 15 -ErrorAction Stop },
-    { Invoke-WebRequest -Uri $url -Method GET -TimeoutSec 15 -UseBasicParsing -ErrorAction Stop | Select-Object -ExpandProperty Content },
-    { 
+    {
+      if ($PSVersionTable.PSVersion.Major -lt 6) {
+        Invoke-WebRequest -Uri $url -Method GET -TimeoutSec 15 -UseBasicParsing -ErrorAction Stop | Select-Object -ExpandProperty Content
+      }
+      else {
+        Invoke-WebRequest -Uri $url -Method GET -TimeoutSec 15 -ErrorAction Stop | Select-Object -ExpandProperty Content
+      }
+    }
+    {
       $wc = New-Object System.Net.WebClient
-      $wc.DownloadString($url)
+      try {
+        $wc.DownloadString($url)
+      }
+      finally {
+        $wc.Dispose()
+      }
     }
   )
 
+  $start = _now
   foreach ($method in $methods) {
     for ($i = 0; $i -lt 3; $i++) {
+
+      if (((_now) - $start).TotalSeconds -gt $script:__DSL_TIMEOUT_SEC) {
+        _emit "fetch timeout per demand" "w" $callback
+        break
+      }
       try {
         return & $method
       }
@@ -260,7 +291,11 @@ function _parse_content {
   catch {}
 
   # YAML (se disponível)
-  if (Get-Command ConvertFrom-Yaml -ErrorAction SilentlyContinue) {
+  if (-not $script:__YAML_AVAILABLE) {
+    $script:__YAML_AVAILABLE = [bool](Get-Command ConvertFrom-Yaml -ErrorAction SilentlyContinue)
+  }
+
+  if ($script:__YAML_AVAILABLE) {
     try {
       return $raw | ConvertFrom-Yaml
     }
@@ -284,26 +319,86 @@ function _navigate {
   if (-not $path) { return $obj }
 
   $current = $obj
-
   $tokens = ($path -replace '^\.', '') -split '\.'
 
   foreach ($token in $tokens) {
-    if (-not $current) { return $null }
+    if ($null -eq $current) { return $null }
 
+    # --- acesso seguro a propriedade ---
+    function __get_prop($o, $name) {
+      try {
+        if ($o -is [System.Xml.XmlNode]) {
+          # XML: tenta ChildNodes primeiro
+          $nodes = $o.SelectNodes($name)
+          if ($nodes -and $nodes.Count -gt 0) {
+            return $nodes
+          }
+          # atributo XML
+          if ($o.Attributes[$name]) {
+            return $o.Attributes[$name].Value
+          }
+        }
+
+        return $o.$name
+      }
+      catch {
+        return $null
+      }
+    }
+
+    # índice numérico
     if ($token -match '(.+?)\[(\d+)\]') {
       $name = $matches[1]
       $idx = [int]$matches[2]
 
-      $current = $current.$name
-      if ($current -is [System.Collections.IEnumerable]) {
-        $current = @($current)[$idx]
+      $current = __get_prop $current $name
+      if ($null -eq $current) { return $null }
+
+      if ($current -is [System.Collections.IEnumerable] -and $current -isnot [string]) {
+        $arr = @($current)
+        if ($idx -ge $arr.Count) { return $null }
+        $current = $arr[$idx]
       }
       else {
         return $null
       }
     }
+
+    # filtro semântico
+    elseif ($token -match '(.+?)\[@(.+?)=["''](.+?)["'']\]') {
+      $name = $matches[1]
+      $attr = $matches[2]
+      $val = $matches[3]
+
+      $current = __get_prop $current $name
+      if ($null -eq $current) { return $null }
+
+      if ($current -is [System.Collections.IEnumerable] -and $current -isnot [string]) {
+        $found = $false
+
+        foreach ($item in @($current)) {
+          try {
+            $v = $item.$attr
+            if ($null -ne $v -and [string]$v -eq $val) {
+              $current = $item
+              $found = $true
+              break
+            }
+          }
+          catch {}
+        }
+
+        if (-not $found) { return $null }
+      }
+      else {
+        return $null
+      }
+    }
+
+    # acesso simples
     else {
-      $current = $current.$token
+      $current = __get_prop $current $token
+      if ($null -eq $current) { return $null }
     }
   }
 
@@ -316,21 +411,51 @@ function _navigate {
 function resolve_parser_expression {
   param(
     [string]$source,
-    [ScriptBlock]$callback
+    [ScriptBlock]$callback,
+    [int]$__depth = 0,
+    [int]$__chain = 0
   )
 
-  if (-not (has_parser_expression $source)) {
+  if ($__depth -gt $script:__DSL_MAX_DEPTH) {
+    _emit "max depth reached" "e" $callback
+    return $null
+  }
+
+  if ($__chain -gt $script:__DSL_MAX_CHAIN) {
+    _emit "max chain reached" "e" $callback
+    return $null
+  }
+
+  $matchesAll = [regex]::Matches($source, '\$\{\s*(["'']).+?\1\s*\}')
+
+  if ($matchesAll.Count -gt $script:__DSL_MAX_CHAIN) {
+    _emit "dsl chain limit exceeded" "e" $callback
+    return $null
+  }
+  if ($matchesAll.Count -gt 1) {
+    _emit "multiple DSL expressions not allowed" "e" $callback
+    return $null
+  }
+
+  if ($matchesAll.Count -eq 0) {
     return $source
   }
 
   $dsl = _extract_dsl $source
   if (-not $dsl) { return $null }
 
-  $key = "$($dsl.url)|$($dsl.path)"
+  $key = [Convert]::ToBase64String(
+    [Text.Encoding]::UTF8.GetBytes("$($dsl.url)`n$($dsl.path)")
+  )
 
   $cached = _cache_get $key
-  if ($cached) {
+  if ($null -ne $cached) {
     return [string]$cached
+  }
+
+  if (((_now) - $script:__DSL_RUNTIME_START).TotalSeconds -gt $script:__DSL_GLOBAL_TIMEOUT_SEC) {
+    _emit "global timeout reached" "e" $callback
+    return $null
   }
 
   $raw = _fetch_raw -url $dsl.url -callback $callback
@@ -344,7 +469,118 @@ function resolve_parser_expression {
 
   $value = [string]$value
 
+  # resolução encadeada controlada
+  if (has_parser_expression $value) {
+    $value = resolve_parser_expression -source $value -callback $callback -__depth ($__depth + 1) -__chain ($__chain + 1)
+  }
+
   _cache_set $key $value
 
   return $value
 }
+
+# =========================
+# MUTEX GLOBAL (ISOLAMENTO)
+# =========================
+function _acquire_mutex {
+  param([string]$name = "Global\DSLParserMutex")
+
+  try {
+    $created = $false
+    $mutex = New-Object System.Threading.Mutex($true, $name, [ref]$created)
+
+    if (-not $created) {
+      return $null
+    }
+
+    return $mutex
+  }
+  catch {
+    return $null
+  }
+}
+
+function _release_mutex {
+  param($mutex)
+
+  try {
+    if ($mutex) {
+      $mutex.ReleaseMutex() | Out-Null
+      $mutex.Dispose()
+    }
+  }
+  catch {}
+}
+
+# =========================
+# CONTEXTO / COMPAT
+# =========================
+function _init_runtime {
+  try {
+    # TLS seguro (PS 5.1)
+    [Net.ServicePointManager]::SecurityProtocol = `
+      [Net.SecurityProtocolType]::Tls12 -bor `
+      [Net.SecurityProtocolType]::Tls11 -bor `
+      [Net.SecurityProtocolType]::Tls
+  }
+  catch {}
+
+  try {
+    # ExecPolicy somente processo
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction SilentlyContinue
+  }
+  catch {}
+}
+
+# =========================
+# MAIN (ORQUESTRADOR)
+# =========================
+function main {
+  param(
+    [string]$input,
+    [ScriptBlock]$callback
+  )
+
+  _init_runtime
+
+  $mutex = _acquire_mutex
+  if (-not $mutex) {
+    _emit "mutex busy" "w" $callback
+    return $null
+  }
+
+  try {
+    if (-not $input) {
+      _emit "no input" "w" $callback
+      return $null
+    }
+
+    $script:__DSL_RUNTIME_START = [DateTime]::UtcNow
+    return resolve_parser_expression -source $input -callback $callback
+  }
+  catch {
+    _emit "main failure: $($_.Exception.Message)" "e" $callback
+    return $null
+  }
+  finally {
+    _release_mutex $mutex
+  }
+}
+
+# =========================
+# AUTO-INVOCAÇÃO
+# =========================
+try {
+  if ($MyInvocation.MyCommand.Path -and $MyInvocation.InvocationName -ne '.') {
+
+    $envInput = $env:DSL_INPUT
+    $argInput = $args | Select-Object -First 1
+
+    $inputValue = if ($argInput) { $argInput } else { $envInput }
+
+    if ($inputValue) {
+      main -input $inputValue
+    }
+  }
+}
+catch {}
