@@ -74,10 +74,12 @@
     [MODUS OPERANDI (FLUXO LÓGICO)]
     1. INICIALIZAÇÃO: Carregamento seguro da fonte (caminho local, URL ou string
        YAML).
-    2. RESOLUÇÃO: Mapeamento de 'ref' locais para 'apps' globais. Se inexistente,
-       tratar 'ref' como path (URL/local) para arquivo .syncdownload ou .yml
-       externo.
-    3. PARSING POSICIONAL (inferir propriedade a partir de .syncdownload):
+    2. RESOLUÇÃO: Mapeamento de items de profiles locais para 'apps' globais.       
+    2.a. Se Apps equivalente contiver path, e o path for de um arquivo 
+         .json, importá-lo e lê-lo/parseá-lo como AppObject;
+    2.b. Se Apps equivalente contiver path, e o path for um arquivo
+        .suncdownload:
+        PARSING POSICIONAL (inferir propriedade a partir de .syncdownload):
        - L1: Origem (link direto), (ext[+tag]|url) ou DSL [@attr='val'].
              Deve resolver a URL final.
        - L2: SHA256 (opcional) (Hex). Fixa versão do software;
@@ -88,11 +90,11 @@
              - caracteres não alfanuméricos nas bordas: não canônicos;
        Todas as resoluções devem usar apenas URL ou HEADER para metadados,
        de forma síncrona, baixando o destino real apenas se necessário.
-    4. HERANÇA: Processamento de 'include' (flattening para lista
+    3. HERANÇA: Processamento de 'include' (flattening para lista
        linear).
-    5. INTEGRIDADE: Validação de tipos obrigatórios e detecção de referências
+    4. INTEGRIDADE: Validação de tipos obrigatórios e detecção de referências
        circulares.
-    6. ENTREGA: Disponibilização de um iterador idempotente com metadados
+    5. ENTREGA: Disponibilização de um iterador idempotente com metadados
        resolvidos.
     * O processamento de DSL/URL é síncrono; todos os dados lazy (canonico,
       extensão, versão, filename) devem ser resolvidos apenas a partir da URL ou
@@ -536,6 +538,13 @@ function load_manifest([string]$source) {
   $obj = _parse_json $raw
   _validate_manifest $obj
   _index_manifest $obj
+
+  # injeção de interface (contract)
+  $obj | Add-Member ScriptMethod get_app { param($id) get_app $id } -Force
+  $obj | Add-Member ScriptMethod get_apps_by_tag { param($tag) get_apps_by_tag $tag } -Force
+  $obj | Add-Member ScriptMethod get_value { param($id, $key) get_value $id $key } -Force
+  $obj | Add-Member ScriptMethod resolve_profile { param($name) resolve_profile $this $name } -Force
+
   $script:__MANIFEST = $obj
   return $obj
 }
@@ -551,8 +560,14 @@ function get_app([string]$id) {
 
         if ($raw -match '\|') {
           $parsed = _parse_syncdownload $raw
-          $parsed | Add-Member -NotePropertyName id -NotePropertyValue $app.id -Force
-          return $parsed
+
+          $clone = [PSCustomObject]@{}
+          $parsed.psobject.Properties | ForEach-Object {
+            $clone | Add-Member -NotePropertyName $_.Name -NotePropertyValue $_.Value
+          }
+          $clone | Add-Member -NotePropertyName id -NotePropertyValue $app.id
+
+          return $clone
         }
 
         return $app
@@ -567,13 +582,13 @@ function get_app([string]$id) {
 
 function get_apps_by_tag([string]$tag) {
   $out = @()
+  $tagNorm = $tag.ToLower()
+
   foreach ($a in $script:__APP_INDEX.Values) {
 
     $app = get_app $a.id
 
     if (-not $app.tags) { continue }
-
-    $tagNorm = $tag.ToLower()
 
     if ($app.tags -is [string]) {
       if ($app.tags.ToLower() -eq $tagNorm) { $out += $app }
@@ -689,10 +704,23 @@ function resolve_profile($manifest, [string]$profile_name) {
           if ($i.path) {
             $raw = _read_source $i.path
 
+            # suporte a .json (2.a)
+            if ($i.path -match '\.json$') {
+              $parsedJson = _parse_json $raw
+              $result += $parsedJson
+              continue
+            }
+
             if ($raw -match '\|') {
               $parsed = _parse_syncdownload $raw
-              $parsed | Add-Member -NotePropertyName id -NotePropertyValue $i.id -Force
-              $result += $parsed
+
+              $clone = [PSCustomObject]@{}
+              $parsed.psobject.Properties | ForEach-Object {
+                $clone | Add-Member -NotePropertyName $_.Name -NotePropertyValue $_.Value
+              }
+              $clone | Add-Member -NotePropertyName id -NotePropertyValue $i.id
+
+              $result += $clone
               continue
             }
           }
