@@ -173,7 +173,13 @@ function _extract_dsl {
     return $null
   }
 
-  $path = if ($matches[3]) { $matches[3].Trim() } else { "" }
+  $path = ""
+  if ($matches[3]) {
+    $tmp = $matches[3].Trim()
+    if ($tmp -match '^[\.\[]') {
+      $path = $tmp
+    }
+  }
 
   return @{
     url  = $matches[2]
@@ -220,13 +226,13 @@ function _fetch_raw {
   )
 
   $methods = @(
-    { Invoke-RestMethod -Uri $url -Method GET -TimeoutSec 15 -ErrorAction Stop },
+    { Invoke-RestMethod -Uri $url -Method GET -TimeoutSec 15 -Headers @{ "User-Agent" = "Mozilla/5.0 (Windows NT; DSLParser)" } -ErrorAction Stop },
     {
       if ($PSVersionTable.PSVersion.Major -lt 6) {
-        Invoke-WebRequest -Uri $url -Method GET -TimeoutSec 15 -UseBasicParsing -ErrorAction Stop | Select-Object -ExpandProperty Content
+        Invoke-WebRequest -Uri $url -Method GET -TimeoutSec 15 -UseBasicParsing -Headers @{ "User-Agent" = "Mozilla/5.0 (Windows NT; DSLParser)" } -ErrorAction Stop | Select-Object -ExpandProperty Content
       }
       else {
-        Invoke-WebRequest -Uri $url -Method GET -TimeoutSec 15 -ErrorAction Stop | Select-Object -ExpandProperty Content
+        Invoke-WebRequest -Uri $url -Method GET -TimeoutSec 15 -Headers @{ "User-Agent" = "Mozilla/5.0 (Windows NT; DSLParser)" } -ErrorAction Stop | Select-Object -ExpandProperty Content
       }
     }
     {
@@ -249,7 +255,10 @@ function _fetch_raw {
         break
       }
       try {
-        return & $method
+        $result = & $method
+        if ($null -ne $result -and "$result".Trim().Length -gt 0) {
+          return $result
+        }
       }
       catch {
         _emit "fetch retry [$i] $url" "w" $callback
@@ -339,7 +348,12 @@ function _navigate {
           }
         }
 
-        return $o.$name
+        try {
+          return $o.PSObject.Properties[$name].Value
+        }
+        catch {
+          return $null
+        }
       }
       catch {
         return $null
@@ -378,7 +392,17 @@ function _navigate {
 
         foreach ($item in @($current)) {
           try {
-            $v = $item.$attr
+            $v = $null
+            try {
+              if ($item -is [System.Xml.XmlNode] -and $item.Attributes[$attr]) {
+                $v = $item.Attributes[$attr].Value
+              }
+              else {
+                $v = $item.PSObject.Properties[$attr].Value
+              }
+            }
+            catch {}
+
             if ($null -ne $v -and [string]$v -eq $val) {
               $current = $item
               $found = $true
@@ -445,17 +469,17 @@ function resolve_parser_expression {
   if (-not $dsl) { return $null }
 
   $key = [Convert]::ToBase64String(
-    [Text.Encoding]::UTF8.GetBytes("$($dsl.url)`n$($dsl.path)")
+    [Text.Encoding]::UTF8.GetBytes("$($dsl.url)::__::$($dsl.path)")
   )
-
-  $cached = _cache_get $key
-  if ($null -ne $cached) {
-    return [string]$cached
-  }
 
   if (((_now) - $script:__DSL_RUNTIME_START).TotalSeconds -gt $script:__DSL_GLOBAL_TIMEOUT_SEC) {
     _emit "global timeout reached" "e" $callback
     return $null
+  }
+
+  $cached = _cache_get $key
+  if ($null -ne $cached) {
+    return [string]$cached
   }
 
   $raw = _fetch_raw -url $dsl.url -callback $callback
@@ -468,10 +492,11 @@ function resolve_parser_expression {
   if ($null -eq $value) { return $null }
 
   $value = [string]$value
-
-  # resolução encadeada controlada
+  
+  # HARD RULE: encadeamento proibido
   if (has_parser_expression $value) {
-    $value = resolve_parser_expression -source $value -callback $callback -__depth ($__depth + 1) -__chain ($__chain + 1)
+    _emit "nested DSL not allowed" "e" $callback
+    return $null
   }
 
   _cache_set $key $value
@@ -487,9 +512,9 @@ function _acquire_mutex {
 
   try {
     $created = $false
-    $mutex = New-Object System.Threading.Mutex($true, $name, [ref]$created)
+    $mutex = New-Object System.Threading.Mutex($false, $name, [ref]$created)
 
-    if (-not $created) {
+    if (-not $mutex.WaitOne(5000)) {
       return $null
     }
 
@@ -505,7 +530,7 @@ function _release_mutex {
 
   try {
     if ($mutex) {
-      $mutex.ReleaseMutex() | Out-Null
+      try { $mutex.ReleaseMutex() | Out-Null } catch {}
       $mutex.Dispose()
     }
   }
