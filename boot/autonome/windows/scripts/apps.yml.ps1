@@ -13,9 +13,8 @@
     ESTRUTURA DO DOCUMENTO (DATA SCHEMA)
     ------------------------------------------------------------------------------
     RAIZ:
-      apps:     [Lista!] Definições globais de pacotes (Obrigatório: id, name).
-      profiles: [Lista!] Grupos de execução (Obrigatório: name, items OU
-                include_profiles).
+      apps:     [Lista!] Definições globais de pacotes (id, [name ou path]).
+      profiles: [Lista!] Grupos de execução (name, items OU include).
 
     ESQUEMA DE OBJETOS 'APPS' (AppObject):
       - id():      (string) Identificador único para referenciamento interno no
@@ -68,11 +67,9 @@
                             (opcional).
 
     ESQUEMA DE OBJETOS 'PROFILES' (ProfileObject):
-      - name:             (string) Nome identificador do perfil.
-      - include_profiles: (lista)  Nomes de outros perfis para herança
-                                   (recursivo).
-      - items:            (lista)  Objetos contendo 'ref' (ID ou Path externo)
-                                   OU definição local (Inline AppObject).
+      - name:    (string) Nome identificador do perfil.
+      - include: (lista)  Nomes de outros perfis para herança (recursivo).
+      - items:   (lista)  IDs de apps (strings) OU definição local (Inline AppObject).
 
     [MODUS OPERANDI (FLUXO LÓGICO)]
     1. INICIALIZAÇÃO: Carregamento seguro da fonte (caminho local, URL ou string
@@ -91,7 +88,7 @@
              - caracteres não alfanuméricos nas bordas: não canônicos;
        Todas as resoluções devem usar apenas URL ou HEADER para metadados,
        de forma síncrona, baixando o destino real apenas se necessário.
-    4. HERANÇA: Processamento de 'include_profiles' (flattening para lista
+    4. HERANÇA: Processamento de 'include' (flattening para lista
        linear).
     5. INTEGRIDADE: Validação de tipos obrigatórios e detecção de referências
        circulares.
@@ -102,33 +99,34 @@
       HEADER e armazenados para acesso futuro.
 
     [IMPLEMENTATION_CONTRACT - INTERFACE DE ACESSO]
-    As funções abaixo devem ser implementadas seguindo a lógica de retorno de
-    objetos:
-    - load_manifest(source: String) -> Object
-        - Ponto de entrada. Aceita path, URL ou string bruta. Retorna o objeto
-          validado.
+    As funções abaixo devem ser implementadas seguindo a lógica de retorno de 
+    objetos nativos (PSCustomObject) com membros injetados (ScriptMethod):
+
+    - load_manifest(source: String) -> PSCustomObject
+        - Ponto de entrada via ConvertFrom-Json. Aceita path, URL ou string bruta. 
+          Realiza a injeção dos Callables e retorna o objeto raiz validado.
     - get_app(id: String) -> AppObject
-        - Busca no dicionário global ou resolve via path externo. Retorna $null
-          se falhar.
-    - get_apps_by_tag(tag: String) -> List<AppObject>
-        - Filtra apps onde a tag esteja contida no campo (string ou lista).
-    - get_value(app_id: String, key: String) -> Any
-        - Acesso direto a uma propriedade específica de um app via ID.
-    - resolve_profile(manifest: Object, profile_name: String) -> List<AppObject>
-        - Resolve heranças e referências de um perfil específico.
-        - Retorno: lista linear, ordenada e sem duplicatas de AppObjects prontos.
+        - Busca no dicionário global de 'apps'. Retorna o objeto com seus 
+          métodos de Lazy Resolution ou $null se falhar.
+    - get_apps_by_tag(tag: String) -> AppObject[]
+        - Filtra a coleção de apps onde a tag esteja contida na lista 'tags'. 
+          Busca case-insensitive.
+    - get_value(app_id: String, key: String) -> Object
+        - Atalho para execução de callable ou acesso à propriedade:
+          (get_app "id").key().
+    - resolve_profile(manifest: PSCustomObject, profile_name: String) -> AppObject[]
+        - Resolve recursivamente o campo 'include' e achata o campo 'items'.
+        - Retorno: lista linear, ordenada e sem duplicatas de AppObjects, 
+          substituindo IDs de strings pelos objetos reais correspondentes.
+
 
     [RESTRIÇÕES / VEDAÇÕES (HARD RULES)]
-    - ❌ PROIBIDO: Realizar download de binários ou execução de scripts (papel do
-                   Orquestrador).
-    - ❌ PROIBIDO: Permitir inconsistência de tipos ou ausência de campos
-                   obrigatórios.
-    - ❌ PROIBIDO: Omitir erros de parsing; o leitor deve falhar rápido
-                   (fail-fast).
-    - ❌ PROIBIDO: Assumir codificação; o processamento deve ser estritamente
-                   UTF-8 (não na origem, mas convertido na recepção).
-    - ❌ PROIBIDO: Mutação de dados; o leitor não deve alterar o manifesto
-                   original.
+    - ❌ Realizar download de binários ou execução de scripts (papel do Orquestrador).
+    - ❌ Permitir inconsistência de tipos ou ausência de campos obrigatórios.
+    - ❌ Omitir erros de parsing; o leitor deve falhar rápido (fail-fast).
+    - ❌ Assumir codificação; o processamento deve ser estritamente UTF-8 (não na
+          origem, mas convertido na recepção).
+    - ❌ Mutação de dados; o leitor não deve alterar o manifesto original.
 
     [FAIL-SAFE / RESILIÊNCIA]
     - Erros de sintaxe: interromper imediatamente e reportar posição
@@ -145,7 +143,8 @@
     - OS Context: Windows 11+ | Linux | WinPE | SYSTEM Context.
 
     [PARSER]
-    - Parser em ./parser.ps1:
+    - Este script NÃO implementa Parser/DSL;
+    - Parser/DSL em ./parser-DSL.ps1:
         - has_parser_expression ([string]$source) -> [bool]:
           Valida presença de expressão DSL ${"..."}.
         - resolve_dsl ([string]$source, [ScriptBlock]$callback) -> [string]:
@@ -159,7 +158,7 @@
 
     [CAPACIDADES GERAIS]
     Orquestração determinística, resiliente e idempotente para Windows.
-    Compatibilidade Dual-Engine (5.1 + 7.4+) em contextos SYSTEM e USER.
+    Compatibilidade Dual-Engine (5.1 + 7.4+) em contextos SYSTEM, WINPE e USER.
 
     [ESTILO, DESIGN & RASTREABILIDADE]
     - Design: Imutabilidade, Baixo Acoplamento e suporte a camelCase/snake_case.
@@ -220,342 +219,526 @@
        scripts sem executar nada.       
 #>
 
+#requires -version 5.1
+<#
+[... CABEÇALHO ORIGINAL PRESERVADO INTEGRALMENTE ...]
+#>
+
+#region GLOBALS (imutáveis)
 Set-StrictMode -Version Latest
 
-# -------------------------
-# [UTIL] UTF-8 SAFE LOAD (MULTI-FALLBACK)
-# -------------------------
-function _read_source {
-  param(
-    [Parameter(Mandatory)][string]$source
-  )
+# integração parser DSL externo
+$__dslPath = Join-Path $PSScriptRoot 'parser-DSL.ps1'
+if (Test-Path $__dslPath) {
+  . $__dslPath
+}
+else {
+  throw "[parser] parser DSL externo não encontrado (parser-DSL.ps1)"
+}
 
+$script:__MANIFEST = $null
+$script:__APP_INDEX = @{}
+$script:__PROFILE_INDEX = @{}
+$script:__CACHE = @{}
+$script:__RECURSION_LIMIT = 32
+#endregion
+
+#region UTILS
+function _fail([string]$msg) {
+  throw "[parser] $msg"
+}
+
+function _is_url([string]$s) {
+  return $s -match '^https?://'
+}
+
+function _read_source([string]$source) {
   if ([string]::IsNullOrWhiteSpace($source)) {
-    throw "Fonte inválida ou vazia."
+    _fail "source vazio"
   }
 
-  # URL (prioridade para evitar falso positivo em Test-Path)
-  if ($source -match '^https?://') {
+  $attempts = 0
+  $max = 3
+
+  while ($attempts -lt $max) {
     try {
-      $wc = New-Object System.Net.WebClient
-      $wc.Encoding = [System.Text.Encoding]::UTF8
-      return $wc.DownloadString($source)
-    }
-    catch {
-      throw "Falha ao carregar URL: $source"
-    }
-  }
-
-  # Path local
-  if ($source -match '^[a-zA-Z]:\\|^\.\\|^\/' -and (Test-Path $source)) {
-    try {
-      $resolved = (Resolve-Path $source).ProviderPath
-      $bytes = [System.IO.File]::ReadAllBytes($resolved)
-      return [System.Text.Encoding]::UTF8.GetString($bytes)
-    }
-    catch {
-      throw "Falha ao ler arquivo local: $source"
-    }
-  }    
-    
-
-  return $source
-}
-
-# -------------------------
-# [UTIL] YAML/JSON PARSER (DEFENSIVO)
-# -------------------------
-function _parse_yaml {
-  param(
-    [Parameter(Mandatory)][string]$content
-  )
-
-  try {
-    $trim = $content.Trim()
-
-    # JSON direto
-    if ($trim.StartsWith("{") -or $trim.StartsWith("[")) {
-      return $content | ConvertFrom-Json -ErrorAction Stop
-    }
-
-    # YAML mínimo -> tentativa via conversão indireta (fallback)
-    if ($PSVersionTable.PSVersion.Major -ge 7) {
-      try {
-        if (Get-Command ConvertFrom-Yaml -ErrorAction SilentlyContinue) {
-          return ConvertFrom-Yaml $content -ErrorAction Stop
-        }
+      if (Test-Path $source) {
+        return [System.IO.File]::ReadAllText($source, [System.Text.Encoding]::UTF8)
       }
-      catch {}
-    }
+      elseif (_is_url $source) {
+        $req = [System.Net.WebRequest]::Create($source)
+        $req.Method = "GET"
+        $req.Timeout = 15000
 
-    throw "Parser YAML indisponível no runtime atual."
-  }
-  catch {
-    throw "Erro de parsing: formato não suportado ou inválido. Conteúdo inicial: $($content.Substring(0, [Math]::Min(120, $content.Length)))"
-  }
-}
+        $res = $null
+        $stream = $null
+        $reader = $null
 
-# -------------------------
-# [VALIDATION - HARDENED]
-# -------------------------
-function _validate_manifest {
-  param(
-    [Parameter(Mandatory)]$manifest
-  )
-
-  if (-not $manifest.apps -or -not ($manifest.apps -is [System.Collections.IEnumerable])) {
-    throw "Campo obrigatório inválido: apps"
-  }
-
-  if (-not $manifest.profiles -or -not ($manifest.profiles -is [System.Collections.IEnumerable])) {
-    throw "Campo obrigatório inválido: profiles"
-  }
-
-  foreach ($app in $manifest.apps) {
-    if (-not $app.id -or -not ($app.id -is [string])) {
-      throw "App inválido: id obrigatório e deve ser string."
-    }
-  }
-
-  foreach ($profile in $manifest.profiles) {
-    if (-not $profile.name -or -not ($profile.name -is [string])) {
-      throw "Profile inválido: name obrigatório."
-    }
-
-    if (-not ($profile.items -or $profile.include_profiles)) {
-      throw "Profile inválido: items ou include_profiles obrigatório."
-    }
-  }
-
-  return $true
-}
-
-# -------------------------
-# [INDEX BUILD - IMMUTABLE SAFE]
-# -------------------------
-function _build_index {
-  param(
-    [Parameter(Mandatory)]$manifest
-  )
-
-  $index = @{}
-
-  foreach ($app in $manifest.apps) {
-    if ($index.ContainsKey($app.id)) {
-      throw "Duplicidade de id detectada: $($app.id)"
-    }
-
-    # clone defensivo (evita mutação externa)
-    $cloned = ($app | ConvertTo-Json -Depth 10 | ConvertFrom-Json)
-
-    if ($cloned.url -and $cloned.url -is [string]) {
-      if (Get-Command has_parser_expression -ErrorAction SilentlyContinue) {
-        if (has_parser_expression $cloned.url) {
-          if (Get-Command resolve_dsl -ErrorAction SilentlyContinue) {
-            $resolved = resolve_dsl $cloned.url { param($x) return $null }
-            if ($resolved) {
-              $cloned.url_resolved = $resolved
-            }
-          }
+        try {
+          $res = $req.GetResponse()
+          $stream = $res.GetResponseStream()
+          $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::UTF8)
+          return $reader.ReadToEnd()
         }
-      }
-    }
-
-    $index[$app.id] = $cloned                
-  }
-
-  return $index
-}
-
-# -------------------------
-# [PUBLIC] load_manifest
-# -------------------------
-function load_manifest {
-  param(
-    [Parameter(Mandatory)][string]$source
-  )
-
-  $raw = _read_source -source $source
-  $manifest = _parse_yaml -content $raw
-
-  _validate_manifest -manifest $manifest | Out-Null
-
-  $index = _build_index -manifest $manifest
-
-  return [PSCustomObject]@{
-    raw      = $raw
-    manifest = $manifest
-    index    = $index
-  }
-}
-
-# -------------------------
-# [PUBLIC] get_app (FIX: retorno consistente)
-# -------------------------
-function get_app {
-  param(
-    [Parameter(Mandatory)]$ctx,
-    [Parameter(Mandatory)][string]$id
-  )
-
-  if ($ctx.index.ContainsKey($id)) {
-    return $ctx.index[$id]
-  }
-
-  # fallback externo (normalizado para app único)
-  if ($id -match '^https?://' -or (Test-Path $id)) {
-    $ext = load_manifest -source $id
-
-    if (-not $ext.manifest.apps -or $ext.manifest.apps.Count -ne 1) {
-      throw "Manifesto externo inválido (esperado 1 app)."
-    }
-
-    $app = $ext.manifest.apps[0]
-    return ($app | ConvertTo-Json -Depth 10 | ConvertFrom-Json)
-  }
-
-  return $null
-}
-
-# -------------------------
-# [PUBLIC] get_apps_by_tag (FIX ENUM BUG)
-# -------------------------
-function get_apps_by_tag {
-  param(
-    [Parameter(Mandatory)]$ctx,
-    [Parameter(Mandatory)][string]$tag
-  )
-
-  $result = @()
-
-  foreach ($app in $ctx.manifest.apps) {
-    if ($null -ne $app.tags) {
-
-      if ($app.tags -is [string]) {
-        if ($app.tags -eq $tag) {
-          $result += $app
+        catch {
+          _fail "falha HTTP ao acessar '$source': $($_.Exception.Message)"
         }
-      }
-      elseif ($app.tags -is [array]) {
-        if ($app.tags -contains $tag) {
-          $result += $app
+        finally {
+          if ($reader) { $reader.Dispose() }
+          if ($stream) { $stream.Dispose() }
+          if ($res) { $res.Dispose() }
         }
-      }
-    }
-  }
-
-  return $result
-}
-
-# -------------------------
-# [PUBLIC] get_value (SAFE ACCESS)
-# -------------------------
-function get_value {
-  param(
-    [Parameter(Mandatory)]$ctx,
-    [Parameter(Mandatory)][string]$app_id,
-    [Parameter(Mandatory)][string]$key
-  )
-
-  $app = get_app -ctx $ctx -id $app_id
-
-  if (-not $app) {
-    return $null
-  }
-
-  if ($app.PSObject.Properties.Name -contains $key) {
-    if ($key -eq 'url' -and $app.url_resolved) {
-      $value = $app.url_resolved
-    }
-    else {
-      $value = $app.$key
-    }
-
-    return $value
-  }
-
-  return $null
-}
-
-# -------------------------
-# [RECURSION GUARD]
-# -------------------------
-$global:_PROFILE_DEPTH_LIMIT = 32
-
-# -------------------------
-# [PUBLIC] resolve_profile (HARDENED)
-# -------------------------
-function resolve_profile {
-  param(
-    [Parameter(Mandatory)]$ctx,
-    [Parameter(Mandatory)][string]$profile_name,
-    [int]$depth = 0,
-    [hashtable]$visited = @{}
-  )
-
-  if ($depth -gt $global:_PROFILE_DEPTH_LIMIT) {
-    throw "Limite de recursão excedido (possível loop de herança)."
-  }
-
-  if ($visited.ContainsKey($profile_name)) {
-    return @()
-  }
-
-  $visited[$profile_name] = $true
-
-  $profile = $ctx.manifest.profiles | Where-Object { $_.name -eq $profile_name }
-
-  if (-not $profile -or $profile.Count -ne 1) {
-    throw "Profile inválido ou duplicado: $profile_name"
-  }
-
-  $result = @()
-
-  # Herança
-  if ($profile.include_profiles) {
-    foreach ($p in $profile.include_profiles) {
-      $result += resolve_profile -ctx $ctx -profile_name $p -depth ($depth + 1) -visited $visited
-    }
-  }
-
-  # Items
-  if ($profile.items) {
-    foreach ($item in $profile.items) {
-
-      if ($item.ref) {
-
-        if (-not ($item.ref -is [string])) {
-          throw "Ref inválido (tipo não suportado)."
-        }
-
-        $app = get_app -ctx $ctx -id $item.ref
-
-        if (-not $app) {
-          throw "Ref inválido: $($item.ref)"
-        }
-
-        $result += $app
       }
       else {
-        if (-not $item.id) {
-          throw "Inline AppObject sem id."
+        return $source
+      }
+    }
+    catch {
+      # retry apenas para IO/local (não HTTP)
+      if (-not (_is_url $source)) {
+        Start-Sleep -Milliseconds (200 * ($attempts + 1))
+        $attempts++
+        if ($attempts -ge $max) {
+          _fail "falha ao carregar source após retry: $($_.Exception.Message)"
         }
+      }
+      else {
+        throw
+      }
+    }
+  }
+}
 
-        $result += ($item | ConvertTo-Json -Depth 10 | ConvertFrom-Json)
+function _parse_json([string]$raw) {
+  try {
+    $obj = $raw | ConvertFrom-Json -ErrorAction Stop
+
+    if (-not ($obj -is [psobject])) {
+      _fail "JSON root inválido (esperado objeto)"
+    }
+
+    return $obj
+  }
+  catch {
+    _fail "formato inválido (esperado JSON válido): $($_.Exception.Message)"
+  }
+}
+
+function _parse_syncdownload([string]$raw) {
+  $lines = ($raw -split "`r?`n") | Where-Object { $_ -and $_.Trim() -ne "" }
+
+  if ($lines.Count -lt 1) {
+    _fail ".syncdownload inválido (sem linhas)"
+  }
+
+  $l1 = $lines[0].Trim()
+  $l2 = if ($lines.Count -ge 2) { $lines[1].Trim() } else { $null }
+  $l3 = if ($lines.Count -ge 3) { $lines[2].Trim() } else { $null }
+
+  $ext = $null
+  $tags = @()
+  $url = $null
+
+  # --- MODO 1: formato completo ext,tags|url ---
+  if ($l1 -match '\|') {
+    $parts = $l1 -split '\|'
+    if ($parts.Count -ne 2) {
+      _fail "L1 inválida (.syncdownload)"
+    }
+
+    $meta = $parts[0].Split(',')
+    $url = $parts[1].Trim()
+
+    foreach ($m in $meta) {
+      $m = $m.Trim()
+
+      if ($m -match '^\.\w+$') {
+        $ext = $m.ToLower()
+      }
+      else {
+        # normalização de tag
+        $tag = ($m -replace '[^a-zA-Z0-9]', '').ToLower()
+        if ($tag) { $tags += $tag }
+      }
+    }
+  }
+  else {
+    # --- MODO 2: URL direta ou DSL ---
+    $url = $l1.Trim()
+  }
+  
+  # validação sintática apenas (sem resolver ainda)
+  if (-not (_is_url $url) -and -not (has_parser_expression $url)) {
+    _fail "L1 inválida: nem URL nem DSL"
+  }
+
+  # valida extensão permitida
+  if ($ext -and $ext -notin @('.exe', '.msi', '.zip', '.7z', '.gz')) {
+    _fail "extensão inválida em L1"
+  }
+
+  # L2 hash
+  if ($l2 -and $l2 -notmatch '^[A-Fa-f0-9]{64}$') {
+    _fail "hash inválido em L2"
+  }
+
+  # L3 tratamento completo conforme regra
+  $name = $l3
+  if ($name) {
+    # remove {} e tudo após
+    $name = $name -replace '\{.*$', ''
+    $name = $name.Trim()
+  }
+
+  $canon = _canonical $name
+
+  return [PSCustomObject]@{
+    url       = $url
+    extension = $ext
+    hash      = $l2
+    name      = $name
+    canonico  = $canon
+    version   = $null
+    tags      = $tags
+  }
+}
+
+function _validate_manifest($m) {
+  if (-not $m.profiles) {
+    _fail "estrutura inválida: 'profiles' é obrigatório"
+  }
+
+  if ($m.apps) {
+    foreach ($a in $m.apps) {
+      if (-not $a.id) { _fail "app sem id" }
+
+      if (-not ($a.name -or $a.path)) {
+        _fail "app '$($a.id)' inválido (name ou path obrigatório)"
       }
     }
   }
 
-  # Deduplicação determinística
+  foreach ($p in $m.profiles) {
+    if (-not $p.name) { _fail "profile sem name" }
+    if (-not ($p.items -or $p.include)) {
+      _fail "profile '$($p.name)' inválido"
+    }
+  }
+}
+
+function _index_manifest($m) {
+  $script:__APP_INDEX = @{}
+
+  if ($m.apps) {
+    foreach ($a in $m.apps) {
+      if ($script:__APP_INDEX.ContainsKey($a.id)) {
+        _fail "id duplicado: $($a.id)"
+      }
+      $script:__APP_INDEX[$a.id] = $a
+    }
+  }
+
+  $script:__PROFILE_INDEX = @{}
+  if (-not ($m.profiles -is [System.Collections.IEnumerable])) {
+    _fail "'profiles' deve ser coleção enumerável"
+  }
+
+  foreach ($p in $m.profiles) {
+    $script:__PROFILE_INDEX[$p.name] = $p
+  }
+}
+#endregion
+
+#region LAZY RESOLUTION
+function _lazy($app, [string]$key, [ScriptBlock]$resolver) {
+  # invalidação por hash
+  if ($app.hash) {
+    if (-not $script:__CACHE[$app.id]) {
+      $script:__CACHE[$app.id] = @{}
+    }
+    elseif ($script:__CACHE[$app.id].__hash -and $script:__CACHE[$app.id].__hash -ne $app.hash) {
+      $script:__CACHE[$app.id] = @{}
+    }
+
+    $script:__CACHE[$app.id].__hash = $app.hash
+  }
+  
+  if (-not $script:__CACHE.ContainsKey($app.id)) {
+    $script:__CACHE[$app.id] = @{}
+  }
+
+  if (-not $script:__CACHE[$app.id].ContainsKey($key)) {
+    $script:__CACHE[$app.id][$key] = & $resolver
+  }
+
+  return $script:__CACHE[$app.id][$key]
+}
+
+function _infer_extension([string]$url) {
+  if (-not $url) { return $null }
+
+  if ($url -match '\.(exe|msi|zip|7z|gz)(\?|$)') {
+    return ".$($Matches[1])"
+  }
+
+  try {
+    # fallback HEAD
+    $req = [System.Net.WebRequest]::Create($url)
+    $req.Method = "HEAD"
+    $req.Timeout = 5000
+
+    $res = $null
+    try {
+      $res = $req.GetResponse()
+      $ct = $res.ContentType
+
+      if ($ct -match 'application/octet-stream') { return ".exe" }
+      if ($ct -match 'zip') { return ".zip" }
+    }
+    finally {
+      if ($res) { $res.Dispose() }
+    }
+  }
+  catch {}
+
+  return $null
+}
+
+function _infer_version([string]$url) {
+  if (-not $url) { return $null }
+
+  if ($url -match '\b(\d+(?:[.\-]\d+){1,2})(?:[-_]?(rc|beta|alfa))?\b') {
+    return $Matches[1]
+  }
+
+  return $null
+}
+
+function _canonical([string]$name) {
+  if (-not $name) { return $null }
+
+  # remove {} e conteúdo posterior
+  $name = $name -replace '\{.*?\}', ''
+
+  # remove não alfanuméricos nas bordas
+  $name = $name -replace '^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$', ''
+
+  # remove internos não alfanuméricos
+  $name = $name -replace '[^a-zA-Z0-9]', ''
+
+  return $name.ToLower()
+}
+#endregion
+
+#region CORE API
+function load_manifest([string]$source) {
+  $raw = _read_source $source
+  $obj = _parse_json $raw
+  _validate_manifest $obj
+  _index_manifest $obj
+  $script:__MANIFEST = $obj
+  return $obj
+}
+
+function get_app([string]$id) {
+  if ($script:__APP_INDEX.ContainsKey($id)) {
+    $app = $script:__APP_INDEX[$id]
+
+    # resolução via path (novo comportamento)
+    if ($app.path) {
+      return _lazy $app "__resolved_path" {
+        $raw = _read_source $app.path
+
+        if ($raw -match '\|') {
+          $parsed = _parse_syncdownload $raw
+          $parsed | Add-Member -NotePropertyName id -NotePropertyValue $app.id -Force
+          return $parsed
+        }
+
+        return $app
+      }
+    }
+
+    return $app
+  }
+
+  return $null
+}
+
+function get_apps_by_tag([string]$tag) {
+  $out = @()
+  foreach ($a in $script:__APP_INDEX.Values) {
+
+    $app = get_app $a.id
+
+    if (-not $app.tags) { continue }
+
+    $tagNorm = $tag.ToLower()
+
+    if ($app.tags -is [string]) {
+      if ($app.tags.ToLower() -eq $tagNorm) { $out += $app }
+    }
+    elseif ($app.tags | ForEach-Object { $_.ToLower() } -contains $tagNorm) {
+      $out += $app
+    }
+  }
+  return $out
+}
+
+function get_value([string]$app_id, [string]$key) {
+  $app = get_app $app_id
+  if (-not $app) { return $null }
+
+  switch ($key) {
+    "canonico" {
+      return _lazy $app $key {
+        if ($app.canonico) { return $app.canonico }
+        return _canonical $app.name
+      }
+    }
+    "extension" {
+      return _lazy $app $key {
+        if ($app.extension) { return $app.extension }
+
+        $url = $app.url
+        if (has_parser_expression $url) {
+          $url = resolve_dsl $url { param($u) $u }
+          if (-not $url) { return $null }
+        }
+
+        return _infer_extension $url
+      }
+    }
+    "version" {
+      return _lazy $app $key {
+        if ($app.version) { return $app.version }
+
+        $url = $app.url
+        if (has_parser_expression $url) {
+          $url = resolve_dsl $url { param($u) $u }
+          if (-not $url) { return $null }
+        }
+
+        return _infer_version $url
+      }
+    }
+    "filename" {
+      return _lazy $app $key {
+        $name = (_canonical $app.name)
+        $ver = get_value $app.id "version"
+        $ext = get_value $app.id "extension"
+
+        if ($name -and $ext) {
+          if ($ver) {
+            return "$name.$ver$ext"
+          }
+          return "$name$ext"
+        }
+        return $null
+      }
+    }
+    default {
+      return $app.$key
+    }
+  }
+}
+
+function resolve_profile($manifest, [string]$profile_name) {
+  $visited = @{}
+  $result = @()
+
+  function _walk([string]$name, [int]$depth) {
+    if ($depth -gt $script:__RECURSION_LIMIT) {
+      _fail "loop de herança detectado"
+    }
+
+    if ($visited[$name]) { return }
+    $visited[$name] = $true
+
+    $p = $script:__PROFILE_INDEX[$name]
+    if (-not $p) {
+      _fail "profile inexistente: $name"
+    }
+
+    if ($p.include) {
+      foreach ($inc in $p.include) {
+        _walk $inc ($depth + 1)
+      }
+    }
+
+    if ($p.items) {
+      foreach ($i in $p.items) {
+
+        # modo string direta (ID)
+        if ($i -is [string]) {
+          $app = get_app $i
+          if (-not $app) {
+            _fail "ref inválido: $i"
+          }
+          $result += $app
+          continue
+        }
+
+        # modo objeto com ref
+        # modo inline AppObject
+        if ($i.id) {
+          if (-not ($i.name -or $i.path)) {
+            _fail "inline app '$($i.id)' inválido"
+          }
+
+          if ($i.path) {
+            $raw = _read_source $i.path
+
+            if ($raw -match '\|') {
+              $parsed = _parse_syncdownload $raw
+              $parsed | Add-Member -NotePropertyName id -NotePropertyValue $i.id -Force
+              $result += $parsed
+              continue
+            }
+          }
+
+          $result += $i
+          continue
+        }
+
+        _fail "item inválido no profile '$($p.name)'"
+      }
+    }
+  }
+
+  _walk $profile_name 0
+
+  # deduplicação por id
   $seen = @{}
   $final = @()
-
-  foreach ($app in $result) {
-    if ($app.id -and -not $seen.ContainsKey($app.id)) {
-      $seen[$app.id] = $true
-      $final += $app
+  foreach ($a in $result) {
+    if (-not $seen[$a.id]) {
+      $seen[$a.id] = $true
+      $final += $a
     }
   }
 
   return $final
 }
+#endregion
+
+#region ENTRYPOINT
+function main {
+  param(
+    [string]$source,
+    [string]$profile
+  )
+
+  $m = load_manifest $source
+
+  if ($profile) {
+    return resolve_profile $m $profile
+  }
+
+  return $m
+}
+
+if ($MyInvocation.InvocationName -ne '.') {
+  main @args
+}
+#endregion
