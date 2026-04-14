@@ -169,20 +169,30 @@ function has_parser_expression {
 function _extract_dsl {
   param([string]$source)
 
-  if ($source -notmatch '\$\{\s*(["''])(.*?)\1\s*\}([^\|]*)') {
+  # captura estrita da URL
+  if ($source -notmatch '\$\{\s*(["''])(?<url>.*?)\1\s*\}') {
     return $null
   }
 
+  $url = $matches['url']
+
+  # extrai path APENAS após fechamento da DSL
+  $after = $source.Substring($matches[0].Length)
+
   $path = ""
-  if ($matches[3]) {
-    $tmp = $matches[3].Trim()
+  if ($after) {
+    $tmp = $after.Trim()
+
+    # aceita apenas path válido (começa com . ou [)
     if ($tmp -match '^[\.\[]') {
+      # remove qualquer lixo após pipe (segurança)
+      $tmp = ($tmp -split '\|')[0].Trim()
       $path = $tmp
     }
   }
 
   return @{
-    url  = $matches[2]
+    url  = $url
     path = $path
   }
 }
@@ -254,12 +264,29 @@ function _fetch_raw {
     }
   )
 
-  # fast-fail offline (evita retry inútil em WINPE)
+  # sanitização + validação resiliente
   try {
-    $null = [System.Net.Dns]::GetHostEntry(($url -replace '^https?://', '').Split('/')[0])
+    $cleanUrl = ($url -as [string]).Trim()
+
+    # remove possíveis resíduos de parsing
+    $cleanUrl = $cleanUrl -replace '[\s`"'' ]+$', ''
+    $cleanUrl = $cleanUrl -replace '^[\s`"'' ]+', ''
+
+    $uri = $null
+    if (-not [System.Uri]::TryCreate($cleanUrl, [System.UriKind]::Absolute, [ref]$uri)) {
+      _emit "invalid url parse" "e" $callback
+      return $null
+    }
+
+    if (-not $uri.Scheme -or $uri.Scheme -notin @("http", "https")) {
+      _emit "invalid url scheme" "e" $callback
+      return $null
+    }
+
+    $url = $uri.AbsoluteUri
   }
   catch {
-    _emit "offline or dns failure" "e" $callback
+    _emit "invalid url" "e" $callback
     return $null
   }
 
@@ -461,6 +488,15 @@ function resolve_parser_expression {
     [int]$__depth = 0,
     [int]$__chain = 0
   )
+
+  # init runtime garantido (TLS / ambiente) - proteção contra chamada direta
+  try {
+    if (-not $script:__DSL_RUNTIME_INIT) {
+      _init_runtime
+      $script:__DSL_RUNTIME_INIT = $true
+    }
+  }
+  catch {}
 
   if ($__depth -gt $script:__DSL_MAX_DEPTH) {
     _emit "max depth reached" "e" $callback
