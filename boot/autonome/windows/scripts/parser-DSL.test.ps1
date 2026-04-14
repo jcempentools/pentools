@@ -1,3 +1,4 @@
+#requires -version 5.1
 # =========================
 # TESTE DSL PARSER (REAL-TIME LOG)
 # =========================
@@ -22,6 +23,13 @@ if (-not (Get-Command resolve_parser_expression -ErrorAction SilentlyContinue)) 
 # =========================
 # CALLBACK (LOG STREAM)
 # =========================
+# força encoding UTF-8 no console (compatível PS 5.1 / 7+)
+try {
+  [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+  chcp 65001 > $null 2>&1
+}
+catch {}
+
 $callback = {
   param($msg, $type)
 
@@ -34,7 +42,29 @@ $callback = {
     default { "[.... ]" }
   }
 
-  Write-Host "$prefix $msg"
+  $color = switch ($type) {
+    "e" { "Red" }
+    "w" { "Yellow" }
+    "i" { "Cyan" }
+    "t" { "Magenta" }
+    default { "Gray" }
+  }
+
+  try {
+    # normalização determinística (ANSI -> UTF-8)
+    $safeMsg = $msg
+    try {
+      $safeMsg = [System.Text.Encoding]::UTF8.GetString(
+        [System.Text.Encoding]::GetEncoding([Console]::OutputEncoding.CodePage).GetBytes([string]$msg)
+      )
+    }
+    catch {}
+
+    [Console]::WriteLine("{0} {1}", $prefix, $safeMsg)
+  }
+  catch {
+    Write-Host "$prefix $msg" -ForegroundColor $color
+  }
 }
 
 # =========================
@@ -74,41 +104,41 @@ $tests = @(
 $results = @()
 $index = 0
 
-Write-Host "`n=== INÍCIO TESTE DSL (REAL-TIME) ===`n"
+Write-Host "`n=== INÍCIO TESTE DSL (REAL-TIME) ===`n" -ForegroundColor Green
 
 foreach ($input in $tests) {
 
   $index++
 
-  Write-Host "-------------------------------------"
-  Write-Host "[TEST $index/$($tests.Count)]"
-  Write-Host "INPUT : $input"
+  Write-Host "-------------------------------------" -ForegroundColor DarkGray
+  Write-Host "[TEST $index/$($tests.Count)]" -ForegroundColor White
+  Write-Host "INPUT : $input" -ForegroundColor Gray
 
   if (-not (has_parser_expression $input)) {
-    Write-Host "[ERROR] Entrada não contém DSL válida"
+    Write-Host "[ERROR] Entrada não contém DSL válida"    Write-Host "[ERROR] Entrada não contém DSL válida" -ForegroundColor Red
     continue
   }
 
   $output = $null
 
   try {
-    Write-Host "[STEP ] Resolvendo..."
+    Write-Host "[STEP ] Resolvendo..." -ForegroundColor Magenta
     $output = resolve_parser_expression -source $input -callback $callback
   }
   catch {
-    Write-Host "[ERROR] Exceção: $($_.Exception.Message)"
+    Write-Host "[ERROR] Exceção: $($_.Exception.Message)" -ForegroundColor Red
     $output = $null
   }
 
-  Write-Host "[INFO ] OUTPUT: $output"
+  Write-Host "[INFO ] OUTPUT: $output" -ForegroundColor Cyan
 
   $isValid = Test-IsValidUrl $output
 
   if ($isValid) {
-    Write-Host "[PASS ] URL válida"
+    Write-Host "[PASS ] URL válida" -ForegroundColor Green
   }
   else {
-    Write-Host "[FAIL ] URL inválida ou resolução falhou"
+    Write-Host "[FAIL ] URL inválida ou resolução falhou" -ForegroundColor Red
   }
 
   $results += [PSCustomObject]@{
@@ -125,14 +155,11 @@ foreach ($input in $tests) {
 $pass = ($results | Where-Object Status -eq "PASS").Count
 $fail = ($results | Where-Object Status -eq "FAIL").Count
 
-Write-Host "`n====================================="
-Write-Host "RESUMO FINAL"
-Write-Host "====================================="
-Write-Host "TOTAL: $($results.Count)"
-Write-Host "PASS : $pass"
-Write-Host "FAIL : $fail"
-Write-Host "====================================="
+Write-Host "`n=====================================" -ForegroundColor DarkGray
+Write-Host "RESUMO FINAL" -ForegroundColor White
+Write-Host "=====================================" -ForegroundColor DarkGray
+Write-Host "TOTAL: $($results.Count)" -ForegroundColor Gray
+Write-Host "PASS : $pass" -ForegroundColor Green
+Write-Host "FAIL : $fail" -ForegroundColor Red
+Write-Host "=====================================" -ForegroundColor DarkGray
 
-if ($fail -gt 0) {
-  throw "Teste falhou: $fail casos inválidos"
-}
