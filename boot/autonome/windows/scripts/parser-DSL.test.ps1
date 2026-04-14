@@ -1,4 +1,9 @@
-#requires -version 5.1
+﻿#requires -version 5.1
+
+# No topo do script
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8 
+
 # =========================
 # TESTE DSL PARSER (REAL-TIME LOG)
 # =========================
