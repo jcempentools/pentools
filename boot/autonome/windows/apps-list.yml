@@ -1,0 +1,88 @@
+# Standard Autonomous Installer Specification (SAIS) - v1.5
+# Documento: Manifestos de Instalação (Fase 1: Profiles/Listas)
+
+apps: [] # Aguardando definições dos arquivos .syncdownload
+
+profiles:
+  - name: essencial
+    items:
+      - ref: CodecGuide.K-LiteCodecPack.Mega
+      - ref: Piriform.Defraggler
+      - ref: CrystalDewWorld.CrystalDiskInfo
+      - ref: CrystalDewWorld.CrystalDiskMark
+      - ref: TechPowerUp.GPU-Z
+      - ref: CPUID.CPU-Z
+
+  - name: basico
+    include_profiles:
+      - essencial
+    items:
+      - ref: Microsoft.PowerToys
+      - ref: QL-Win.QuickLook
+      - ref: CharlesMilette.TranslucentTB
+      - ref: SumatraPDF.SumatraPDF
+      - ref: PDFsam.PDFsam
+      - ref: Google.Chrome
+      - ref: Brave.Brave
+      - ref: qBittorrent.qBittorrent
+      - ref: TheDocumentFoundation.LibreOffice
+
+  - name: designer
+    include_profiles:
+      - essencial
+    items:
+      - ref: Inkscape.Inkscape
+      - ref: Upscayl.Upscayl
+      - ref: ffmpeg
+      - ref: MoritzBunkus.MKVToolNix
+
+  - name: designer.plus
+    include_profiles:
+      - basico
+      - designer
+
+  - name: dev
+    include_profiles:
+      - essencial
+    items:
+      - ref: Git.Git
+      - ref: GitHub.CLI
+      - ref: Oracle.VirtualBox
+      - ref: Python.Python.3.13
+      - ref: PHP.PHP.8.4
+      - ref: OpenJS.NodeJS
+      - ref: Mikrotik.Winbox
+      - ref: Mozilla.Firefox
+      - ref: PuTTY.PuTTY
+
+  - name: dev.plus
+    include_profiles:
+      - basico
+      - dev
+
+  - name: dev.plus.plus
+    include_profiles:
+      - dev.plus
+      - designer
+
+  - name: gamer
+    include_profiles:
+      - essencial
+    items:
+      - ref: Valve.Steam
+      - ref: EpicGames.EpicGamesLauncher
+
+  - name: gamer.plus
+    include_profiles:
+      - basico
+      - gamer
+
+  - name: gamer.plus.plus
+    include_profiles:
+      - designer
+      - gamer.plus
+
+  - name: full
+    include_profiles:
+      - gamer.plus.plus
+      - dev.plus.plus

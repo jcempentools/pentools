@@ -15,6 +15,8 @@
     - Deep Nesting: Suporta acesso a membros (.campo) e índices de arrays ([0]).
     - Hibridismo: Compatível com strings de metadados (ex: ".exe,x64 | ${DSL}").
     - Deve resolver também indices semânticos, ex.: [@attr="img"] e [@attr='img']
+      onde "attr" indica onome de qualquer atributo (ex. src, name, href...) que deve
+      cadar com o valor de exemplo 'img', DLS, retorna a primeira ocorrência de casar.
 
     PIPELINE DE RESOLUÇÃO:
     1. DETECÇÃO: Identificação de expressões DSL via 'has_parser_expression'.
@@ -30,7 +32,7 @@
     RESTRIÇÕES ESPECÍFICAS (HARD RULES):
     - ❌ VEDAÇÃO: Proibido parsing de HTML ou técnicas de Scraping.
     - ❌ VEDAÇÃO: Proibida execução de código arbitrário (Bloqueio de Invoke-Expression).
-    - ❌ VEDAÇÃO: Proibido encadeamento ou aninhamento de múltiplas expressões DSL.
+    - ❌ VEDAÇÃO: Proibido encadeamento ou aninhamento de múltiplas expressões DSL (limitar deept em 10).
     - ❌ VEDAÇÃO: Operação estritamente de leitura (Idempotência HTTP GET).
 
     FAIL-SAFE & TRATAMENTO DE ERROS:
