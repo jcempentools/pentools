@@ -34,6 +34,9 @@
     * O fechamento de níveis é automático quando ocorre mudança explícita de contexto via `id`, garantindo consistência hierárquica sem necessidade de operações manuais de encerramento.
     * A estrutura é exibida visualmente em formato de árvore com indentação de dois espaços por nível.
     * O estado hierárquico é interno, isolado e utilizado exclusivamente para rastreabilidade e organização dos logs.
+    * Notas:
+       - ":" NÃO significa "irmão direto" dentro do nivel atual
+      - ":" significa "subir até o nível anterior para criar um irmão ao nível atual
 
     DIRETRIZES ESPECÍFICAS:
     - Autonomia: Não depende de variáveis externas para inicialização.
@@ -191,6 +194,9 @@ function _logger {
   # ==============================
   if (-not $script:__logStack) { $script:__logStack = @() }
   if (-not $script:__logUsed) { $script:__logUsed = @{} }
+  if (-not $script:__logIndex) { $script:__logIndex = @{} }
+  if (-not $script:__logLastRoot) { $script:__logLastRoot = @() }
+  if (-not $script:__logTypes) { $script:__logTypes = @{} }
 
   function __newId {
     do {
@@ -205,13 +211,6 @@ function _logger {
     $lvl = $script:__logStack.Count
     if ($lvl -le 0) { return "" }
     return ("  " * $lvl)
-  }
-
-  function __closeToId($targetId) {
-    if (-not $targetId) { return }
-    while ($script:__logStack.Count -gt 0 -and $script:__logStack[-1] -ne $targetId) {
-      $script:__logStack = $script:__logStack[0..($script:__logStack.Count - 2)]
-    }
   }
 
   # ==============================
@@ -229,26 +228,75 @@ function _logger {
   # ":" => mesmo nível (irmão)
   # null/ausente => subnível
   # ==============================
+  # ==============================
+  # CONTROLE DE HIERARQUIA (COM NAVEGAÇÃO REAL)
+  # ==============================
+
+  function __goToId($targetId) {
+    if (-not $targetId) { return }
+
+    if (-not $script:__logIndex.ContainsKey($targetId)) {
+      return
+    }
+
+    $targetPath = $script:__logIndex[$targetId]
+
+    # RESET REAL (sem resíduos)
+    $script:__logStack = @()
+
+    foreach ($node in $targetPath) {
+      $script:__logStack += $node
+    }
+  }
+
+  function __popToTypeLevel($type) {
+    if ($script:__logStack.Count -eq 0) { return }
+
+    for ($i = $script:__logStack.Count - 1; $i -ge 0; $i--) {
+      $idAtLevel = $script:__logStack[$i]
+
+      if ($script:__logTypes[$idAtLevel] -eq $type) {
+        if ($i -gt 0) {
+          $script:__logStack = $script:__logStack[0..($i - 1)]
+        }
+        else {
+          $script:__logStack = @()
+        }
+        return
+      }
+    }
+
+    $script:__logStack = @()
+  }  
+
   if ($type -in @("t", "s")) {
 
-    if ($id -eq ":") {
-      # mesmo nível (irmão)
-      if ($script:__logStack.Count -gt 0) {
-        $script:__logStack = $script:__logStack[0..($script:__logStack.Count - 2)]
-      }
-      $createdId = __newId
-      $script:__logStack += $createdId
+    if ($id -and $id -ne ":") {
+      __goToId $id
     }
-    else {
-      # subnível (default)
-      $createdId = __newId
-      $script:__logStack += $createdId
+
+    if ($id -eq ":") {
+      __popToTypeLevel $type
+    }
+
+    $createdId = __newId
+    $script:__logStack += $createdId
+    $script:__logIndex[$createdId] = $script:__logStack.Count
+    $script:__logTypes[$createdId] = $type
+  }
+  else {
+    # LOG NORMAL COM ID EXPLÍCITO → reposiciona contexto
+    if ($id -and $id -ne ":") {
+      __goToId $id
     }
   }
 
   $prefixId = if ($script:__logStack.Count -gt 0) { $script:__logStack[-1] } else { "ROOT" }
   $indent = __indent
   $line = "$indent[$prefixId] $msg"
+
+  # buffer de retorno lógico (não polui output)
+  $script:__lastCreatedId = $createdId
 
   switch ($type) {
 
@@ -258,7 +306,8 @@ function _logger {
     "t" {
       Write-Host ""
       Write-Host ($line) -BackgroundColor DarkCyan
-      return $createdId
+      if ($null -ne $createdId) { Write-Output $createdId | Out-Null }
+      return
     }
 
     # ==============================
@@ -266,7 +315,8 @@ function _logger {
     # ==============================
     "s" {
       Write-Host ($line) -ForegroundColor Cyan
-      return $createdId
+      if ($null -ne $createdId) { Write-Output $createdId | Out-Null }
+      return
     }
 
     # ==============================
@@ -309,8 +359,12 @@ function _logger {
     # ==============================
     default {
       Write-Host ($line) -BackgroundColor DarkGray
-      return
     }
+  }
+
+  # retorno controlado (somente quando capturado)
+  if ($null -ne $script:__lastCreatedId) {
+    return $script:__lastCreatedId
   }
 }
 
