@@ -19,10 +19,28 @@
         • [w] Warn: Alertas de falhas não críticas ou retentativas.
         • [e] Error: Falhas críticas que exigem atenção ou interrupção.
 
+    [HIERARQUIA DE LOGS E IDENTIFICAÇÃO]
+
+    * Toda mensagem de log é associada a um contexto hierárquico implícito (árvore), mantido internamente por pilha (stack).
+    * Tipos [t] (Title) e [s] (Subtítulo) criam nós hierárquicos; demais tipos herdam automaticamente o contexto atual.
+    * Cada novo [t]/[s] gera automaticamente um identificador único global de 3 caracteres alfanuméricos (A-Z, 0-1), exibido no início da linha entre colchetes e retornado pela função.
+    * O parâmetro opcional `id` possui dupla função:
+      • Controle estrutural (quando `type` ∈ {t,s}):
+      - Ausente/null → cria subnível (push)
+      - ":" → cria no mesmo nível (pop + push)
+      • Navegação explícita (qualquer `type`):
+      - Valor alfanumérico válido → força o contexto para o ID informado (com fechamento automático de níveis intermediários até alcançá-lo)
+    * Logs sem `id` mantêm o contexto atual ativo (nenhuma alteração na pilha).
+    * O fechamento de níveis é automático quando ocorre mudança explícita de contexto via `id`, garantindo consistência hierárquica sem necessidade de operações manuais de encerramento.
+    * A estrutura é exibida visualmente em formato de árvore com indentação de dois espaços por nível.
+    * O estado hierárquico é interno, isolado e utilizado exclusivamente para rastreabilidade e organização dos logs.
+
     DIRETRIZES ESPECÍFICAS:
     - Autonomia: Não depende de variáveis externas para inicialização.
     - Sem Efeitos Colaterais: A biblioteca processa a string sem alterar o estado 
-      global de outras variáveis do sistema, salvo os buffers de saída.
+      global de outras variáveis do sistema, salvo:
+        • Buffers de saída
+        • Estado interno de rastreamento de hierarquia de logs (stack de IDs)
     - Consistência: Mantém compatibilidade total com o comportamento e assinatura 
       original do AUTONOME INSTALL SCRIPT.
 
@@ -150,6 +168,8 @@ Sistema central de logging.
     - [w] Warn: Alertas de falhas não críticas ou retentativas.
     - [e] Error: Falhas críticas que exigem atenção ou aborto.
 
+
+    
 .PARAMETER str_menssagem
 Mensagem a ser exibida.
 
@@ -160,18 +180,75 @@ function _logger {
   param(
     [string]$str_menssagem,
     [string]$type = "l",
+    [string]$id,
     [scriptblock]$callback
   )
 
   $msg = $str_menssagem
 
   # ==============================
-  # CALLBACK (telemetria obrigatória quando fornecida)
+  # ESTADO GLOBAL CONTROLADO
+  # ==============================
+  if (-not $script:__logStack) { $script:__logStack = @() }
+  if (-not $script:__logUsed) { $script:__logUsed = @{} }
+
+  function __newId {
+    do {
+      $chars = (65..90) + (48..49) # A-Z + 0-1
+      $new = -join (1..3 | ForEach-Object { [char]($chars | Get-Random) })
+    } while ($script:__logUsed.ContainsKey($new))
+    $script:__logUsed[$new] = $true
+    return $new
+  }
+
+  function __indent {
+    $lvl = $script:__logStack.Count
+    if ($lvl -le 0) { return "" }
+    return ("  " * $lvl)
+  }
+
+  function __closeToId($targetId) {
+    if (-not $targetId) { return }
+    while ($script:__logStack.Count -gt 0 -and $script:__logStack[-1] -ne $targetId) {
+      $script:__logStack = $script:__logStack[0..($script:__logStack.Count - 2)]
+    }
+  }
+
+  # ==============================
+  # CALLBACK
   # ==============================
   if ($callback) {
     & $callback $msg $type
     return
   }
+
+  $createdId = $null
+
+  # ==============================
+  # CONTROLE DE HIERARQUIA (MODE-DRIVEN)
+  # ":" => mesmo nível (irmão)
+  # null/ausente => subnível
+  # ==============================
+  if ($type -in @("t", "s")) {
+
+    if ($id -eq ":") {
+      # mesmo nível (irmão)
+      if ($script:__logStack.Count -gt 0) {
+        $script:__logStack = $script:__logStack[0..($script:__logStack.Count - 2)]
+      }
+      $createdId = __newId
+      $script:__logStack += $createdId
+    }
+    else {
+      # subnível (default)
+      $createdId = __newId
+      $script:__logStack += $createdId
+    }
+  }
+
+  $prefixId = if ($script:__logStack.Count -gt 0) { $script:__logStack[-1] } else { "ROOT" }
+  $indent = __indent
+  $line = "$indent[$prefixId] $msg"
 
   switch ($type) {
 
@@ -180,22 +257,16 @@ function _logger {
     # ==============================
     "t" {
       Write-Host ""
-      Write-Host ""
-      Write-Host "############################################################" -BackgroundColor DarkCyan
-      Write-Host ("#### {0}" -f $msg) -BackgroundColor DarkCyan
-      Write-Host "############################################################" -BackgroundColor DarkCyan
-      Write-Host ""
-      Write-Host ""
-      return
+      Write-Host ($line) -BackgroundColor DarkCyan
+      return $createdId
     }
 
     # ==============================
     # SUBTITLE
     # ==============================
     "s" {
-      Write-Host ""
-      Write-Host "-------------------- $msg --------------------" -ForegroundColor Cyan
-      return
+      Write-Host ($line) -ForegroundColor Cyan
+      return $createdId
     }
 
     # ==============================
@@ -213,8 +284,7 @@ function _logger {
     # ERROR
     # ==============================
     "e" {
-      Write-Host "[ERROR]" -BackgroundColor Red
-      Write-Host ("[ERROR]: {0}" -f $msg) -BackgroundColor Red
+      Write-Host ($line) -BackgroundColor Red
       return
     }
 
@@ -222,8 +292,7 @@ function _logger {
     # WARN
     # ==============================
     "w" {
-      Write-Host "[WARN]" -BackgroundColor Yellow -ForegroundColor Black
-      Write-Host ("[WARN]: {0}" -f $msg) -BackgroundColor Yellow -ForegroundColor Black
+      Write-Host ($line) -BackgroundColor Yellow -ForegroundColor Black
       return
     }
 
@@ -231,7 +300,7 @@ function _logger {
     # INFO
     # ==============================
     "i" {
-      Write-Host ("[INFO]: {0}" -f $msg) -BackgroundColor Gray -ForegroundColor Black
+      Write-Host ($line) -BackgroundColor Gray -ForegroundColor Black
       return
     }
 
@@ -239,8 +308,30 @@ function _logger {
     # DEFAULT LOG
     # ==============================
     default {
-      Write-Host ("---> {0}" -f $msg) -BackgroundColor DarkGray
+      Write-Host ($line) -BackgroundColor DarkGray
       return
     }
   }
+}
+
+# ==============================
+# TESTE CONTROLADO (execução direta)
+# ==============================
+if ($MyInvocation.InvocationName -ne '.') {
+
+  _logger "Início da Transação" "t"
+
+  _logger "Validando Credenciais" "s"
+  _logger "Conectando ao banco" "s"
+  _logger "SELECT * FROM usuarios" "l"
+  _logger "Tempo: 10ms" "i"
+
+  _logger "Verificando Token" "s" ":"
+  _logger "Token válido" "i"
+
+  _logger "Processando Pedido" "t" ":"
+  _logger "Checando estoque" "s"
+  _logger "SKU 123 disponível" "i"
+
+  _logger "Finalizando" "t" ":"
 }
