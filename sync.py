@@ -49,33 +49,102 @@ Determinística. Respeitar dedup. Não afetar arquivos de .syncdownload.
 
 ETAPA 3 — .SYNCDOWNLOAD
 =======================
-Formato: linha1 = URL/DSL | linha2 = SHA256 fixo (opc) | linha3 = nome custom (opc)
-                  DSL deve resolver também indices semânticos, ex.: [@attr="img"] e [@attr='img']
+Formato:
+- linha1 = URL/DSL (opcionalmente com spec: "spec | url")
+- linha2 = SHA256 fixo (opc)
+- linha3 = nome custom (opc)
+- linha4 = URL/DSL de hash remoto (opc)
+- linha5+ = blocos de script (opc)
+
+DSL deve resolver também índices semânticos, ex.: [@attr="img"] e [@attr='img'].
 
 Regra de versão:
 - COM hash na linha2 → versão FIXA (não consultar latest)
 - SEM hash → resolver latest online
 
-Fluxo: resolver URL → nome final → verificar cache → decidir via metadata
-→ download se necessário → validar (hash/tamanho) → purge → gerar metadata
-→ persistir cache.
+Fluxo:
+resolver URL → nome final → verificar cache → decidir via metadata
+→ download (sempre p/ cache na origem) → validação forte (se aplicável)
+→ purge → gerar metadata → persistir cache → copiar p/ destino
 
-Cache: reutilizar downloads válidos, evitar re-download, manter só versões
-válidas (sem histórico desnecessário).
+HASH REMOTO (linha 4)
+=====================
+- Define validação obrigatória adicional baseada em origem externa
+- Pode apontar para:
+  - conteúdo bruto contendo hash
+  - arquivos .sha256 / .md5 (formato "<hash>  <filename>")
+  - endpoints estruturados (via DSL)
+
+Regras:
+- Hash extraído ignorando nome do arquivo remoto
+- Tipo inferido automaticamente:
+  - 32 chars → MD5
+  - 64 chars → SHA256
+- Hash mantido apenas em memória (não persiste como metadata primária)
+
+Validação:
+- Presença da linha4 torna a validação por hash REMOTO obrigatória
+- Fluxo:
+  → calcular hash local (função existente)
+  → comparar com hash remoto
+  → divergência:
+     - remover arquivo local (cache + destino)
+     - invalidar metadata associada
+     - reiniciar download
+
+Regra crítica:
+- Download só é considerado válido se o hash remoto conferir
+
+Cache:
+- Reutilizar downloads válidos, evitar re-download
+- Cache inválido (sem metadata coerente ou hash divergente) → removido
+- Download ocorre exclusivamente no cache (origem), nunca direto no destino
 
 Metadata:
 - .syncado → controle de versão (nome remoto real ou referência)
-- .sha256 → integridade, formato "<hash>  <filename>" (2 espaços),
-  compatível c/ sha256sum. Uso EXCLUSIVO: validação local.
-  NÃO participa da decisão de versão.
+- .sha256 → integridade local (formato "<hash>  <filename>", 2 espaços)
+- Metadata NÃO participa da decisão de versão
+- Metadata NÃO substitui validação da linha4
 
-Hash: NÃO define atualização de versão (exceto se fixo no .syncdownload).
-Usado p/ validação pós-download, validação de cache, dedup fallback.
+Hash:
+- NÃO define atualização de versão (exceto linha2)
+- Usado para:
+  - validação pós-download
+  - validação de cache
+  - dedup fallback
+
+SCRIPT EMBUTIDO (linha ≥5)
+==========================
+Blocos definidos por marcador de início de linha:
+
+>>>ext
+
+Onde:
+- `>>>` = delimitador fixo
+- `ext` = extensão do script (ex: sh, ps1, py)
+
+Regras:
+- Linha iniciada com `>>>ext` inicia novo bloco
+- Conteúdo subsequente pertence ao bloco até:
+  - próximo `>>>ext`
+  - fim do arquivo
+
+Execução:
+- Para cada bloco:
+  - criar arquivo temporário no diretório do .syncdownload
+  - nome aleatório + extensão definida
+  - escrever conteúdo integral do bloco sem o `>>>ext`
+  - executar passando:
+    1º parâmetro → fullpath do arquivo baixado
+    2º parâmetro → fullpath do .syncdownload
+- Execução ocorre apenas após validação completa do download
+- Scripts não participam da decisão de integridade
 
 ETAPA 4 — RETENTATIVA
 =====================
 Retry controlado, síncrono, determinístico. Mesma ordem. Sem paralelismo.
-Só itens falhos. Limite explícito.
+Só itens falhos. Limite explícito. Falhas de validação por hash remoto
+são tratadas como falha de download.
 
 ETAPA 5 — PÓS-PROCESSAMENTO
 ===========================
@@ -117,7 +186,11 @@ RESTRIÇÕES
 - Não quebrar coerência origem↔destino
 - Não alterar UX da progressbar sem decisão explícita
 - Não quebrar compatibilidade de metadata
+- Linha4 inválida ou hash não extraível → abortar
+- Divergência de hash remoto → retry obrigatório
+- Execução de script não pode interferir na integridade do sync
 """
+
 import os
 import sys
 import codecs
