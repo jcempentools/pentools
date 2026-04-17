@@ -135,10 +135,11 @@ Execução:
   - nome aleatório + extensão definida
   - escrever conteúdo integral do bloco sem o `>>>ext`
   - executar passando:
-    1º parâmetro → fullpath do arquivo baixado
+    1º parâmetro → fullpath do arquivo baixado (se já baixado)
     2º parâmetro → fullpath do .syncdownload
-- Execução ocorre apenas após validação completa do download
 - Scripts não participam da decisão de integridade
+- Aguarda a conclusão da execução do script e encerrameto
+  do processo equivalente para continuar
 
 ETAPA 4 — RETENTATIVA
 =====================
