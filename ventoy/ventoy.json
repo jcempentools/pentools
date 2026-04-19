@@ -25,6 +25,10 @@
       "alias": "> Canivete Suiço"
     },
     {
+      "dir": "/boot/ISOs/Canivete/miniOS",
+      "alias": "> miniOS"
+    },
+    {
       "dir": "/boot/ISOs/Utilitarios",
       "alias": "> Utilitários"
     },
@@ -54,7 +58,15 @@
     },
     {
       "dir": "/boot/ISOs/GamesMedias",
-      "alias": "Games e Mídias"
+      "alias": "> Games e Mídias"
+    },
+    {
+      "dir": "/boot/ISOs/GamesMedias/LibreELEC",
+      "alias": "> LibreELEC"
+    },
+    {
+      "dir": "/boot/ISOs/GamesMedias/Batocera",
+      "alias": "> Batocera"
     },
     {
       "dir": "/boot/ISOs/Installs/Linux/PC-Muito-Velho",
@@ -178,6 +190,14 @@
       "class": "drparted"
     },
     {
+      "key": "Dr.Parted",
+      "class": "drparted"
+    },
+    {
+      "key": "dr.Parted",
+      "class": "drparted"
+    },
+    {
       "dir": "/boot/ISOs/Canivete",
       "class": "canivete"
     },
@@ -200,6 +220,10 @@
     {
       "dir": "/boot/ISOs/GamesMedias/LibreELEC",
       "class": "libreelec"
+    },
+    {
+      "dir": "/boot/ISOs/GamesMedias/Batocera",
+      "class": "batocera"
     },
     {
       "key": "libreelec",
