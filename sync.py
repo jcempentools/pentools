@@ -1540,15 +1540,14 @@ def fetch_remote_hash(remote_hash_url):
 def execute_sync_script(block, sync_path, downloaded_file=None):
     """
     Executa script embutido garantindo contrato de parâmetros.
-    """    
-
-    if len(args) < 2:
-        raise RuntimeError("Contrato de execução inválido: sync_path ausente")    
+    """        
+    if not sync_path or not os.path.exists(sync_path):
+        raise RuntimeError("Contrato inválido: sync_path inexistente")
 
     try:
-        code = block.get("code")
-        interpreter = block.get("interpreter", "python").lower()
-        phase = block.get("phase", "unknown")
+        code = block.get("content")
+        interpreter = block.get("ext", "python").lower()
+        phase = block.get("phase", "start")
 
         if not code:
             return
@@ -1556,31 +1555,38 @@ def execute_sync_script(block, sync_path, downloaded_file=None):
         # =========================================================
         # 🔒 CRIA SCRIPT TEMPORÁRIO
         # =========================================================
-        suffix = ".py" if interpreter == "python" else ".sh"
+        suffix = f".{interpreter}"
+        if interpreter in ("py", "python"):
+            suffix = ".py"
+        elif interpreter == "ps1":
+            suffix = ".ps1"
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix, mode="w", encoding="utf-8") as tmp:
-            tmp.write(code)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix, mode="w", encoding="utf-8", newline="\n") as tmp:
+            tmp.write("\n".join(code))
             tmp_path = tmp.name
+
+        try:
+            os.chmod(tmp_path, 0o755)
+        except Exception:
+            pass
 
         # =========================================================
         # 🔒 MONTA ARGUMENTOS (CONTRATO OBRIGATÓRIO)
         # =========================================================
-        args = []
-
-        if interpreter == "python":
+        if interpreter in ("py", "python"):
             args = [sys.executable, tmp_path]
+        elif interpreter == "ps1" and os.name == "nt":
+            args = ["powershell.exe", "-ExecutionPolicy", "Bypass", "-File", tmp_path]
+        elif os.name == "nt":
+            args = ["cmd.exe", "/c", tmp_path]
         else:
             args = ["bash", tmp_path]
 
         # 🔒 ARG1: path do .syncdownload (OBRIGATÓRIO)
         args.append(sync_path)
-
-        # 🔒 ARG2: arquivo baixado (se existir)
-        if downloaded_file:
-            args.append(downloaded_file)
-
-        # 🔒 ARG3: fase
-        args.append(phase)
+        
+        args.append(os.path.basename(downloaded_file) if downloaded_file else "")
+        args.append(downloaded_file if downloaded_file else "")
 
         show_message(f"[SCRIPT:{phase}] Exec → {os.path.basename(sync_path)}", "i")
 
@@ -1589,8 +1595,10 @@ def execute_sync_script(block, sync_path, downloaded_file=None):
         # =========================================================
         result = subprocess.run(
             args,
-            capture_output=True,
-            text=True
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=os.path.dirname(sync_path)
         )
 
         if result.stdout:
@@ -1602,7 +1610,18 @@ def execute_sync_script(block, sync_path, downloaded_file=None):
         if result.returncode != 0:
             show_message(f"Script retornou código {result.returncode}", "w")
 
+        # 🔒 cleanup obrigatório
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
+
     except Exception as e:
+        try:
+            if 'tmp_path' in locals() and os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass
         show_message(f"Erro ao executar script: {e}", "e")
 
 def is_same_product(a, b):

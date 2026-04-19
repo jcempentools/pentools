@@ -249,7 +249,7 @@ function _logger {
     }
   }
 
-  function __popToTypeLevel($type) {
+  function __popToLogicalParent($type) {
     if ($script:__logStack.Count -eq 0) { return }
 
     for ($i = $script:__logStack.Count - 1; $i -ge 0; $i--) {
@@ -266,8 +266,9 @@ function _logger {
       }
     }
 
+    # fallback: limpa tudo se não encontrar
     $script:__logStack = @()
-  }  
+  }
 
   if ($type -in @("t", "s")) {
 
@@ -275,13 +276,19 @@ function _logger {
       __goToId $id
     }
 
-    if ($id -eq ":") {
-      __popToTypeLevel $type
-    }
+
 
     $createdId = __newId
-    $script:__logStack += $createdId
-    $script:__logIndex[$createdId] = $script:__logStack.Count
+
+    if ($id -eq ":" -and $script:__logStack.Count -gt 0) {
+      # substitui o topo (irmão real)
+      $script:__logStack[$script:__logStack.Count - 1] = $createdId
+    }
+    else {
+      $script:__logStack += $createdId
+    }
+
+    $script:__logIndex[$createdId] = @($script:__logStack)
     $script:__logTypes[$createdId] = $type
   }
   else {
