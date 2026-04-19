@@ -206,22 +206,27 @@ jobs:
             local system_key="batocera"
             echo "$LOG_PREFIX Extraindo dados: Batocera..."
             
-            local base_url="https://o2switch.fr"
-            local file=$(curl -sL --max-time 20 "$base_url" | grep -oP 'href=\"\Kbatocera-x86_64-[^\"]+\.img\.gz' | head -1)
+            local base_url="https://mirrors.o2switch.fr/batocera/x86_64/stable/last/"
             
-            if [ -z "$file" ]; then
+            local arquivo=$(curl -sL --max-time 20 "$base_url" | grep -oP 'href="\Kbatocera-x86_64-[^"]+\.img\.gz' | head -1)
+            
+            if [ -z "$arquivo" ]; then
               echo "$LOG_PREFIX [$system_key] Falha na detecção do arquivo. Mantendo dados anteriores."
               return 0
             fi
             
-            local url="${base_url}${file}"
+            local url="${base_url}${arquivo}"
             url=$(normalize_url "$url" "$system_key")
-            local hash="${url}.sha256"
+            
+            # Hash: mesmo diretório, mesmo nome do arquivo com .sha256
+            local hash="${base_url}${arquivo}.sha256"
+            hash=$(normalize_url "$hash" "$system_key")
             
             update_json_structure "$system_key" "$url" "$hash"
             return 0
           }
 
+          # Função específica para LibreELEC com duas versões
           fetch_libreelec_dual() {
             local system_key="libreelec"
             echo "$LOG_PREFIX Extraindo dados dual: LibreELEC..."
@@ -234,8 +239,17 @@ jobs:
               return 0
             fi
             
-            local url_main="${base_url}/LibreELEC-Generic.x86_64-${version}.img.gz"
-            local url_legacy="${base_url}/LibreELEC-Generic-legacy.x86_64-${version}.img.gz"
+            local url_main="${base_url}/downloads/LibreELEC-Generic.x86_64-${version}.img.gz"
+            local url_legacy="${base_url}/downloads/LibreELEC-Generic-legacy.x86_64-${version}.img.gz"
+            
+            # Fallback: testar URLs alternativas se as principais falharem
+            if ! curl -sL --max-time 10 --head "$url_main" >/dev/null 2>&1; then
+              url_main="${base_url}/LibreELEC-Generic.x86_64-${version}.img.gz"
+            fi
+            
+            if ! curl -sL --max-time 10 --head "$url_legacy" >/dev/null 2>&1; then
+              url_legacy="${base_url}/LibreELEC-Generic-legacy.x86_64-${version}.img.gz"
+            fi
             
             url_main=$(normalize_url "$url_main" "$system_key")
             url_legacy=$(normalize_url "$url_legacy" "$system_key")
