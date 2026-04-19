@@ -231,24 +231,29 @@ jobs:
             local system_key="libreelec"
             echo "$LOG_PREFIX Extraindo dados dual: LibreELEC..."
             
-            local base_url="https://libreelec.tv"
-            local version=$(curl -sL --max-time 20 "$base_url" | grep -oP '>\K[0-9.]+(?=/)' | sort -V | tail -1)
+            local page_url="https://libreelec.tv/downloads/generic/"
             
-            if [ -z "$version" ]; then
-              echo "$LOG_PREFIX [$system_key] Falha na detecção da versão. Mantendo dados anteriores."
+            local all_hrefs=$(curl -sL --max-time 20 -A "Mozilla/5.0" "$page_url" | grep -oP 'href="\K[^"]+\.img\.gz')
+            
+            if [ -z "$all_hrefs" ]; then
+              echo "$LOG_PREFIX [$system_key] Falha na extração dos hrefs. Mantendo dados anteriores."
               return 0
             fi
             
-            local url_main="${base_url}/downloads/LibreELEC-Generic.x86_64-${version}.img.gz"
-            local url_legacy="${base_url}/downloads/LibreELEC-Generic-legacy.x86_64-${version}.img.gz"
+            local url_main=$(echo "$all_hrefs" | grep "Generic.x86_64" | grep -v "legacy" | head -n 1)
+            local url_legacy=$(echo "$all_hrefs" | grep "Generic-legacy" | head -n 1)
             
-            # Fallback: testar URLs alternativas se as principais falharem
-            if ! curl -sL --max-time 10 --head "$url_main" >/dev/null 2>&1; then
-              url_main="${base_url}/LibreELEC-Generic.x86_64-${version}.img.gz"
+            if [ -z "$url_main" ] && [ -z "$url_legacy" ]; then
+              echo "$LOG_PREFIX [$system_key] Nenhuma URL encontrada. Mantendo dados anteriores."
+              return 0
             fi
             
-            if ! curl -sL --max-time 10 --head "$url_legacy" >/dev/null 2>&1; then
-              url_legacy="${base_url}/LibreELEC-Generic-legacy.x86_64-${version}.img.gz"
+            # Converte URLs relativas para absolutas se necessário
+            if [[ "$url_main" =~ ^/ ]]; then
+              url_main="https://libreelec.tv$url_main"
+            fi
+            if [[ "$url_legacy" =~ ^/ ]]; then
+              url_legacy="https://libreelec.tv$url_legacy"
             fi
             
             url_main=$(normalize_url "$url_main" "$system_key")
