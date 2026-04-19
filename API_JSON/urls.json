@@ -6,5 +6,13 @@
   "batocera": {
     "url": "https://mirrors.o2switch.fr/batocera/x86_64/stable/last/batocera-x86_64-42-20251006.img.gz",
     "hash": "https://mirrors.o2switch.fr/batocera/x86_64/stable/last/batocera-x86_64-42-20251006.img.gz.sha256"
+  },
+  "libreelec": {
+    "url": "https://releases.libreelec.tv/LibreELEC-Generic.x86_64-12.2.1.img.gz",
+    "hash": "https://releases.libreelec.tv/LibreELEC-Generic.x86_64-12.2.1.img.gz.sha256",
+    "legacy": {
+      "url": "https://releases.libreelec.tv/LibreELEC-Generic-legacy.x86_64-12.2.1.img.gz",
+      "hash": "https://releases.libreelec.tv/LibreELEC-Generic-legacy.x86_64-12.2.1.img.gz.sha256"
+    }
   }
 }
