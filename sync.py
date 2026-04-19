@@ -1203,7 +1203,10 @@ def parse_syncdownload(file_path):
     expected_hash = raw_lines[1].strip() if len(raw_lines) > 1 and raw_lines[1].strip() else None
     custom_name = raw_lines[2].strip() if len(raw_lines) > 2 and raw_lines[2].strip() else None
 
-    return url, expected_hash, custom_name        
+    # 🔒 linha 4 — hash remoto (NÃO persiste, uso obrigatório em memória)
+    remote_hash_url = raw_lines[3].strip() if len(raw_lines) > 3 and raw_lines[3].strip() else None
+
+    return url, expected_hash, custom_name, remote_hash_url       
 
 def manage_sync_metadata(final_dest_path, url, expected_hash):
     """
@@ -1461,6 +1464,30 @@ def is_binary_content(headers):
     """    
     ct = headers.get("Content-Type", "").lower()
     return "text/html" not in ct 
+
+def fetch_remote_hash(remote_hash_url):
+    """
+    Extrai hash remoto conforme contrato:
+    - aceita conteúdo bruto
+    - aceita formato "<hash>  filename"
+    - infere tipo por tamanho
+    """
+
+    try:
+        req = urllib.request.Request(remote_hash_url)
+        with http_open(req) as response:
+            content = response.read().decode(errors="ignore")
+
+        # 🔒 extrai primeiro hash válido
+        match = re.search(r'\b([a-fA-F0-9]{32}|[a-fA-F0-9]{64})\b', content)
+
+        if not match:
+            raise Exception("Hash remoto não extraível")
+
+        return match.group(1).lower()
+
+    except Exception as e:
+        raise Exception(f"Falha ao obter hash remoto: {e}")
 
 def is_same_product(a, b):
     """
@@ -1736,7 +1763,7 @@ def resolve_syncdownload_cached(sync_path):
         if cached_mtime == current_mtime:
             return cache_entry
 
-    url, expected_hash, custom_filename = parse_syncdownload(sync_path)
+    url, expected_hash, custom_filename, remote_hash_url = parse_syncdownload(sync_path)
 
     if not url:
         return None
@@ -1843,6 +1870,7 @@ def resolve_syncdownload_cached(sync_path):
         "url": url,
         "filename": filename,
         "expected_hash": expected_hash,
+        "remote_hash_url": remote_hash_url,
         "forced_extension": forced_extension,
         "custom_filename": custom_filename
     }
@@ -2393,6 +2421,7 @@ def process_single_syncdownload(path, dry_run):
 
     final_url = resolved["final_url"]
     expected_hash = resolved["expected_hash"]
+    remote_hash_url = resolved.get("remote_hash_url")
     filename = resolved["filename"]
 
     dest_dir = os.path.join(
@@ -2609,6 +2638,55 @@ def process_single_syncdownload(path, dry_run):
         except:
             pass
         return
+    
+    # =========================================================
+    # 🔒 VALIDAÇÃO OBRIGATÓRIA — HASH REMOTO (linha 4)
+    # =========================================================
+    if remote_hash_url:
+        try:
+            remote_hash = fetch_remote_hash(remote_hash_url)
+            local_hash = hash_file(final_dest_path, "Destino")
+
+            if local_hash != remote_hash:
+                show_message(f"Hash remoto divergente → invalidando: {filename}", "w")
+
+                # 🔒 remove destino
+                try:
+                    os.remove(final_dest_path)
+                except:
+                    pass
+
+                # 🔒 remove cache origem
+                try:
+                    if os.path.exists(origin_cached_path):
+                        os.remove(origin_cached_path)
+                except:
+                    pass
+
+                # 🔒 remove metadata
+                for ext_meta in (".sha256", ".syncado"):
+                    try:
+                        if os.path.exists(origin_cached_path + ext_meta):
+                            os.remove(origin_cached_path + ext_meta)
+                    except:
+                        pass
+
+                # 🔒 força retry
+                if path not in failed_files:
+                    failed_files.append(path)
+
+                return
+
+            show_message(f"Hash remoto válido: {filename}", "k")
+
+        except Exception as e:
+            show_message(f"Falha na validação de hash remoto: {e}", "e")
+
+            # 🔒 abort conforme contrato
+            if path not in failed_files:
+                failed_files.append(path)
+
+            return    
 
     # === PURGE CONTROLADO ===
     purge_similar_installers_safe(
