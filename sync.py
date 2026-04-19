@@ -1734,7 +1734,6 @@ def _parser_cache_set(url, data):
     """
     __PARSER_CACHE[url] = (time.time(), data)
 
-
 def fetch_and_parse(url):
     """
     Descrição: Fetch + parse automático (JSON/YAML fallback JSON only)
@@ -1769,7 +1768,6 @@ def fetch_and_parse(url):
 
     _parser_cache_set(url, data)
     return data
-
 
 def resolve_data_path(obj, path, context_name=None):
     """
@@ -2124,8 +2122,16 @@ def destination_cleanup(root, dry_run=False):
                 show_message(f"Remoção protegida (arquivo base existente): {item}", "D")
                 continue
 
-            # 🔒 3. Só permite remoção se NÃO houver .syncdownload E NÃO houver base
-            show_message(f"Metadata órfã removida: {item}", "d")              
+            # 🔒 3. REMOÇÃO REAL DE METADATA ÓRFÃ (ANTES NÃO OCORRIA)
+            show_message(f"Metadata órfã removida: {item}", "d")
+
+            if not dry_run:
+                try:
+                    os.remove(dest_full_path)
+                except Exception as e:
+                    show_message(f"Falha ao remover metadata órfã: {e}", "e")
+
+            continue        
 
         if re.search(IGNORED_PATHS, dest_full_path, re.IGNORECASE):
             show_message(f"Remoção ignorada [regex]: {dest_full_path}", "W")
@@ -2135,7 +2141,7 @@ def destination_cleanup(root, dry_run=False):
         origin_equivalent_sync = origin_equivalent + ".syncdownload"
 
         # --- PROTEÇÃO CONDICIONAL POR DIRETÓRIO ---
-        has_local_sync = len(local_sync_files) > 0
+        # (já calculado no início da função)
 
         # =========================================================
         # 🔒 PROTEÇÃO CANÔNICA DE ARQUIVOS GERADOS POR .syncdownload
@@ -2171,42 +2177,50 @@ def destination_cleanup(root, dry_run=False):
             pass        
 
         if not os.path.exists(origin_equivalent):
-            # --- PROTEÇÃO INTELIGENTE DE DOWNLOADS ---
-            if has_local_sync:
-                ext = os.path.splitext(dest_full_path)[1].lower().lstrip(".")
-                if ext in SyncDonwloadExtensions:
-                    show_message(f"Protegido (extensão gerenciada por .syncdownload): {item}", "D")
+
+            # =========================================================
+            # 🔒 PROTEÇÃO GLOBAL: arquivo gerado por QUALQUER .syncdownload
+            # =========================================================
+            try:
+                protected = False
+
+                for root_dir, _, files in os.walk(ORIGIN_PATH):
+                    for f in files:
+                        if not f.lower().endswith(".syncdownload"):
+                            continue
+
+                        sync_file = os.path.join(root_dir, f)
+
+                        try:
+                            resolved = resolve_syncdownload_cached(sync_file)
+
+                            if not resolved:
+                                continue
+
+                            expected_name = resolved.get("filename")
+
+                            if not expected_name:
+                                continue
+
+                            expected_base = normalize_product_name(expected_name)
+                            current_base = normalize_product_name(os.path.basename(dest_full_path))
+
+                            if is_same_product(expected_base, current_base):
+                                show_message(f"Protegido (global .syncdownload): {item}", "D")
+                                protected = True
+                                break
+
+                        except Exception:
+                            pass
+
+                    if protected:
+                        break
+
+                if protected:
                     continue
 
-            # Verifica se existe um .syncdownload correspondente na origem
-            if os.path.exists(origin_equivalent_sync):
-                try:
-                    resolved = resolve_syncdownload_cached(origin_equivalent_sync)
-
-                    if not resolved:
-                        continue
-
-                    expected_name = resolved.get("filename")
-
-                    # Se o nome bate com o arquivo atual, NÃO remove
-                    expected_base = normalize_product_name(expected_name)
-                    current_base = normalize_product_name(os.path.basename(dest_full_path))
-
-                    if is_same_product(expected_base, current_base):
-                        show_message(f"Protegido por similaridade: {item}", "D")
-                        continue
-                except Exception:
-                    pass
-
-            show_message(f"Removendo do destino (não existe na origem): {rel_path}", "remove")
-            if not dry_run:
-                try:
-                    if os.path.isdir(dest_full_path):
-                        shutil.rmtree(dest_full_path)
-                    else:
-                        os.remove(dest_full_path)
-                except OSError as e:
-                    show_message(f"Falha ao remover {dest_full_path}: {e}", "e")
+            except Exception:
+                pass
 
         # --- RECURSÃO CONTROLADA ---
         # Executa limpeza em subdiretórios existentes (após possíveis remoções)
