@@ -1,0 +1,6 @@
+{
+  "linuxmint": {
+    "url": "https://mirrors.edge.kernel.org/linuxmint/stable/22.3/linuxmint-22.3-cinnamon-64bit.iso",
+    "hash": "https://mirrors.edge.kernel.org/linuxmint/stable/22.3/sha256sum.txt"
+  }
+}
