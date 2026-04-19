@@ -198,6 +198,8 @@ import sys
 import codecs
 import shutil
 import re
+import tempfile
+import subprocess
 import urllib.request
 import xxhash
 import hashlib
@@ -1209,6 +1211,50 @@ def parse_syncdownload(file_path):
 
     return url, expected_hash, custom_name, remote_hash_url       
 
+def parse_syncdownload_scripts(file_path):
+    """
+    Extrai blocos >>>ext[,fase] do .syncdownload
+    Retorno: list[{ext, phase, content}]
+    """
+
+    blocks = []
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        current = None
+
+        for line in lines[4:]:  # 🔒 começa após linha 4
+            line = line.rstrip("\n")
+
+            m = re.match(r'^>>>\s*([a-zA-Z0-9]+)(?:\s*,\s*([a-zA-Z0-9]+))?', line)
+
+            if m:
+                if current:
+                    blocks.append(current)
+
+                ext = m.group(1)
+                phase = (m.group(2) or "start").lower()
+
+                current = {
+                    "ext": ext,
+                    "phase": phase,
+                    "content": []
+                }
+                continue
+
+            if current:
+                current["content"].append(line)
+
+        if current:
+            blocks.append(current)
+
+    except Exception:
+        return []
+
+    return blocks
+
 def manage_sync_metadata(final_dest_path, url, expected_hash):
     """
     Decisão unificada de download (independente da origem)
@@ -1489,6 +1535,74 @@ def fetch_remote_hash(remote_hash_url):
 
     except Exception as e:
         raise Exception(f"Falha ao obter hash remoto: {e}")
+
+def execute_sync_script(block, sync_path, downloaded_file=None):
+    """
+    Executa script embutido garantindo contrato de parâmetros.
+    """    
+
+    if len(args) < 2:
+        raise RuntimeError("Contrato de execução inválido: sync_path ausente")    
+
+    try:
+        code = block.get("code")
+        interpreter = block.get("interpreter", "python").lower()
+        phase = block.get("phase", "unknown")
+
+        if not code:
+            return
+
+        # =========================================================
+        # 🔒 CRIA SCRIPT TEMPORÁRIO
+        # =========================================================
+        suffix = ".py" if interpreter == "python" else ".sh"
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix, mode="w", encoding="utf-8") as tmp:
+            tmp.write(code)
+            tmp_path = tmp.name
+
+        # =========================================================
+        # 🔒 MONTA ARGUMENTOS (CONTRATO OBRIGATÓRIO)
+        # =========================================================
+        args = []
+
+        if interpreter == "python":
+            args = [sys.executable, tmp_path]
+        else:
+            args = ["bash", tmp_path]
+
+        # 🔒 ARG1: path do .syncdownload (OBRIGATÓRIO)
+        args.append(sync_path)
+
+        # 🔒 ARG2: arquivo baixado (se existir)
+        if downloaded_file:
+            args.append(downloaded_file)
+
+        # 🔒 ARG3: fase
+        args.append(phase)
+
+        show_message(f"[SCRIPT:{phase}] Exec → {os.path.basename(sync_path)}", "i")
+
+        # =========================================================
+        # 🔒 EXECUÇÃO ISOLADA
+        # =========================================================
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True
+        )
+
+        if result.stdout:
+            show_message(result.stdout.strip(), "d")
+
+        if result.stderr:
+            show_message(result.stderr.strip(), "w")
+
+        if result.returncode != 0:
+            show_message(f"Script retornou código {result.returncode}", "w")
+
+    except Exception as e:
+        show_message(f"Erro ao executar script: {e}", "e")
 
 def is_same_product(a, b):
     """
@@ -2416,6 +2530,19 @@ def process_single_syncdownload(path, dry_run):
     Retorno:
     - None
     """    
+    # =========================================================
+    # 🔒 CARREGA SCRIPTS EMBUTIDOS (ANTES DE TUDO)
+    # =========================================================
+    script_blocks = parse_syncdownload_scripts(path)
+
+    def run_phase(phase, downloaded_file=None):
+        for b in script_blocks:
+            if b["phase"] == phase:
+                execute_sync_script(b, path, downloaded_file)
+
+    # 🔒 fase preresolve
+    run_phase("preresolve")
+
     resolved = resolve_download_context(path)
     if not resolved:
         return
@@ -2424,6 +2551,9 @@ def process_single_syncdownload(path, dry_run):
     expected_hash = resolved["expected_hash"]
     remote_hash_url = resolved.get("remote_hash_url")
     filename = resolved["filename"]
+
+    # 🔒 fase start (default)
+    run_phase("start")
 
     dest_dir = os.path.join(
         destination_path,
@@ -2645,7 +2775,14 @@ def process_single_syncdownload(path, dry_run):
     # =========================================================
     if remote_hash_url:
         try:
+            # 🔒 fase preremotehash
+            run_phase("preremotehash")
+
             remote_hash = fetch_remote_hash(remote_hash_url)
+
+            # 🔒 fase posremotehash
+            run_phase("posremotehash")
+
             local_hash = hash_file(final_dest_path, "Destino")
 
             if local_hash != remote_hash:
@@ -2678,7 +2815,7 @@ def process_single_syncdownload(path, dry_run):
 
                 return
 
-            show_message(f"Hash remoto válido: {filename}", "k")
+            show_message(f"Hash remoto válido: {filename}", "k")            
 
         except Exception as e:
             show_message(f"Falha na validação de hash remoto: {e}", "e")
@@ -2723,6 +2860,9 @@ def process_single_syncdownload(path, dry_run):
                     copy_file_with_progress(src_meta, dst_meta)
                 except Exception:
                     pass
+
+        # 🔒 fase end (arquivo já disponível)
+        run_phase("end", final_dest_path)
 
         show_message(f"Sync completo: {filename}", "s")
 
