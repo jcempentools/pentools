@@ -4,7 +4,7 @@
 # 1. OBJETIVO: Manter URLs e Hashes de distribuições Linux atualizados via GitHub Actions.
 # 2. PERIODICIDADE: Execução automática dominical (00:01 UTC) ou disparo manual via UI.
 # 3. IDEMPOTÊNCIA E BLINDAGEM:
-#    - Persistência: O arquivo 'dados/urls.json' nunca deve ser deletado ou zerado.
+#    - Persistência: O arquivo 'API_JSON/urls.json' nunca deve ser deletado ou zerado.
 #    - Fallback: Se um mirror falhar, os dados preexistente no JSON DEVEM ser mantidos.
 #    - Atomicidade: Gravações via JQ utilizam arquivos temporários para evitar corrupção.
 # 4. RESILIÊNCIA DE REDE:
@@ -44,7 +44,7 @@ jobs:
       - name: Atualizar URL e Hash
         run: |
           # --- CONFIGURAÇÕES DE AMBIENTE ---
-          DIR="dados"
+          DIR="API_JSON"
           FILE="$DIR/urls.json"
           LOG_PREFIX="[DEBUG-AUTOMATION]"
           MAX_RETRIES=3
@@ -230,7 +230,7 @@ jobs:
           # Busca alterações do remoto para evitar conflitos
           git pull --rebase origin ${GITHUB_REF#refs/heads/} || true
 
-          git add dados/urls.json
+          git add API_JSON/urls.json
 
           # Verifica se há alterações locais após o pull
           if git diff --cached --quiet; then
