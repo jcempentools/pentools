@@ -103,14 +103,23 @@ jobs:
           }
 
           # 4. FUNÇÃO DE VALIDAÇÃO HTTPS
-          validate_https() {
+          # 4. FUNÇÃO DE NORMALIZAÇÃO DE URL (FORÇA HTTPS, TRATA FTP)
+          normalize_url() {
             local url=$1
             local system=$2
-            if [[ ! "$url" =~ ^https:// ]]; then
-              echo "$LOG_PREFIX [$system] ERRO: URL não utiliza HTTPS."
-              return 1
+            
+            if [[ "$url" =~ ^ftp:// ]]; then
+              echo "$LOG_PREFIX [$system] AVISO: URL FTP detectada. Convertendo para HTTPS."
+              url=$(echo "$url" | sed 's|^ftp://|https://|')
+            elif [[ "$url" =~ ^http:// ]]; then
+              echo "$LOG_PREFIX [$system] AVISO: URL HTTP detectada. Forçando HTTPS."
+              url=$(echo "$url" | sed 's|^http://|https://|')
+            elif [[ ! "$url" =~ ^https:// ]]; then
+              echo "$LOG_PREFIX [$system] AVISO: URL sem protocolo. Adicionando HTTPS."
+              url="https://$url"
             fi
-            return 0
+            
+            echo "$url"
           }
 
           # 5. FUNÇÃO DE BACKUP ATÔMICO
@@ -139,72 +148,74 @@ jobs:
                 rm -f "${FILE}.backup"
                 return 0
             else
-                echo "$LOG_PREFIX [$system] ERRO: Falha no JQ."
+                echo "$LOG_PREFIX [$system] ERRO: Falha no JQ. Mantendo dados anteriores."
                 atomic_restore
                 return 1
             fi
           }
 
-          # 8. FUNÇÃO DE ATUALIZAÇÃO COMPLETA
+          # 8. FUNÇÃO DE ATUALIZAÇÃO COMPLETA (NÃO INTERROMPE FLUXO)
           update_json_structure() {
             local system=$1
             local new_url=$2
             local new_hash=$3
 
-            [ -z "$new_url" ] && { echo "$LOG_PREFIX [$system] URL vazia. Ignorando."; return 1; }
-            validate_https "$new_url" "$system" || return 1
+            if [ -z "$new_url" ]; then
+              echo "$LOG_PREFIX [$system] URL vazia. Mantendo dados existentes."
+              return 0
+            fi
+            
+            new_url=$(normalize_url "$new_url" "$system")
             
             echo "$LOG_PREFIX [$system] Validando dados..."
             persist_json "$system" "$new_url" "$new_hash"
+            
+            return 0
           }
 
-          # 9. FUNÇÃO DE PROCESSAMENTO DE DISTRO
+          # 9. FUNÇÃO DE PROCESSAMENTO DE DISTRO (COM ISOLAMENTO DE FALHAS)
           process_distro() {
             local name=$1
             local cmd=$2
             local hash_transform=$3
+            local system_key=$(echo "$name" | tr '[:upper:]' '[:lower:]')
             
             echo "$LOG_PREFIX Extraindo dados: $name..."
-            local url=$(smart_fetch "${name}_URL" "$cmd")
+            
+            local url=""
+            url=$(smart_fetch "${name}_URL" "$cmd") || {
+              echo "$LOG_PREFIX [$system_key] Falha na obtenção da URL. Mantendo dados anteriores."
+              return 0
+            }
             
             if [ -n "$url" ]; then
               local hash=$(eval "$hash_transform")
-              update_json_structure "$(echo "$name" | tr '[:upper:]' '[:lower:]')" "$url" "$hash"
+              update_json_structure "$system_key" "$url" "$hash"
             fi
+            
+            return 0
           }
 
           # 10. FUNÇÕES DE HASH TRANSFORM
           mint_hash() { echo "$1" | sed 's|linuxmint-.*.iso|sha256sum.txt|'; }
           suffix_hash() { echo "${1}.sha256"; }
 
-          # --- EXECUÇÃO PRINCIPAL ---
+          # --- EXECUÇÃO PRINCIPAL (CONTINUA MESMO COM FALHAS PARCIAIS) ---
           echo "$LOG_PREFIX Iniciando processo de auditoria de mirrors..."
           ensure_infrastructure
 
           process_distro "linuxmint" \
-            "BASE='https://layeronline.com'; VER=\$(curl -sL --max-time 10 \$BASE | grep -oP 'href=\"\K[0-9.]+(?=/)\"' | sort -V | tail -1); echo \"\${BASE}\${VER}/linuxmint-\${VER}-cinnamon-64bit.iso\"" \
+            "BASE='https://layeronline.com'; VER=\$(curl -sL --max-time 20 \$BASE | grep -oP 'href=\"\K[0-9.]+(?=/)\"' | sort -V | tail -1); echo \"\${BASE}\${VER}/linuxmint-\${VER}-cinnamon-64bit.iso\"" \
             "mint_hash \"\$url\""
 
           process_distro "batocera" \
-            "D='https://o2switch.fr'; F=\$(curl -sL --max-time 10 \$D | grep -oP 'href=\"\Kbatocera-x86_64-[^\"]+\.img\.gz' | head -1); echo \"\${D}\${F}\"" \
+            "D='https://o2switch.fr'; F=\$(curl -sL --max-time 20 \$D | grep -oP 'href=\"\Kbatocera-x86_64-[^\"]+\.img\.gz' | head -1); echo \"\${D}\${F}\"" \
             "suffix_hash \"\$url\""
 
           process_distro "libreelec" \
-            "R='https://libreelec.tv'; V=\$(curl -sL --max-time 10 \$R | grep -oP '>\K[0-9.]+(?=/)' | sort -V | tail -1); echo \"\${R}LibreELEC-Generic.x86_64-\${V}.img.gz\"" \
+            "R='https://libreelec.tv'; V=\$(curl -sL --max-time 20 \$R | grep -oP '>\K[0-9.]+(?=/)' | sort -V | tail -1); echo \"\${R}LibreELEC-Generic.x86_64-\${V}.img.gz\"" \
             "suffix_hash \"\$url\""
 
-          echo "$LOG_PREFIX Todos os processos concluídos. Verificando estado final do JSON..."
+          echo "$LOG_PREFIX Processo finalizado. Falhas individuais não interromperam a execução."
+          echo "$LOG_PREFIX Estado final do JSON:"
           cat "$FILE"
-
-      - name: Git Deploy (Atomic Commit)
-        run: |
-          git config --local user.email "actions@github.com"
-          git config --local user.name "Workflow Bot"
-          git add dados/urls.json
-
-          if git diff --staged --quiet; then
-            echo "LOG: Nenhuma alteração detectada. Encerrando sem commit."
-          else
-            git commit -m "Automated Update: URLs and Hashes [$(date +'%Y-%m-%d %H:%M')]"
-            git push
-          fi
