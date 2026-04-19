@@ -279,8 +279,9 @@ ORIGIN_PATH = os.path.normpath(SCRIPT_DIR).rstrip(os.path.sep) + os.path.sep
 DEFAULT_IGNORED = (
     r"(\.(git|vscode|trunk|github)(\\|/|$))|"          # Pastas de dev
     r"(\.(log|tmp|eslintrc\.json|gitattributes|gitignore|prettierrc|prettierignore)$)|" # Extensões/Arquivos
-    r"(\.fseventsd$|\.Trashes$|\.Spotlight$|\.AppleDouble$|" # Pastas de sistema
-    r"\.TemporaryItems$|\$Recycle\.Bin$|Recycler$)"
+    r"(API_JSON)$|" # Pastas diversas
+    r"(\.fseventsd$|\.Trashes$|\.Spotlight$|\.AppleDouble$|" # Pastas de sistema    
+    r"\.TemporaryItems$|\$Recycle\.Bin$|Recycler$)"    
 )
 
 # Verifica se há argumentos via CLI
