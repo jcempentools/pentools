@@ -1,227 +1,243 @@
 {
-    "control":[
-        { "VTOY_DEFAULT_MENU_MODE": "1" },
-        { "VTOY_TREE_VIEW_MENU_STYLE": "1" },
-        { "VTOY_SECONDARY_BOOT_MENU": "0" },
-        { "VTOY_MENU_LANGUAGE": "pt_BR" },
-        { "VTOY_DEFAULT_SEARCH_ROOT": "/boot/ISOs" }
-    ],
-    "theme":{
-        "file": "/ventoy/themes/Ettery/theme.txt",
-        "gfxmode": "1280x960",
-        "fonts":[
-            "/ventoy/fonts/unicode.pf2"
-        ]
+  "control": [
+    { "VTOY_DEFAULT_MENU_MODE": "1" },
+    { "VTOY_TREE_VIEW_MENU_STYLE": "1" },
+    { "VTOY_SECONDARY_BOOT_MENU": "0" },
+    { "VTOY_MENU_LANGUAGE": "pt_BR" },
+    { "VTOY_DEFAULT_SEARCH_ROOT": "/boot/ISOs" }
+  ],
+  "theme": {
+    "file": "/ventoy/themes/Ettery/theme.txt",
+    "gfxmode": "1280x960",
+    "fonts": ["/ventoy/fonts/unicode.pf2"]
+  },
+  "menu_alias": [
+    {
+      "image": "/boot/ISOs/Canivete/windows-HBCD_PE_x64.iso",
+      "alias": "Hiren's BootCD PE"
     },
-    "menu_alias":[
-        {
-            "image": "/boot/ISOs/Canivete/windows-HBCD_PE_x64.iso",
-            "alias": "Hiren's BootCD PE"
-        },
-        {
-            "image": "/boot/ISOs/ipxe.iso",
-            "alias": "Boot Network (ipxe)"
-        },
-        {
-            "dir": "/boot/ISOs/Canivete",
-            "alias": "> Canivete Suiço"
-        },
-        {
-            "dir": "/boot/ISOs/Utilitarios",
-            "alias": "> Utilitários"
-        },
-        {
-            "dir": "/boot/ISOs/Utilitarios/Disco",
-            "alias": "> HDs"
-        },
-        {
-            "dir": "/boot/ISOs/Utilitarios/Imagem",
-            "alias": "> Imagens"
-        },
-        {
-            "dir": "/boot/ISOs/Installs",
-            "alias": "> Instalações e LiveCDs"
-        },
-        {
-            "dir": "/boot/ISOs/Installs/Windows",
-            "alias": "> Windows"
-        },
-        {
-            "dir": "/boot/ISOs/Installs/Linux",
-            "alias": "> Linux"
-        },
-        {
-            "dir": "/boot/ISOs/Installs/BB",
-            "alias": "> BB"
-        },
-        {
-            "dir": "/boot/ISOs/GamesMedias",
-            "alias": "Games e Mídias"
-        },
-        {
-            "dir": "/boot/ISOs/Installs/Linux/PC-Muito-Velho",
-            "alias": "Salvar Aquele PC Velhíssimo"
-        }
-    ],
-    "menu_tip":{
-        "color": "#ffffff"
+    {
+      "image": "/boot/ISOs/ipxe.iso",
+      "alias": "Boot Network (ipxe)"
     },
-    "menu_class":[
-        {
-            "key": "Acronis",
-            "class": "Acronis"
-        },
-        {
-            "key": "win",
-            "class": "windows"
-        },
-        {
-            "key": "windows",
-            "class": "windows"
-        },
-        {
-            "dir": "/boot/ISOs/Installs/Windows",
-            "class": "windows"
-        },
-        {
-            "dir": "/boot/ISOs/Utilitarios/Imagem",
-            "class": "recovery"
-        },
-        {
-            "dir": "/boot/ISOs/Utilitarios",
-            "class": "maleta"
-        },
-        {
-            "key": "tails",
-            "class": "tails"
-        },
-        {
-            "key": "kali",
-            "class": "kali"
-        },
-        {
-            "key": "kodachi",
-            "class": "kodachi"
-        },
-        {
-            "key": "gparted",
-            "class": "gparted"
-        },
-        {
-            "key": "alpine",
-            "class": "alpine"
-        },
-        {
-            "key": "minios",
-            "class": "minios"
-        },
-        {
-            "key": "miniOS",
-            "class": "minios"
-        },
-        {
-            "key": "memtest",
-            "class": "ram"
-        },
-        {
-            "key": "AomeiBackupper",
-            "class": "AomeiBackupper"
-        },
-        {
-            "dir": "/boot/ISOs/Utilitarios/Disco",
-            "class": "disk"
-        },
-        {
-            "key": "rescuezilla",
-            "class": "clonezilla"
-        },
-        {
-            "key": "linuxmint",
-            "class": "linux-mint"
-        },
-        {
-            "key": "AomeiPartition",
-            "class": "aomeipartition"
-        },
-        {
-            "dir": "/boot/ISOs/Installs",
-            "class": "install"
-        },
-        {
-            "key": "ipxe",
-            "class": "network"
-        },
-        {
-            "key": "kaspersky",
-            "class": "kaspersky"
-        },
-        {
-            "dir": "/boot/ISOs/Installs/Linux",
-            "class": "linux"
-        },
-        {
-            "key": "steamos",
-            "class": "steamos"
-        },
-        {
-            "key": "lakka",
-            "class": "lakka"
-        },
-        {
-            "key": "chromeos",
-            "class": "chromeos"
-        },
-        {
-            "key": "drParted",
-            "class": "drparted"
-        },
-        {
-            "dir": "/boot/ISOs/Canivete",
-            "class": "canivete"
-        },
-        {
-            "dir": "/boot/ISOs/Installs/BB",
-            "class": "bb"
-        },
-        {
-            "key": "linux",
-            "class": "linux"
-        },
-        {
-            "dir": "/boot/ISOs/GamesMedias",
-            "class": "gamemedia"
-        },
-        {
-            "dir": "/boot/ISOs/GamesMedias/LibreELEC",
-            "class": "libreelec"
-        },
-        {
-            "key": "libreelec",
-            "class": "libreelec"
-        },
-        {
-            "key": "batocera",
-            "class": "batocera"
-        },
-        {
-            "key": "linux-mint",
-            "class": "linuxmint"
-        },
-        {
-            "key": "legacyos",
-            "class": "legacyos"
-        },
-        {
-            "dir": "/boot/ISOs/Installs/Linux/PC-Muito-Velho",
-            "class": "velho"
-        }
-    ],
-    "auto_install":[
-        {
-            "parent": "/boot/ISOs/Installs/Windows",
-            "template":[
-                "/boot/autonome/windows/Instalar/Automatizado.xml"
-            ]
-        }
-    ]
+    {
+      "dir": "/boot/ISOs/Canivete",
+      "alias": "> Canivete Suiço"
+    },
+    {
+      "dir": "/boot/ISOs/Utilitarios",
+      "alias": "> Utilitários"
+    },
+    {
+      "dir": "/boot/ISOs/Utilitarios/Disco",
+      "alias": "> HDs"
+    },
+    {
+      "dir": "/boot/ISOs/Utilitarios/Imagem",
+      "alias": "> Imagens"
+    },
+    {
+      "dir": "/boot/ISOs/Installs",
+      "alias": "> Instalações e LiveCDs"
+    },
+    {
+      "dir": "/boot/ISOs/Installs/Windows",
+      "alias": "> Windows"
+    },
+    {
+      "dir": "/boot/ISOs/Installs/Linux",
+      "alias": "> Linux"
+    },
+    {
+      "dir": "/boot/ISOs/Installs/BB",
+      "alias": "> BB"
+    },
+    {
+      "dir": "/boot/ISOs/GamesMedias",
+      "alias": "Games e Mídias"
+    },
+    {
+      "dir": "/boot/ISOs/Installs/Linux/PC-Muito-Velho",
+      "alias": "Salvar Aquele PC Velhíssimo"
+    }
+  ],
+  "menu_tip": {
+    "color": "#ffffff"
+  },
+  "menu_class": [
+    {
+      "key": "Acronis",
+      "class": "Acronis"
+    },
+    {
+      "key": "win",
+      "class": "windows"
+    },
+    {
+      "key": "windows",
+      "class": "windows"
+    },
+    {
+      "dir": "/boot/ISOs/Installs/Windows",
+      "class": "windows"
+    },
+    {
+      "dir": "/boot/ISOs/Utilitarios/Imagem",
+      "class": "recovery"
+    },
+    {
+      "dir": "/boot/ISOs/Utilitarios",
+      "class": "maleta"
+    },
+    {
+      "key": "tails",
+      "class": "tails"
+    },
+    {
+      "key": "kali",
+      "class": "kali"
+    },
+    {
+      "key": "kodachi",
+      "class": "kodachi"
+    },
+    {
+      "key": "gparted",
+      "class": "gparted"
+    },
+    {
+      "key": "alpine",
+      "class": "alpine"
+    },
+    {
+      "key": "minios",
+      "class": "minios"
+    },
+    {
+      "key": "miniOS",
+      "class": "minios"
+    },
+    {
+      "key": "MiniOS",
+      "class": "minios"
+    },
+    {
+      "key": "memtest",
+      "class": "ram"
+    },
+    {
+      "key": "AomeiBackupper",
+      "class": "AomeiBackupper"
+    },
+    {
+      "dir": "/boot/ISOs/Utilitarios/Disco",
+      "class": "disk"
+    },
+    {
+      "key": "rescuezilla",
+      "class": "clonezilla"
+    },
+    {
+      "key": "linuxmint",
+      "class": "linux-mint"
+    },
+    {
+      "key": "AomeiPartition",
+      "class": "aomeipartition"
+    },
+    {
+      "dir": "/boot/ISOs/Installs",
+      "class": "install"
+    },
+    {
+      "key": "ipxe",
+      "class": "network"
+    },
+    {
+      "key": "kaspersky",
+      "class": "kaspersky"
+    },
+    {
+      "dir": "/boot/ISOs/Installs/Linux",
+      "class": "linux"
+    },
+    {
+      "key": "steamos",
+      "class": "steamos"
+    },
+    {
+      "key": "lakka",
+      "class": "lakka"
+    },
+    {
+      "key": "chromeos",
+      "class": "chromeos"
+    },
+    {
+      "key": "drParted",
+      "class": "drparted"
+    },
+    {
+      "dir": "/boot/ISOs/Canivete",
+      "class": "canivete"
+    },
+    {
+      "dir": "/boot/ISOs/Canivete/miniOS",
+      "class": "minios"
+    },
+    {
+      "dir": "/boot/ISOs/Installs/BB",
+      "class": "bb"
+    },
+    {
+      "key": "linux",
+      "class": "linux"
+    },
+    {
+      "dir": "/boot/ISOs/GamesMedias",
+      "class": "gamemedia"
+    },
+    {
+      "dir": "/boot/ISOs/GamesMedias/LibreELEC",
+      "class": "libreelec"
+    },
+    {
+      "key": "libreelec",
+      "class": "libreelec"
+    },
+    {
+      "key": "librelec",
+      "class": "libreelec"
+    },
+    {
+      "key": "batocera",
+      "class": "batocera"
+    },
+    {
+      "key": "linux-mint",
+      "class": "linuxmint"
+    },
+    {
+      "key": "legacyos",
+      "class": "legacyos"
+    },
+    {
+      "key": "legacyOS",
+      "class": "legacyos"
+    },
+    {
+      "key": "LegacyOS",
+      "class": "legacyos"
+    },
+    {
+      "dir": "/boot/ISOs/Installs/Linux/PC-Muito-Velho",
+      "class": "velho"
+    }
+  ],
+  "auto_install": [
+    {
+      "parent": "/boot/ISOs/Installs/Windows",
+      "template": ["/boot/autonome/windows/Instalar/Automatizado.xml"]
+    }
+  ]
 }
