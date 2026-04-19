@@ -16,6 +16,11 @@ PIPELINE (ordem imutável)
 4. Retentativa (mesma ordem, síncrono)
 5. Pós-processamento (atributos)
 
+PIPELINE DE DOWNLOAD
+- Descompactação: Se o arquivo possuir extensão composta terminada em .ext.gz, descompacte-o e exclua o original imediatamente.
+- Padronização: Renomeie o(s) arquivo(s) extraído(s) para o basename definido na linha 3, preservando as extensões originais.
+- Arquivos Múltiplos: Caso o pacote contenha vários arquivos (ex: .bin + .cue), todos devem seguir o novo basename
+
 PRINCÍPIOS GLOBAIS
 ==================
 - Idempotente, determinístico, síncrono, ordenado
@@ -166,7 +171,7 @@ DIRETRIZES TÉCNICAS
 - Hash rápido (xxhash) + SHA256 (integridade)
 - Cache: memória + persistente na origem
 - Metadata não bloqueia atualização de versão
-- Timeout de rede obrigatório; logging rotativo
+- Timeout de rede obrigatório por inatividade; logging rotativo
 
 GUI/UX
 ======
@@ -247,7 +252,7 @@ MAX_LOG_SIZE = 5 * 1024 * 1024  # 5 MB
 # evita falso positivo em arquivos pequenos (boot, configs embutidos, etc.)
 MIN_SIZE_BYTES = 2 * 1024 * 1024  # 2MB
 
-SyncDonwloadExtensions = ["exe", "msi", "iso", "img"]
+SyncDonwloadExtensions = ["exe", "msi", "iso", "img", "img.gz", "iso.gz"]
 
 _log_iniciado = False
 retent_loop_count = 0
@@ -2322,7 +2327,7 @@ def download_file_with_progress(url, dst):
 
     with http_open(req) as response:
         total_size = response.headers.get("Content-Length")
-        total_size = int(total_size) if total_size else None
+        total_size = int(total_size) if total_size else None        
 
         with open(dst, 'wb') as out_file:
             with create_progress("cyan") as progress:
@@ -2332,15 +2337,24 @@ def download_file_with_progress(url, dst):
                     name=os.path.basename(dst)
                 )
 
+                last_progress = time.time()
+                READ_TIMEOUT = 60  # segundos sem receber dados
+
                 while True:
                     chunk = response.read(65536)
-                    if not chunk:
+
+                    if chunk:
+                        out_file.write(chunk)
+                        last_progress = time.time()
+
+                        if total_size:
+                            progress.update(task, advance=len(chunk))
+                    else:
                         break
 
-                    out_file.write(chunk)
-
-                    if total_size:
-                        progress.update(task, advance=len(chunk))        
+                    # 🔒 timeout por inatividade (não depende do tamanho total)
+                    if time.time() - last_progress > READ_TIMEOUT:
+                        raise TimeoutError("Download stalled (no data received)")      
 
 def origin_to_destination(path, retry, dry_run):
     """
