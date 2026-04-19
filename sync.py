@@ -51,7 +51,7 @@ ETAPA 3 — .SYNCDOWNLOAD
 =======================
 Formato:
 - linha1 = URL/DSL (opcionalmente com spec: "spec | url")
-- linha2 = SHA256 fixo (opc)
+- linha2 = SHA256 fixador de versão (opc)
 - linha3 = nome custom (opc)
 - linha4 = URL/DSL de hash remoto (opc)
 - linha5+ = blocos de script (opc)
@@ -105,6 +105,7 @@ Metadata:
 - .sha256 → integridade local (formato "<hash>  <filename>", 2 espaços)
 - Metadata NÃO participa da decisão de versão
 - Metadata NÃO substitui validação da linha4
+- linha4 prevalece sobre linha2
 
 Hash:
 - NÃO define atualização de versão (exceto linha2)
@@ -117,17 +118,16 @@ SCRIPT EMBUTIDO (linha ≥5)
 ==========================
 Blocos definidos por marcador de início de linha:
 
->>>ext
+>>>ext[,fase]
 
-Onde:
-- `>>>` = delimitador fixo
-- `ext` = extensão do script (ex: sh, ps1, py)
+Onde: 
+ - Início: `>>>ext[,fase]`
+ - Fim:   Próximo `>>>ext` ou fim do arquivo
 
-Regras:
-- Linha iniciada com `>>>ext` inicia novo bloco
-- Conteúdo subsequente pertence ao bloco até:
-  - próximo `>>>ext`
-  - fim do arquivo
+FASES (Opcional - define o momento da execução do script):
+ - start / end:           Antes/depois do processamento das 4 linhas do .syncdownload.
+ - preresolve / posresolve: Apensar se for o caso, antes/depois de tentar resolver resolver a primeira linha.
+ - preremotehash / posremotehash: Apensar se for o caso, antes/depois de tentar resolver/obter o hash remoto.
 
 Execução:
 - Para cada bloco:
@@ -140,6 +140,7 @@ Execução:
 - Scripts não participam da decisão de integridade
 - Aguarda a conclusão da execução do script e encerrameto
   do processo equivalente para continuar
+- Exclui o script temporário
 
 ETAPA 4 — RETENTATIVA
 =====================
