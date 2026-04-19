@@ -114,7 +114,7 @@ Hash:
   - validação de cache
   - dedup fallback
 
-SCRIPT EMBUTIDO (linha ≥5)
+SUBSCRIPT EMBUTIDO (linha ≥5)
 ==========================
 Blocos definidos por marcador de início de linha:
 
@@ -135,9 +135,10 @@ Execução:
   - nome aleatório + extensão definida
   - escrever conteúdo integral do bloco sem o `>>>ext`
   - executar passando:
-    1º parâmetro → fullpath do arquivo baixado (se já baixado)
-    2º parâmetro → fullpath do .syncdownload
-- Scripts não participam da decisão de integridade
+    1º parâmetro → fullpath do .syncdownload    
+    2º parâmetro → nomeação do arquivo local (basename.ext) - (SE já descoberto pelo script gestor
+    3º parâmetro → fullpath do arquivo baixado (SE já baixado)
+- Subcripts não participam da decisão de integridade
 - Aguarda a conclusão da execução do script e encerrameto
   do processo equivalente para continuar
 - Exclui o script temporário
