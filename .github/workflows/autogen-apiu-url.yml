@@ -1,0 +1,109 @@
+name: Update ISO URLs - Enterprise Grade
+on:
+  schedule:
+    - cron: '1 0 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-json:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3 # Hard limit para evitar consumo de minutos
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Robust URL Update
+        run: |
+          # --- AMBIENTE E CONFIGURAÇÕES ---
+          DIR="dados"
+          FILE="$DIR/urls.json"
+          LOG_PREFIX="[MONITOR]"
+
+          # 1. Garantir infraestrutura de arquivos
+          [ ! -d "$DIR" ] && mkdir -p "$DIR" && echo "$LOG_PREFIX Diretorio $DIR criado."
+          [ ! -f "$FILE" ] || [ ! -s "$FILE" ] && echo "{}" > "$FILE" && echo "$LOG_PREFIX JSON inicializado."
+
+          # 2. Função de extração com Retry, Backoff e Timeout
+          smart_fetch() {
+            local label=$1
+            local cmd=$2
+            local attempt=1
+            local max_attempts=3
+            local wait=2
+
+            while [ $attempt -le $max_attempts ]; do
+              echo "$LOG_PREFIX Tentativa $attempt para $label..."
+              
+              # Executa com timeout de 10s para não travar o job
+              local res=$(timeout 10s bash -c "$cmd" 2>/dev/null)
+
+              if [[ "$res" =~ ^https?:// ]]; then
+                echo "$res"
+                return 0
+              fi
+
+              echo "$LOG_PREFIX Falha em $label. Retentando em ${wait}s..."
+              sleep $wait
+              attempt=$((attempt + 1))
+              wait=$((wait * 2)) # Exponential backoff
+            done
+
+            echo "$LOG_PREFIX ERRO CRITICO: $label inacessivel após $max_attempts tentativas." >&2
+            return 1
+          }
+
+          # 3. Função de atualização segura do JSON (Atômica)
+          safe_update_json() {
+            local key=$1
+            local value=$2
+            
+            if [[ -z "$value" ]]; then
+               echo "$LOG_PREFIX Ignorando $key: Valor capturado vazio."
+               return 1
+            fi
+
+            # Validação: Só escreve se o valor for diferente do atual ou a chave não existir
+            local current_val=$(jq -r --arg k "$key" '.[$k]' "$FILE")
+            if [ "$current_val" == "$value" ]; then
+               echo "$LOG_PREFIX $key ja esta atualizado."
+               return 0
+            fi
+
+            # Gravação segura via arquivo temporário
+            if jq --arg k "$key" --arg v "$value" '.[$k] = $v' "$FILE" > "${FILE}.tmp"; then
+               mv "${FILE}.tmp" "$FILE"
+               echo "$LOG_PREFIX SUCESSO: $key -> $value"
+            else
+               echo "$LOG_PREFIX ERRO: Falha ao escrever no JSON para $key."
+               rm -f "${FILE}.tmp"
+            fi
+          }
+
+          # --- COMANDOS DE EXTRAÇÃO (LOGICA DE NEGOCIO) ---
+
+          # Linux Mint: Pega a versão numérica mais alta e monta a URL no mirror layeronline
+          MINT_CMD="curl -sL https://layeronline.com | grep -oP 'href=\"\K[0-9.]+(?=/)\"' | sort -V | tail -1 | xargs -I {} echo https://layeronline.com{}/linuxmint-{}-cinnamon-64bit.iso"
+
+          # Batocera: Usa o link estável de mirror que redireciona para a última imagem
+          BATO_CMD="curl -sL https://o2switch.fr | grep -oP 'href=\"\Kbatocera-x86_64-[^\"]+\.img\.gz' | head -1 | xargs -I {} echo https://o2switch.fr{}"
+
+          # LibreELEC: Scraper de versão no servidor de releases
+          LE_CMD="V=\$(curl -sL https://libreelec.tv | grep -oP '>\K[0-9.]+(?=/)' | sort -V | tail -1); echo \"https://libreelec.tvLibreELEC-Generic.x86_64-\${V}.img.gz\""
+
+          # --- EXECUÇÃO ---
+
+          URL_MINT=$(smart_fetch "LinuxMint" "$MINT_CMD") && safe_update_json "linuxmint" "$URL_MINT"
+          URL_BATO=$(smart_fetch "Batocera" "$BATO_CMD") && safe_update_json "batocera" "$URL_BATO"
+          URL_LE=$(smart_fetch "LibreELEC" "$LE_CMD") && safe_update_json "libreelec" "$URL_LE"
+
+      - name: Deploy Changes
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "Github Automator"
+          git add dados/urls.json
+          # Só comita se houver diferença real, evitando loops ou erros de commit vazio
+          git diff --staged --quiet || (git commit -m "Update ISO URLs [$(date +'%Y-%m-%d')]" && git push)
