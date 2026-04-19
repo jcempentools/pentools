@@ -1,4 +1,24 @@
-name: Update ISO URLs - Enterprise Grade
+# ======================================================================================
+# DIRETRIZES DE NEGÓCIO E SEGURANÇA - AUTOMAÇÃO DE DOWNLOADS ISO
+# ======================================================================================
+# 1. OBJETIVO: Manter URLs e Hashes de distribuições Linux atualizados via GitHub Actions.
+# 2. PERIODICIDADE: Execução automática dominical (00:01 UTC) ou disparo manual via UI.
+# 3. IDEMPOTÊNCIA E BLINDAGEM:
+#    - Persistência: O arquivo 'dados/urls.json' nunca deve ser deletado ou zerado.
+#    - Fallback: Se um mirror falhar, os dados preexistente no JSON DEVEM ser mantidos.
+#    - Atomicidade: Gravações via JQ utilizam arquivos temporários para evitar corrupção.
+# 4. RESILIÊNCIA DE REDE:
+#    - Retries: Mínimo de 3 tentativas com Backoff Exponencial (espera crescente).
+#    - Timeout: Limite estrito de 10s por requisição e 60s para o ciclo total de scraping.
+# 5. ESTRUTURA DE DADOS:
+#    - Padrão: { "sistema": { "url": "URL_ISO", "hash": "URL_HASH_OU_STRING" } }.
+#    - Integridade: URLs devem obrigatoriamente iniciar com o protocolo HTTPS?.
+# 6. GESTÃO DE REPOSITÓRIO:
+#    - Commits: Apenas em caso de alteração real de conteúdo (Prevenção de No-Op Commits).
+#    - Rastreabilidade: Logs detalhados em todas as etapas para auditoria de falhas.
+# ======================================================================================
+
+name: Update API URLs
 on:
   schedule:
     - cron: '1 0 * * 0'
@@ -10,100 +30,181 @@ permissions:
 jobs:
   update-json:
     runs-on: ubuntu-latest
-    timeout-minutes: 3 # Hard limit para evitar consumo de minutos
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Robust URL Update
+      - name: Instalando Dependências
+        run: sudo apt-get update && sudo apt-get install -y jq curl
+
+      - name: Atualizar URL e Hash
         run: |
-          # --- AMBIENTE E CONFIGURAÇÕES ---
+          # --- CONFIGURAÇÕES DE AMBIENTE ---
           DIR="dados"
           FILE="$DIR/urls.json"
-          LOG_PREFIX="[MONITOR]"
+          LOG_PREFIX="[DEBUG-AUTOMATION]"
+          MAX_RETRIES=3
+          TOTAL_TIMEOUT=60
+          START_TIME=$(date +%s)
 
-          # 1. Garantir infraestrutura de arquivos
-          [ ! -d "$DIR" ] && mkdir -p "$DIR" && echo "$LOG_PREFIX Diretorio $DIR criado."
-          [ ! -f "$FILE" ] || [ ! -s "$FILE" ] && echo "{}" > "$FILE" && echo "$LOG_PREFIX JSON inicializado."
+          # 1. FUNÇÃO DE INFRAESTRUTURA
+          ensure_infrastructure() {
+            if [ ! -d "$DIR" ]; then
+              echo "$LOG_PREFIX Diretório $DIR não existe. Criando recursivamente..."
+              mkdir -p "$DIR" || { echo "ERRO FATAL: Impossível criar diretório."; exit 1; }
+            fi
 
-          # 2. Função de extração com Retry, Backoff e Timeout
+            if [ ! -f "$FILE" ] || [ ! -s "$FILE" ]; then
+              echo "$LOG_PREFIX Arquivo JSON não encontrado ou vazio. Inicializando objeto."
+              echo '{}' > "$FILE"
+            fi
+          }
+
+          # 2. FUNÇÃO DE VERIFICAÇÃO DE TIMEOUT GLOBAL
+          check_global_timeout() {
+            local label=$1
+            CURRENT_TIME=$(date +%s)
+            ELAPSED=$((CURRENT_TIME - START_TIME))
+            if [ $ELAPSED -ge $TOTAL_TIMEOUT ]; then
+              echo "$LOG_PREFIX [$label] TIMEOUT GLOBAL: ${TOTAL_TIMEOUT}s excedido." >&2
+              return 1
+            fi
+            return 0
+          }
+
+          # 3. FUNÇÃO DE FETCH COM RETRY
           smart_fetch() {
             local label=$1
             local cmd=$2
             local attempt=1
-            local max_attempts=3
-            local wait=2
+            local wait_time=2
 
-            while [ $attempt -le $max_attempts ]; do
-              echo "$LOG_PREFIX Tentativa $attempt para $label..."
+            while [ $attempt -le $MAX_RETRIES ]; do
+              check_global_timeout "$label" || return 1
               
-              # Executa com timeout de 10s para não travar o job
-              local res=$(timeout 10s bash -c "$cmd" 2>/dev/null)
+              echo "$LOG_PREFIX [$label] Tentativa $attempt de $MAX_RETRIES..."
+              result=$(timeout 20s bash -c "$cmd" 2>/dev/null)
 
-              if [[ "$res" =~ ^https?:// ]]; then
-                echo "$res"
+              if [ -n "$result" ] && [[ "$result" =~ ^https?:// ]]; then
+                echo "$result"
                 return 0
               fi
 
-              echo "$LOG_PREFIX Falha em $label. Retentando em ${wait}s..."
-              sleep $wait
+              echo "$LOG_PREFIX [$label] Falha. Aguardando ${wait_time}s..."
+              sleep $wait_time
               attempt=$((attempt + 1))
-              wait=$((wait * 2)) # Exponential backoff
+              wait_time=$((wait_time * 2))
             done
 
-            echo "$LOG_PREFIX ERRO CRITICO: $label inacessivel após $max_attempts tentativas." >&2
+            echo "$LOG_PREFIX [$label] ERRO: Falha definitiva." >&2
             return 1
           }
 
-          # 3. Função de atualização segura do JSON (Atômica)
-          safe_update_json() {
-            local key=$1
-            local value=$2
+          # 4. FUNÇÃO DE VALIDAÇÃO HTTPS
+          validate_https() {
+            local url=$1
+            local system=$2
+            if [[ ! "$url" =~ ^https:// ]]; then
+              echo "$LOG_PREFIX [$system] ERRO: URL não utiliza HTTPS."
+              return 1
+            fi
+            return 0
+          }
+
+          # 5. FUNÇÃO DE BACKUP ATÔMICO
+          atomic_backup() {
+            cp "$FILE" "${FILE}.backup"
+          }
+
+          # 6. FUNÇÃO DE RESTAURAÇÃO
+          atomic_restore() {
+            mv "${FILE}.backup" "$FILE"
+            rm -f "${FILE}.tmp"
+          }
+
+          # 7. FUNÇÃO DE PERSISTÊNCIA JQ
+          persist_json() {
+            local system=$1
+            local url=$2
+            local hash=$3
             
-            if [[ -z "$value" ]]; then
-               echo "$LOG_PREFIX Ignorando $key: Valor capturado vazio."
-               return 1
-            fi
-
-            # Validação: Só escreve se o valor for diferente do atual ou a chave não existir
-            local current_val=$(jq -r --arg k "$key" '.[$k]' "$FILE")
-            if [ "$current_val" == "$value" ]; then
-               echo "$LOG_PREFIX $key ja esta atualizado."
-               return 0
-            fi
-
-            # Gravação segura via arquivo temporário
-            if jq --arg k "$key" --arg v "$value" '.[$k] = $v' "$FILE" > "${FILE}.tmp"; then
-               mv "${FILE}.tmp" "$FILE"
-               echo "$LOG_PREFIX SUCESSO: $key -> $value"
+            atomic_backup
+            
+            if jq --arg sys "$system" --arg url "$url" --arg hash "$hash" \
+              '.[$sys] = {"url": $url, "hash": $hash}' "$FILE" > "${FILE}.tmp"; then
+                mv "${FILE}.tmp" "$FILE"
+                echo "$LOG_PREFIX [$system] SUCESSO: Dados persistidos."
+                rm -f "${FILE}.backup"
+                return 0
             else
-               echo "$LOG_PREFIX ERRO: Falha ao escrever no JSON para $key."
-               rm -f "${FILE}.tmp"
+                echo "$LOG_PREFIX [$system] ERRO: Falha no JQ."
+                atomic_restore
+                return 1
             fi
           }
 
-          # --- COMANDOS DE EXTRAÇÃO (LOGICA DE NEGOCIO) ---
+          # 8. FUNÇÃO DE ATUALIZAÇÃO COMPLETA
+          update_json_structure() {
+            local system=$1
+            local new_url=$2
+            local new_hash=$3
 
-          # Linux Mint: Pega a versão numérica mais alta e monta a URL no mirror layeronline
-          MINT_CMD="curl -sL https://layeronline.com | grep -oP 'href=\"\K[0-9.]+(?=/)\"' | sort -V | tail -1 | xargs -I {} echo https://layeronline.com{}/linuxmint-{}-cinnamon-64bit.iso"
+            [ -z "$new_url" ] && { echo "$LOG_PREFIX [$system] URL vazia. Ignorando."; return 1; }
+            validate_https "$new_url" "$system" || return 1
+            
+            echo "$LOG_PREFIX [$system] Validando dados..."
+            persist_json "$system" "$new_url" "$new_hash"
+          }
 
-          # Batocera: Usa o link estável de mirror que redireciona para a última imagem
-          BATO_CMD="curl -sL https://o2switch.fr | grep -oP 'href=\"\Kbatocera-x86_64-[^\"]+\.img\.gz' | head -1 | xargs -I {} echo https://o2switch.fr{}"
+          # 9. FUNÇÃO DE PROCESSAMENTO DE DISTRO
+          process_distro() {
+            local name=$1
+            local cmd=$2
+            local hash_transform=$3
+            
+            echo "$LOG_PREFIX Extraindo dados: $name..."
+            local url=$(smart_fetch "${name}_URL" "$cmd")
+            
+            if [ -n "$url" ]; then
+              local hash=$(eval "$hash_transform")
+              update_json_structure "$(echo "$name" | tr '[:upper:]' '[:lower:]')" "$url" "$hash"
+            fi
+          }
 
-          # LibreELEC: Scraper de versão no servidor de releases
-          LE_CMD="V=\$(curl -sL https://libreelec.tv | grep -oP '>\K[0-9.]+(?=/)' | sort -V | tail -1); echo \"https://libreelec.tvLibreELEC-Generic.x86_64-\${V}.img.gz\""
+          # 10. FUNÇÕES DE HASH TRANSFORM
+          mint_hash() { echo "$1" | sed 's|linuxmint-.*.iso|sha256sum.txt|'; }
+          suffix_hash() { echo "${1}.sha256"; }
 
-          # --- EXECUÇÃO ---
+          # --- EXECUÇÃO PRINCIPAL ---
+          echo "$LOG_PREFIX Iniciando processo de auditoria de mirrors..."
+          ensure_infrastructure
 
-          URL_MINT=$(smart_fetch "LinuxMint" "$MINT_CMD") && safe_update_json "linuxmint" "$URL_MINT"
-          URL_BATO=$(smart_fetch "Batocera" "$BATO_CMD") && safe_update_json "batocera" "$URL_BATO"
-          URL_LE=$(smart_fetch "LibreELEC" "$LE_CMD") && safe_update_json "libreelec" "$URL_LE"
+          process_distro "linuxmint" \
+            "BASE='https://layeronline.com'; VER=\$(curl -sL --max-time 10 \$BASE | grep -oP 'href=\"\K[0-9.]+(?=/)\"' | sort -V | tail -1); echo \"\${BASE}\${VER}/linuxmint-\${VER}-cinnamon-64bit.iso\"" \
+            "mint_hash \"\$url\""
 
-      - name: Deploy Changes
+          process_distro "batocera" \
+            "D='https://o2switch.fr'; F=\$(curl -sL --max-time 10 \$D | grep -oP 'href=\"\Kbatocera-x86_64-[^\"]+\.img\.gz' | head -1); echo \"\${D}\${F}\"" \
+            "suffix_hash \"\$url\""
+
+          process_distro "libreelec" \
+            "R='https://libreelec.tv'; V=\$(curl -sL --max-time 10 \$R | grep -oP '>\K[0-9.]+(?=/)' | sort -V | tail -1); echo \"\${R}LibreELEC-Generic.x86_64-\${V}.img.gz\"" \
+            "suffix_hash \"\$url\""
+
+          echo "$LOG_PREFIX Todos os processos concluídos. Verificando estado final do JSON..."
+          cat "$FILE"
+
+      - name: Git Deploy (Atomic Commit)
         run: |
           git config --local user.email "actions@github.com"
-          git config --local user.name "Github Automator"
+          git config --local user.name "Workflow Bot"
           git add dados/urls.json
-          # Só comita se houver diferença real, evitando loops ou erros de commit vazio
-          git diff --staged --quiet || (git commit -m "Update ISO URLs [$(date +'%Y-%m-%d')]" && git push)
+
+          if git diff --staged --quiet; then
+            echo "LOG: Nenhuma alteração detectada. Encerrando sem commit."
+          else
+            git commit -m "Automated Update: URLs and Hashes [$(date +'%Y-%m-%d %H:%M')]"
+            git push
+          fi
