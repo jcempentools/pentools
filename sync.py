@@ -14,12 +14,7 @@ PIPELINE (ordem imutável)
 2. Cópia origem→destino
 3. Processamento .syncdownload (download + cache na origem)
 4. Retentativa (mesma ordem, síncrono)
-5. Pós-processamento (atributos)
-
-PIPELINE DE DOWNLOAD
-- Descompactação: Se o arquivo possuir extensão composta terminada em .ext.gz, descompacte-o e exclua o original imediatamente.
-- Padronização: Renomeie o(s) arquivo(s) extraído(s) para o basename definido na linha 3, preservando as extensões originais.
-- Arquivos Múltiplos: Caso o pacote contenha vários arquivos (ex: .bin + .cue), todos devem seguir o novo basename
+5. Pós-processamento (atributos)            
 
 PRINCÍPIOS GLOBAIS
 ==================
@@ -58,7 +53,7 @@ Formato:
 - linha1 = URL/DSL (opcionalmente com spec: "spec | url")
 - linha2 = SHA256 fixador de versão (opc)
 - linha3 = nome custom (opc)
-- linha4 = URL/DSL de hash remoto (opc)
+- linha4 = URL/DSL de hash remoto (opc) - comparádo com o arquivo e/ou com 2a linha do .sha256/.md5
 - linha5+ = blocos de script (opc)
 
 DSL deve resolver também índices semânticos, ex.: [@attr="img"] e [@attr='img'].
@@ -67,7 +62,7 @@ Regra de versão:
 - COM hash na linha2 → versão FIXA (não consultar latest)
 - SEM hash → resolver latest online
 
-Fluxo:
+FLUXO:
 resolver URL → nome final → verificar cache → decidir via metadata
 → download (sempre p/ cache na origem) → validação forte (se aplicável)
 → purge → gerar metadata → persistir cache → copiar p/ destino
@@ -107,7 +102,7 @@ Cache:
 
 Metadata:
 - .syncado → controle de versão (nome remoto real ou referência)
-- .sha256 → integridade local (formato "<hash>  <filename>", 2 espaços)
+- .sha256/.md5 → integridade local (formato "<hash>  <filename>", 2 espaços)
 - Metadata NÃO participa da decisão de versão
 - Metadata NÃO substitui validação da linha4
 - linha4 prevalece sobre linha2
@@ -147,6 +142,26 @@ Execução:
 - Aguarda a conclusão da execução do script e encerrameto
   do processo equivalente para continuar
 - Exclui o script temporário
+
+PIPELINE DE DOWNLOAD
+====================
+- Descompactação: Se o arquivo terminar em .ext.gz, descompacte-o e exclua o original após extração e validação.
+- Validação de Hash: Valide o hash (conforme linhas 2 ou 4) primeiramente no arquivo .gz. 
+                     Se falhar, valide no arquivo descompactado de maior tamanho.
+                     Persistindo o erro, descarte o download e force-o novamente.
+- Padronização: Renomeie todos os arquivos extraídos para o basename da linha 3, mantendo
+                suas extensões originais (inclusive em pacotes múltiplos como .bin + .cue).
+
+* HASH E METADATA PARA ARQUIVOS .gz
+    - O hash de referência deve ser sempre do maior arquivo descompactado (artefato final).
+    - O arquivo .sha256/.md5 deve conter:
+        - Linha 1: hash do arquivo final descompactado (formato "<hash>  <filename>", 2 espaços)
+        - Linha 2: hash original do .gz (formato "<hash>  <url>", 2 espaços)
+                   usado para comparar com o hash advindo da linha 4 do .syncdownload
+    - A validação deve:
+        - primeiro tentar o hash do .gz
+        - se falhar, validar o conteúdo descompactado
+    - O .syncdownload não deve ser modificado para refletir essa conversão.    
 
 ETAPA 4 — RETENTATIVA
 =====================
@@ -215,6 +230,7 @@ from pathlib import Path
 import time
 from datetime import datetime
 import random
+import gzip
 
 from rich.style import Style
 from rich.progress import (
@@ -2795,15 +2811,165 @@ def process_single_syncdownload(path, dry_run):
 
         return
 
-    # === VALIDAÇÃO ===
-    if not is_cached_file_valid(final_dest_path, expected_hash):
-        show_message(f"Download inválido (hash/tamanho): {filename}", "w")
-        try:
-            os.remove(final_dest_path)
-        except:
-            pass
-        return
+    # =========================================================
+    # 🔒 PIPELINE .gz (validação + possível descompressão)
+    # =========================================================
+    is_gz = final_dest_path.lower().endswith(".gz")
+
+    validated = False
+
+    # 🔒 1. tenta validar o .gz diretamente
+    if is_gz:
+        if is_cached_file_valid(final_dest_path, expected_hash):
+             # 🔒 .gz é o artefato final válido → NÃO remover
+            validated = True
+        else:
+            show_message(f".gz não confere hash → tentando conteúdo: {filename}", "w")
+
+            try:
+                decompressed_path = final_dest_path[:-3]  # remove .gz
+
+                with gzip.open(final_dest_path, 'rb') as f_in, open(decompressed_path, 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+
+                # 🔒 valida conteúdo descompactado
+                if is_cached_file_valid(decompressed_path, expected_hash):
+                    show_message(f"Hash válido após descompressão: {filename}", "k")
+                    
+                    try:
+                        # 🔒 remove .gz somente após validação do conteúdo
+                        os.remove(final_dest_path)
+                    except:
+                        pass
+
+                    final_dest_path = decompressed_path
+                    filename = os.path.basename(decompressed_path)
+
+                    validated = True
+
+                    # =========================================================
+                    # 🔒 METADATA ESPECIAL (.gz → conteúdo)
+                    # =========================================================
+                    try:
+                        import hashlib
+
+                        def _hash_file(p):
+                            h = hashlib.sha256()
+                            with open(p, "rb") as f:
+                                for chunk in iter(lambda: f.read(65536), b""):
+                                    h.update(chunk)
+                            return h.hexdigest()
+
+                        # 🔒 se houver múltiplos arquivos, escolher o maior
+                        base_dir = os.path.dirname(final_dest_path)
+
+                        candidates = []
+                        for f in os.listdir(base_dir):
+                            full = os.path.join(base_dir, f)
+
+                            if not os.path.isfile(full):
+                                continue
+
+                            if f.lower().endswith((".sha256", ".syncado", ".gz")):
+                                continue
+
+                            candidates.append(full)
+
+                        if candidates:
+                            target_file = max(candidates, key=lambda p: os.path.getsize(p))
+                        else:
+                            target_file = final_dest_path
+
+                        final_dest_path = target_file
+                        filename = os.path.basename(target_file)
+
+                        # 🔒 calcula hashes
+                        extracted_hash = _hash_file(target_file)
+
+                        gz_hash = None
+                        if expected_hash:
+                            gz_hash = expected_hash.lower()
+
+                        sha_path = target_file + ".sha256"
+
+                        with open(sha_path, "w", encoding="utf-8") as f:
+                            # linha 1 → conteúdo real
+                            f.write(f"{extracted_hash}\n")
+
+                            # linha 2 → vínculo com .gz (hash original + URL)
+                            if gz_hash:
+                                f.write(f"{gz_hash}  {resolved['url']}\n")
+
+                    except Exception as e:
+                        show_message(f"Falha ao gerar .sha256 especial: {e}", "e")                    
+                else:
+                    show_message(f"Conteúdo descompactado inválido: {filename}", "w")
+
+                    try:
+                        os.remove(decompressed_path)
+                    except:
+                        pass
+
+            except Exception as e:
+                show_message(f"Falha ao descompactar .gz: {e}", "e")
+
+    # 🔒 fallback padrão (não gz ou gz válido direto)
+    if not validated:
+        if not is_cached_file_valid(final_dest_path, expected_hash):
+            show_message(f"Download inválido (hash/tamanho): {filename}", "w")
+            try:
+                os.remove(final_dest_path)
+            except:
+                pass
+            return
     
+    # =========================================================
+    # 🔒 PADRONIZAÇÃO DE BASENAME (linha 3)
+    # =========================================================
+    canonical = resolved.get("custom_filename")
+
+    if canonical:
+        base = os.path.splitext(canonical)[0]
+        ext = os.path.splitext(final_dest_path)[1]
+
+        new_name = base + ext
+        new_path = os.path.join(dest_dir, new_name)
+
+        if new_path != final_dest_path:
+            try:
+                os.rename(final_dest_path, new_path)
+                final_dest_path = new_path
+                filename = new_name
+            except Exception as e:
+                show_message(f"Falha ao padronizar nome: {e}", "e")   
+
+    # =========================================================
+    # 🔒 MULTI-ARQUIVOS (mesmo basename)
+    # =========================================================
+    if canonical:
+        base = os.path.splitext(canonical)[0]
+
+        for f in os.listdir(dest_dir):
+            full = os.path.join(dest_dir, f)
+
+            if not os.path.isfile(full):
+                continue
+
+            if f == filename:
+                continue
+
+            ext = os.path.splitext(f)[1]
+
+            candidate = base + ext
+            candidate_path = os.path.join(dest_dir, candidate)
+
+            try:
+                if normalize_product_name(f) == normalize_product_name(filename):
+                    if full != candidate_path:
+                        os.rename(full, candidate_path)
+            except:
+                pass                 
+
     # =========================================================
     # 🔒 VALIDAÇÃO OBRIGATÓRIA — HASH REMOTO (linha 4)
     # =========================================================
