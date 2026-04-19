@@ -125,7 +125,7 @@ Onde:
  - Fim:   Próximo `>>>ext` ou fim do arquivo
 
 FASES (Opcional - define o momento da execução do script):
- - start / end:           Antes/depois do processamento das 4 linhas do .syncdownload.
+ - start (default) / end: Antes/depois do processamento das 4 linhas do .syncdownload.
  - preresolve / posresolve: Apensar se for o caso, antes/depois de tentar resolver resolver a primeira linha.
  - preremotehash / posremotehash: Apensar se for o caso, antes/depois de tentar resolver/obter o hash remoto.
 
