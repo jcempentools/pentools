@@ -1,2 +1,3 @@
 .img,amd64|${"https://tails.net/install/v2/Tails/amd64/stable/latest.json"}.installations.installation-paths[@type="img"].target-files.url
 
+tails-{}

@@ -1,0 +1,4 @@
+.iso|${"https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/API_JSON/urls.json"}.batocera.url
+
+batocera-{}
+${"https://raw.githubusercontent.com/jcempentools/pentools/refs/heads/master/API_JSON/urls.json"}.batocera.hash

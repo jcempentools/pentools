@@ -39,10 +39,6 @@
             "alias": "> Imagens"
         },
         {
-            "dir": "/boot/ISOs/Installs/Linux/VelhoPC",
-            "alias": "> Salvar aquele PC Velho"
-        },
-        {
             "dir": "/boot/ISOs/Installs",
             "alias": "> Instalações e LiveCDs"
         },
@@ -61,6 +57,10 @@
         {
             "dir": "/boot/ISOs/GamesMedias",
             "alias": "Games e Mídias"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/Linux/PC-Muito-Velho",
+            "alias": "Salvar Aquele PC Velhíssimo"
         }
     ],
     "menu_tip":{
@@ -132,16 +132,8 @@
             "class": "disk"
         },
         {
-            "dir": "/boot/ISOs/Installs/Linux/MiniOS",
-            "class": "minios"
-        },
-        {
             "key": "rescuezilla",
             "class": "clonezilla"
-        },
-        {
-            "dir": "/boot/ISOs/Installs/Linux/LinuxMint",
-            "class": "linux-mint"
         },
         {
             "key": "linuxmint",
@@ -150,10 +142,6 @@
         {
             "key": "AomeiPartition",
             "class": "aomeipartition"
-        },
-        {
-            "dir": "/boot/ISOs/Installs/Linux/VelhoPC",
-            "class": "oldpc"
         },
         {
             "dir": "/boot/ISOs/Installs",
@@ -214,6 +202,18 @@
         {
             "key": "batocera",
             "class": "batocera"
+        },
+        {
+            "key": "linux-mint",
+            "class": "linuxmint"
+        },
+        {
+            "key": "legacyos",
+            "class": "legacyos"
+        },
+        {
+            "dir": "/boot/ISOs/Installs/Linux/PC-Muito-Velho",
+            "class": "velho"
         }
     ],
     "auto_install":[
