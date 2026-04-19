@@ -11,7 +11,13 @@
 #    - Retries: Mínimo de 3 tentativas com Backoff Exponencial (espera crescente).
 #    - Timeout: Limite estrito de 10s por requisição e 60s para o ciclo total de scraping.
 # 5. ESTRUTURA DE DADOS:
-#    - Padrão: { "sistema": { "url": "URL_ISO", "hash": "URL_HASH_OU_STRING" } }.
+#    - Padrão: {
+#       "sistema": {
+#         "url":"URL_FILE",
+#          "hash": "URL_HASH_OU_STRING"
+#          [,variação1: { "url": "URL_ISO", "hash": "URL_HASH_OU_STRING"}...]  (Opcionalmente)
+#        }
+#      }.
 #    - Integridade: URLs devem obrigatoriamente iniciar com o protocolo HTTPS?.
 # 6. GESTÃO DE REPOSITÓRIO:
 #    - Commits: Apenas em caso de alteração real de conteúdo (Prevenção de No-Op Commits).
@@ -175,7 +181,95 @@ jobs:
             return 0
           }
 
-          # 9. FUNÇÃO DE PROCESSAMENTO DE DISTRO (COM ISOLAMENTO DE FALHAS)
+          # 9. FUNÇÕES ESPECÍFICAS POR SOFTWARE
+          fetch_linuxmint() {
+            local system_key="linuxmint"
+            echo "$LOG_PREFIX Extraindo dados: Linux Mint..."
+            
+            local base_url="https://mirrors.edge.kernel.org/linuxmint/stable/"
+            local version=$(curl -sL --max-time 20 "$base_url" | grep -oP '[0-9.]+(?=/)' | sort -V | tail -n 1)
+            
+            if [ -z "$version" ]; then
+              echo "$LOG_PREFIX [$system_key] Falha na detecção da versão. Mantendo dados anteriores."
+              return 0
+            fi
+            
+            local url="${base_url}${version}/linuxmint-${version}-cinnamon-64bit.iso"
+            url=$(normalize_url "$url" "$system_key")
+            local hash=$(echo "$url" | sed 's|linuxmint-.*.iso|sha256sum.txt|')
+            
+            update_json_structure "$system_key" "$url" "$hash"
+            return 0
+          }
+
+          fetch_batocera() {
+            local system_key="batocera"
+            echo "$LOG_PREFIX Extraindo dados: Batocera..."
+            
+            local base_url="https://o2switch.fr"
+            local file=$(curl -sL --max-time 20 "$base_url" | grep -oP 'href=\"\Kbatocera-x86_64-[^\"]+\.img\.gz' | head -1)
+            
+            if [ -z "$file" ]; then
+              echo "$LOG_PREFIX [$system_key] Falha na detecção do arquivo. Mantendo dados anteriores."
+              return 0
+            fi
+            
+            local url="${base_url}${file}"
+            url=$(normalize_url "$url" "$system_key")
+            local hash="${url}.sha256"
+            
+            update_json_structure "$system_key" "$url" "$hash"
+            return 0
+          }
+
+          fetch_libreelec_dual() {
+            local system_key="libreelec"
+            echo "$LOG_PREFIX Extraindo dados dual: LibreELEC..."
+            
+            local base_url="https://libreelec.tv"
+            local version=$(curl -sL --max-time 20 "$base_url" | grep -oP '>\K[0-9.]+(?=/)' | sort -V | tail -1)
+            
+            if [ -z "$version" ]; then
+              echo "$LOG_PREFIX [$system_key] Falha na detecção da versão. Mantendo dados anteriores."
+              return 0
+            fi
+            
+            local url_main="${base_url}/LibreELEC-Generic.x86_64-${version}.img.gz"
+            local url_legacy="${base_url}/LibreELEC-Generic-legacy.x86_64-${version}.img.gz"
+            
+            url_main=$(normalize_url "$url_main" "$system_key")
+            url_legacy=$(normalize_url "$url_legacy" "$system_key")
+            
+            local hash_main="${url_main}.sha256"
+            local hash_legacy="${url_legacy}.sha256"
+            
+            atomic_backup
+            
+            if jq --arg sys "$system_key" \
+                  --arg url_main "$url_main" \
+                  --arg hash_main "$hash_main" \
+                  --arg url_legacy "$url_legacy" \
+                  --arg hash_legacy "$hash_legacy" \
+              '.[$sys] = {
+                "url": $url_main,
+                "hash": $hash_main,
+                "legacy": {
+                  "url": $url_legacy,
+                  "hash": $hash_legacy
+                }
+              }' "$FILE" > "${FILE}.tmp"; then
+                mv "${FILE}.tmp" "$FILE"
+                echo "$LOG_PREFIX [$system_key] SUCESSO: Dados dual persistidos."
+                rm -f "${FILE}.backup"
+            else
+                echo "$LOG_PREFIX [$system_key] ERRO: Falha no JQ. Mantendo dados anteriores."
+                atomic_restore
+            fi
+            
+            return 0
+          }
+
+          # 10. FUNÇÃO LEGADA (MANTIDA PARA COMPATIBILIDADE)
           process_distro() {
             local name=$1
             local cmd=$2
@@ -198,6 +292,65 @@ jobs:
             return 0
           }
 
+          # 9.1 FUNÇÃO PARA DISTROS COM DUAS VERSÕES (LIBREELEC)
+          process_distro_dual() {
+            local name=$1
+            local cmd_main=$2
+            local cmd_legacy=$3
+            local hash_transform=$4
+            local system_key=$(echo "$name" | tr '[:upper:]' '[:lower:]')
+            
+            echo "$LOG_PREFIX Extraindo dados dual: $name..."
+            
+            local url_main=""
+            local url_legacy=""
+            local hash_main=""
+            local hash_legacy=""
+            
+            url_main=$(smart_fetch "${name}_MAIN_URL" "$cmd_main") || {
+              echo "$LOG_PREFIX [$system_key] Falha na obtenção da URL principal. Mantendo dados anteriores."
+            }
+            
+            url_legacy=$(smart_fetch "${name}_LEGACY_URL" "$cmd_legacy") || {
+              echo "$LOG_PREFIX [$system_key] Falha na obtenção da URL legacy. Mantendo dados anteriores."
+            }
+            
+            atomic_backup
+            
+            if [ -n "$url_main" ]; then
+              url_main=$(normalize_url "$url_main" "$system_key")
+              hash_main=$(eval "$hash_transform" "$url_main")
+            fi
+            
+            if [ -n "$url_legacy" ]; then
+              url_legacy=$(normalize_url "$url_legacy" "$system_key")
+              hash_legacy=$(eval "$hash_transform" "$url_legacy")
+            fi
+            
+            if jq --arg sys "$system_key" \
+                  --arg url_main "$url_main" \
+                  --arg hash_main "$hash_main" \
+                  --arg url_legacy "$url_legacy" \
+                  --arg hash_legacy "$hash_legacy" \
+              '.[$sys] = {
+                "url": $url_main,
+                "hash": $hash_main,
+                "legacy": {
+                  "url": $url_legacy,
+                  "hash": $hash_legacy
+                }
+              }' "$FILE" > "${FILE}.tmp"; then
+                mv "${FILE}.tmp" "$FILE"
+                echo "$LOG_PREFIX [$system_key] SUCESSO: Dados dual persistidos."
+                rm -f "${FILE}.backup"
+            else
+                echo "$LOG_PREFIX [$system_key] ERRO: Falha no JQ. Mantendo dados anteriores."
+                atomic_restore
+            fi
+            
+            return 0
+          }
+
           # 10. FUNÇÕES DE HASH TRANSFORM
           mint_hash() { echo "$1" | sed 's|linuxmint-.*.iso|sha256sum.txt|'; }
           suffix_hash() { echo "${1}.sha256"; }
@@ -206,17 +359,9 @@ jobs:
           echo "$LOG_PREFIX Iniciando processo de auditoria de mirrors..."
           ensure_infrastructure
 
-          process_distro "linuxmint" \
-            "BASE='https://layeronline.com'; VER=\$(curl -sL --max-time 20 \$BASE | grep -oP 'href=\"\K[0-9.]+(?=/)\"' | sort -V | tail -1); echo \"\${BASE}\${VER}/linuxmint-\${VER}-cinnamon-64bit.iso\"" \
-            "mint_hash \"\$url\""
-
-          process_distro "batocera" \
-            "D='https://o2switch.fr'; F=\$(curl -sL --max-time 20 \$D | grep -oP 'href=\"\Kbatocera-x86_64-[^\"]+\.img\.gz' | head -1); echo \"\${D}\${F}\"" \
-            "suffix_hash \"\$url\""
-
-          process_distro "libreelec" \
-            "R='https://libreelec.tv'; V=\$(curl -sL --max-time 20 \$R | grep -oP '>\K[0-9.]+(?=/)' | sort -V | tail -1); echo \"\${R}LibreELEC-Generic.x86_64-\${V}.img.gz\"" \
-            "suffix_hash \"\$url\""
+          fetch_linuxmint
+          fetch_batocera
+          fetch_libreelec_dual
 
           echo "$LOG_PREFIX Processo finalizado. Falhas individuais não interromperam a execução."
           echo "$LOG_PREFIX Estado final do JSON:"
