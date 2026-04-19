@@ -76,7 +76,7 @@ jobs:
             return 0
           }
 
-          # 3. FUNÇÃO DE FETCH COM RETRY
+          # 3. FUNÇÃO DE FETCH COM RETRY (SAÍDA LIMPA)
           smart_fetch() {
             local label=$1
             local cmd=$2
@@ -86,7 +86,7 @@ jobs:
             while [ $attempt -le $MAX_RETRIES ]; do
               check_global_timeout "$label" || return 1
               
-              echo "$LOG_PREFIX [$label] Tentativa $attempt de $MAX_RETRIES..."
+              echo "$LOG_PREFIX [$label] Tentativa $attempt de $MAX_RETRIES..." >&2
               result=$(timeout 20s bash -c "$cmd" 2>/dev/null)
 
               if [ -n "$result" ] && [[ "$result" =~ ^https?:// ]]; then
@@ -94,7 +94,7 @@ jobs:
                 return 0
               fi
 
-              echo "$LOG_PREFIX [$label] Falha. Aguardando ${wait_time}s..."
+              echo "$LOG_PREFIX [$label] Falha. Aguardando ${wait_time}s..." >&2
               sleep $wait_time
               attempt=$((attempt + 1))
               wait_time=$((wait_time * 2))
@@ -221,3 +221,21 @@ jobs:
           echo "$LOG_PREFIX Processo finalizado. Falhas individuais não interromperam a execução."
           echo "$LOG_PREFIX Estado final do JSON:"
           cat "$FILE"
+
+      - name: Git Deploy (Atomic Commit)
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "Workflow Bot"
+
+          # Busca alterações do remoto para evitar conflitos
+          git pull --rebase origin ${GITHUB_REF#refs/heads/} || true
+
+          git add dados/urls.json
+
+          # Verifica se há alterações locais após o pull
+          if git diff --cached --quiet; then
+            echo "LOG: Nenhuma alteração detectada no JSON. Encerrando sem commit."
+          else
+            git commit -m "Automated Update: URLs and Hashes [$(date +'%Y-%m-%d %H:%M')]"
+            git push origin ${GITHUB_REF#refs/heads/}
+          fi
