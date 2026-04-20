@@ -157,10 +157,12 @@ Execução:
 # =========================
 import os
 
-import common
-import parserDSL
-import loggerAndProgress
-import download
+from common import *
+from hash import *
+from download import *
+from loggerAndProgress import *
+from parserDSL import *
+from copy import *
 
 # =========================
 # MAPEAMENTO DE FUNÇÕES

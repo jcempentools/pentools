@@ -1,5 +1,5 @@
 """
-BIBLIOTECA commom.py, PARTE DE SYNC ENGINE — PARSER SYNCDOWNLOAD
+BIBLIOTECA hash.py, PARTE DE SYNC ENGINE — PARSER SYNCDOWNLOAD
 
 CONTEXTO GLOBAL DO PROJETO
 ==========================
@@ -54,139 +54,10 @@ CONTEXTO GLOBAL DO PROJETO
 
 DEFINIÇÕES DESTA BIBLIOTECA
 ===========================
-
-OBJETIVO
-========
-Centralizar estado global, cache, utilidades e configurações compartilhadas
-entre todos os módulos. Atua como base estrutural do engine, garantindo
-consistência, determinismo e reuso sem duplicação de lógica.
-
-ESCOPO
-======
-- Variáveis globais de execução
-- Cache em memória e persistente
-- Funções utilitárias transversais (hash, retry, DSL bridge)
-- Configuração de providers
-- Normalização e regras auxiliares compartilhadas
-
-PRINCÍPIOS
-==========
-- Fonte única de verdade para estado global
-- Não conter lógica de negócio de sync
-- Não conter lógica de I/O específica (download/cópia)
-- Garantir consistência entre módulos
-- Evitar dependências circulares
-
-REGRAS CRÍTICAS
-===============
-- Toda variável global usada por múltiplos módulos DEVE residir aqui
-- Cache deve ser determinístico e invalidável
-- Funções devem ser puras sempre que possível
-- Nenhuma função deve executar efeitos colaterais complexos
-
-DEPENDÊNCIAS
-============
-Consumido por todos os módulos.
-
-LIMITAÇÕES
-==========
-- Não executar download
-- Não executar parsing de .syncdownload
-- Não executar operações de filesystem complexas
-
-ESTILO
-======
-- Funções pequenas e reutilizáveis
-- Sem duplicação de lógica
-- Nomes consistentes com o contrato global
 """
 
-# =========================
-# IMPORTS
-# =========================
-import os
-import sys
-import re
-import time
-import random
-import hashlib
-import xxhash
-from pathlib import Path
+from common import *
 
-# =========================
-# VARIÁVEIS GLOBAIS
-# =========================
-PROVIDERS = {}
-__PARSER_CACHE = {}
-PARSER_CACHE_TTL = 60
-
-ID_EXECUCAO = None
-
-SCRIPT_DIR = None
-LOG_FILE = None
-
-MAX_LOG_SIZE = 5 * 1024 * 1024
-MIN_SIZE_BYTES = 2 * 1024 * 1024
-
-SyncDonwloadExtensions = []
-
-_log_iniciado = False
-retent_loop_count = 0
-
-verifieds = []
-failed_files = []
-
-hash_cache = {}
-sync_resolve_cache = {}
-download_registry = {}
-
-destination_path = "?"
-ORIGIN_PATH = None
-
-IGNORED_PATHS = None
-
-_product_cache = {}
-PRODUCT_ALIASES = {}
-KNOWN_VENDORS = set()
-NOISE_TOKENS = set()
-
-# =========================
-# MAPEAMENTO DE FUNÇÕES
-# =========================
-
-def resolve_provider(url):
-    """resolve_provider(url)
-    Descrição: Resolve a URL usando um provider registrado, se aplicável.
-    Parâmetros:
-    - url (str): URL a ser resolvida.
-    Retorno:
-    - str: URL resolvida ou original.
-    """    
-    for domain, handler in PROVIDERS.items():
-        if domain in url:
-            return handler(url)
-    return url
-
-def retry_sync(fn, attempts=3, delay=1):
-    """retry_sync(fn, attempts=3, delay=1)
-    Descrição: Executa função com retentativa em falhas transitórias.
-    Parâmetros:
-    - fn (callable): Função a executar.
-    - attempts (int): Número máximo de tentativas.
-    - delay (int): Delay entre tentativas (segundos).
-    Retorno:
-    - any: Resultado da função executada.
-    """    
-    for i in range(attempts):
-        try:
-            return fn()
-        except (TimeoutError, ConnectionError) as e:
-            if i == attempts - 1:
-                raise
-            time.sleep(delay)
-        except Exception:
-            raise
-        
 def hash_file(filename, label):
     """
     Descrição: Calcula hash (xxhash ou SHA256) de arquivo com cache.
@@ -221,4 +92,81 @@ def hash_file(filename, label):
     except Exception as e:
         show_message(f"Erro ao calcular hash de {filename}: {e}", "e")
         return None
-# def resolve_if_dsl(value, context=None)
+    
+def fetch_remote_hash(remote_hash_url):
+    """
+    Extrai hash remoto conforme contrato:
+    - aceita conteúdo bruto
+    - aceita formato "<hash>  filename"
+    - infere tipo por tamanho
+    """
+
+    try:
+        req = urllib.request.Request(remote_hash_url)
+        with http_open(req) as response:
+            content = response.read().decode(errors="ignore")
+
+        # 🔒 extrai primeiro hash válido
+        match = re.search(r'\b([a-fA-F0-9]{32}|[a-fA-F0-9]{64})\b', content)
+
+        if not match:
+            raise Exception("Hash remoto não extraível")
+
+        return match.group(1).lower()
+
+    except Exception as e:
+        raise Exception(f"Falha ao obter hash remoto: {e}")
+
+def is_cached_file_valid(path, expected_hash):
+    if not os.path.exists(path):
+        return False
+
+    ext = os.path.splitext(path)[1].lower()
+    sha_file = path + ".sha256"
+    sync_file = path + ".syncado"
+
+    # =========================================================
+    # 1. HASH EXTERNO (linha 2) → prioridade máxima
+    # =========================================================
+    if expected_hash:
+        current_hash = hash_file(path, "Cache")
+        return current_hash == expected_hash.lower()
+
+    # =========================================================
+    # 2. ARQUIVOS DE IMAGEM → USAR SHA256 SE EXISTIR
+    # =========================================================
+    if ext in (".iso", ".img") and os.path.exists(sha_file):
+        try:
+            with open(sha_file, "r", encoding="utf-8") as f:
+                saved_hash = f.readline().split()[0]
+
+            current_hash = hash_file(path, "Cache")
+            return current_hash == saved_hash.lower()
+        except:
+            return False
+
+    # =========================================================
+    # 3. .SYNCADO → VALIDAÇÃO DE EXISTÊNCIA / COERÊNCIA
+    # =========================================================
+    if os.path.exists(sync_file):
+        try:
+            with open(sync_file, "r", encoding="utf-8") as f:
+                stored_name = f.read().strip()
+
+            current_name = os.path.basename(path)
+
+            stored_base = normalize_product_name(stored_name)
+            current_base = normalize_product_name(current_name)
+
+            # 🔒 comparação por produto (não nome bruto)
+            if is_same_product(stored_base, current_base):
+                return True
+
+            return False
+        except:
+            return False
+
+    # =========================================================
+    # 4. FALLBACK FINAL
+    # =========================================================
+    return os.path.getsize(path) > 0        

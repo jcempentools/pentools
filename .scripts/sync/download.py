@@ -108,16 +108,37 @@ ESTILO
 # =========================
 # IMPORTS
 # =========================
-import os
-import time
-import urllib.request
-
-import common
-import loggerAndProgress
+from common import *
+from loggerAndProgress import *
+from hash import *
 
 # =========================
 # MAPEAMENTO DE FUNÇÕES
 # =========================
+
+def http_open(url_or_req, timeout=15):
+    """
+    Wrapper centralizado para acesso HTTP.
+
+    Garantias:
+    - Timeout SEMPRE aplicado
+    - Aceita str (URL) ou Request
+    - Não implementa retry (delegado para retry_sync)
+    - Compatível com HEAD/GET via Request
+
+    Parâmetros:
+    - url_or_req (str|Request): URL ou objeto Request.
+    - timeout (int): Timeout em segundos.
+    Retorno:
+    - HTTPResponse: Objeto de resposta.
+    """
+
+    if isinstance(url_or_req, str):
+        req = urllib.request.Request(url_or_req)
+    else:
+        req = url_or_req
+
+    return urllib.request.urlopen(req, timeout=timeout)
 
 def download_file_with_progress(url, dst):
     """
@@ -189,6 +210,34 @@ def process_syncdownloads(root, dry_run):
                 process_single_syncdownload(sync_path, dry_run)
             except Exception as e:
                 show_message(f"Erro no .syncdownload {sync_path}: {e}", "e")
+
+def resolve_download_context(sync_path):
+    """
+    Descrição: Monta contexto completo de download.
+    Parâmetros:
+    - sync_path (str): Caminho do .syncdownload.
+    Retorno:
+    - dict|None: Contexto com URL final e headers.
+    """    
+    resolved = resolve_syncdownload_cached(sync_path)
+
+    if not resolved:
+        return None
+
+    cached = sync_resolve_cache.get(sync_path)
+    if cached and cached.get("final_url"):
+        final_url = cached["final_url"]
+        headers = cached.get("headers", {})
+    else:
+        final_url, headers = resolve_final_url(resolved["url"])
+        resolved["final_url"] = final_url
+        resolved["headers"] = headers
+
+    return {
+        **resolved,
+        "final_url": final_url,
+        "headers": headers,
+    }    
 
 def process_single_syncdownload(path, dry_run):
     """
@@ -601,3 +650,337 @@ def resolve_syncdownload_cached(sync_path):
     result["_mtime"] = os.path.getmtime(sync_path)
     sync_resolve_cache[sync_path] = result
     return result    
+
+def normalize_tokens(s):
+    """
+    Descrição: Tokeniza string em partes normalizadas.
+    Parâmetros:
+    - s (str): String de entrada.
+    Retorno:
+    - list[str]: Lista de tokens.
+    """
+    return [t for t in re.split(r'[^a-z0-9]+', s.lower()) if t] 
+
+def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
+    """
+    Mantém todas as regras originais, com melhorias:
+    - Extração de versão simplificada e robusta
+    - Fonte unificada (URL > HEADER > fallback)
+    - Menos duplicação de lógica
+    """
+
+    # --- SEM linha 3 ---
+    if not custom_name:
+        return _resolve_filename_from_url(url, path)
+
+    custom_name = custom_name.strip()
+
+    # =========================================================
+    # 🔒 RESOLVE NOME BASE (URL / HEADER)
+    # =========================================================
+    base_source = None
+
+    try:
+        remote_info = _resolve_effective_remote_name(url)
+
+        if isinstance(remote_info, dict):
+            remote_name = remote_info.get("name")
+            remote_headers = remote_info.get("headers", {})
+        else:
+            remote_name = remote_info
+            remote_headers = {}
+
+        # 1. URL com versão
+        if remote_name and re.search(r'\d+(?:[.\-]\d+)+', remote_name):
+            base_source = remote_name
+
+        # 2. HEADER
+        if not base_source and remote_headers:
+            cd = remote_headers.get("Content-Disposition", "")
+            m = re.search(r'filename="?([^"]+)"?', cd)
+            if m:
+                base_source = m.group(1)
+
+        # 3. fallback URL
+        if not base_source:
+            final_url, _ = resolve_final_url(url)
+            effective = final_url or url
+            base_source = os.path.basename(effective.split("?")[0])
+
+    except Exception:
+        pass
+
+    def resolve_extension(url, custom_name, forced_extension=None, existing_ext=None, base_source=None, tried=None):
+        """
+        Resolve extensão de forma progressiva com fallback real.
+        Nunca falha prematuramente — apenas quando TODAS as fontes falham.
+        """
+
+        if tried is None:
+            tried = set()
+
+        def is_valid(ext):
+            return ext and ext.lower() in SyncDonwloadExtensions
+
+        # -------------------------------------------------
+        # Lista ordenada de tentativas (prioridade)
+        # -------------------------------------------------
+        candidates = []
+
+        if forced_extension and "forced" not in tried:
+            candidates.append(("forced", forced_extension))
+
+        if existing_ext and "existing" not in tried:
+            candidates.append(("existing", existing_ext))
+
+        if base_source and "base_source" not in tried:
+            m = re.search(r'\.([a-zA-Z]{2,5})$', base_source)
+            if m:
+                candidates.append(("base_source", m.group(1)))
+
+        if "url" not in tried:
+            try:
+                final_url, _ = resolve_final_url(url)
+                effective = final_url or url
+                remote_name = os.path.basename(effective.split("?")[0])
+
+                if remote_name:
+                    m = re.search(r'\.([a-zA-Z]{2,5})$', remote_name)
+                    if m:
+                        candidates.append(("url", m.group(1)))
+            except Exception:
+                pass
+
+        # -------------------------------------------------
+        # Tentativa progressiva
+        # -------------------------------------------------
+        for source, ext in candidates:
+            tried.add(source)
+
+            if not ext:
+                continue
+
+            ext = ext.lower()
+
+            # 🔒 valida antes de aceitar
+            if is_valid(ext):
+                return ext
+
+            # 🔁 fallback recursivo
+            result = resolve_extension(
+                url,
+                custom_name,
+                forced_extension,
+                existing_ext,
+                base_source,
+                tried
+            )
+
+            if result:
+                return result
+
+        # -------------------------------------------------
+        # FALHA REAL (após esgotar tudo)
+        # -------------------------------------------------
+        raise Exception(f"Extensão não resolvida para: {custom_name or url}")    
+
+    # =========================================================
+    # 🔒 EXTRAÇÃO DE VERSÃO (SIMPLES E CONFIÁVEL)
+    # =========================================================
+    def extract_version(name):        
+        if not name:
+            raise Exception("Nome não fornecido para extração de versão")
+
+        base = re.sub(r'\.[a-zA-Z0-9]{2,5}$', '', name)
+
+        pattern = rf'({"|".join(map(re.escape, NOISE_TOKENS))})'
+        base_clean = re.sub(pattern, '', base, flags=re.I)
+
+        m = re.search(
+            r'([a-z]?\d+(?:[.\-,]\d+)+[a-z]?)',
+            base_clean,
+            re.I
+        )        
+
+        # 🔒 CONTRATO: não pode falhar silenciosamente
+        if not m:
+            # 🔒 fallback 1: ano (YYYY)
+            m_year = re.search(r'\b(20\d{2})\b', base_clean)
+            if m_year:
+                version = m_year.group(1)
+                prefix = base_clean[:m_year.start()]
+            else:
+                # 🔒 fallback 2: número isolado
+                m_num = re.search(r'\b\d+\b', base_clean)
+                if m_num:
+                    version = m_num.group(0)
+                    prefix = base_clean[:m_num.start()]
+                else:
+                    raise Exception(f"Não foi possível extrair versão de: '{name}'")
+
+            # reaproveita lógica existente
+            tokens = re.split(r'[^a-zA-Z0-9]+', prefix)
+            tokens = [t for t in tokens if t]
+
+            extra = tokens[-1] if tokens else None
+
+            return version, extra
+
+        version = re.sub(
+            r'\.{2,}', '.',
+            re.sub(
+                r'(?<!\d)[a-z]+|[a-z]+(?=\.)',
+                '',
+                re.sub(r'[^0-9a-zA-Z]+', '.', m.group(1))
+            )
+        ).strip('.')
+
+        # 🔒 alinhado com base_clean (onde ocorreu o match)
+        prefix = base_clean[:m.start()]
+
+        tokens = re.split(r'[^a-zA-Z0-9]+', prefix)
+        tokens = [t for t in tokens if t]
+
+        extra = tokens[-1] if tokens else None        
+
+        return version, extra
+
+    # =========================================================
+    # 🔒 SUBSTITUIÇÃO {}
+    # =========================================================
+    original_custom_name = normalize_canonical_name(custom_name)
+
+    if "{}" in custom_name:
+        
+        if base_source:
+            version, extra = extract_version(base_source)
+
+            try:
+
+                if version:
+                    # --- TAGS DECLARADAS ---
+                    declared_tags = []
+
+                    try:
+                        raw_url = None
+                        try:
+                            with open(path, "r", encoding="utf-8") as f:
+                                raw_url = f.readline().strip()
+                        except Exception:
+                            raw_url = None
+
+                        if raw_url and "|" in raw_url:
+                            left, right = raw_url.split("|", 1)
+
+                            if right.strip().startswith(("http://", "https://")):
+                                parts = [p.strip().lower() for p in left.split(",") if p.strip()]
+
+                                for p in parts:
+                                    if not p.startswith("."):
+                                        declared_tags.append(p)
+
+                    except Exception:
+                        declared_tags = []
+
+                    # --- MONTA BLOCO ---
+                    if declared_tags:
+                        version_block = f"{declared_tags[0]}-{version}"
+                    elif extra:
+                        version_block = f"{extra}-{version}"
+                    else:
+                        version_block = version
+
+                    custom_name = custom_name.replace("{}", version_block)
+
+            except Exception as e:
+                show_message(f"[DEBUG] erro na substituição {{}}: {e}", "e")
+
+    # =========================================================
+    # 🔒 EXTENSÃO
+    # =========================================================
+    match_ext = re.search(r'\.([a-z0-9]{2,5})$', custom_name, re.IGNORECASE)
+    existing_ext = match_ext.group(1).lower() if match_ext else None
+
+    ext = resolve_extension(
+        url=url,
+        custom_name=custom_name,
+        forced_extension=forced_extension,
+        existing_ext=existing_ext,
+        base_source=locals().get("base_source")
+    ).lower()
+
+    if not ext:
+        raise Exception(f"Extensão não resolvida para: {custom_name or url}")    
+
+    if ext not in SyncDonwloadExtensions:
+        raise Exception(f"Extensão não permitida pela regra de negócio: .{ext}")
+
+    # =========================================================
+    # 🔒 BASE NAME
+    # =========================================================
+    if not existing_ext:
+        base_name = re.sub(r'\{\}', '', custom_name).strip()
+        base_name = re.sub(r'\s+', '-', base_name)
+    else:
+        base_name = re.sub(r'\.[a-z0-9]{2,5}$', '', custom_name, flags=re.IGNORECASE)
+
+        if not base_name:
+            base_name = custom_name.strip()
+
+        if not base_name:
+            base_name = re.sub(r'\.[a-z0-9]{2,5}$', '', custom_name.lower())
+            base_name = re.sub(r'[^a-z0-9]+', '.', base_name).strip('.')
+
+    # =========================================================
+    # 🔒 DEDUP (INALTERADO)
+    # =========================================================
+    try:
+        version_patterns = re.findall(r'\d+(?:\.\d+)+', base_name)
+
+        version_map = {}
+        for i, v in enumerate(version_patterns):
+            placeholder = f"__VER{i}__"
+            version_map[placeholder] = v
+            base_name = base_name.replace(v, placeholder)
+
+        tokens = re.split(r'[^a-zA-Z0-9_]+', base_name)
+        seen = set()
+        cleaned_tokens = []
+
+        for t in tokens:
+            if not t:
+                continue
+
+            key = t.lower()
+
+            if t in version_map:
+                cleaned_tokens.append(t)
+                continue
+
+            if re.match(r'^\d+$', t):
+                cleaned_tokens.append(t)
+                continue
+
+            if key in seen:
+                continue
+
+            seen.add(key)
+            cleaned_tokens.append(t)
+
+        if cleaned_tokens:
+            separator = "." if "." in base_name else "-"
+            base_name = separator.join(cleaned_tokens)
+
+        for placeholder, value in version_map.items():
+            base_name = base_name.replace(placeholder, value)
+
+    except Exception:
+        pass
+
+    # =========================================================
+    # 🔒 FINAL
+    # =========================================================
+    if ext:
+        return f"{base_name}.{ext}"   
+
+    return base_name

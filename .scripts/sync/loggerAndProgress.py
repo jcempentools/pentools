@@ -109,10 +109,8 @@ ESTILO
 import os
 import re
 from datetime import datetime
-from rich.console import Console
+from common import *
 from rich.progress import Progress, TextColumn, BarColumn, DownloadColumn, TransferSpeedColumn, TimeRemainingColumn
-
-import common
 
 # =========================
 # VARIÁVEIS

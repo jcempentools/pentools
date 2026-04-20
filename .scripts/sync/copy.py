@@ -103,8 +103,9 @@ ESTILO
 import os
 import shutil
 
-import common
-import loggerAndProgress
+from common import *
+from loggerAndProgress import *
+from hash import *
 
 # =========================
 # MAPEAMENTO DE FUNÇÕES

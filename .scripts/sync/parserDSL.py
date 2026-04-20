@@ -102,7 +102,7 @@ OBSERVAÇÕES:
 # =========================
 # IMPORTS
 # =========================
-import common
+from common import *
 
 # =========================
 # MAPEAMENTO DE FUNÇÕES
@@ -146,3 +146,12 @@ def resolve_parser_expression(expr, context_name=None):
     data = fetch_and_parse(url)
 
     return resolve_data_path(data, path, context_name=context_name)
+
+def resolve_if_dsl(value, context=None):
+    """
+    Resolve valor caso seja expressão DSL (${...})
+    Mantém compatibilidade total com strings normais
+    """
+    if isinstance(value, str) and "${" in value:
+        return resolve_parser_expression(value, context_name=context)
+    return value
