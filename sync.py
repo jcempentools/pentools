@@ -214,7 +214,7 @@ RESTRIÇÕES
 - Execução de script não pode interferir na integridade do sync
 """
 
-import os
+import os    
 import sys
 import codecs
 import shutil
@@ -231,17 +231,9 @@ import time
 from datetime import datetime
 import random
 import gzip
-
-from rich.style import Style
-from rich.progress import (
-    Progress,
-    TextColumn,
-    BarColumn,
-    TimeRemainingColumn,
-    DownloadColumn,
-    TransferSpeedColumn,
-    TaskProgressColumn
-)
+import json
+from rich.progress import Progress, TextColumn, BarColumn, DownloadColumn, TransferSpeedColumn, TimeRemainingColumn
+import ctypes
 
 PROVIDERS = {}
 
@@ -871,9 +863,6 @@ def purge_similar_installers(dest_dir, target_name):
                 show_message(f"Erro ao remover {f}: {e}", "e")
 
 def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
-    import os
-    import re
-
     """
     Mantém todas as regras originais, com melhorias:
     - Extração de versão simplificada e robusta
@@ -1016,7 +1005,27 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
 
         # 🔒 CONTRATO: não pode falhar silenciosamente
         if not m:
-            raise Exception(f"Não foi possível extrair versão de: '{name}'")
+            # 🔒 fallback 1: ano (YYYY)
+            m_year = re.search(r'\b(20\d{2})\b', base_clean)
+            if m_year:
+                version = m_year.group(1)
+                prefix = base_clean[:m_year.start()]
+            else:
+                # 🔒 fallback 2: número isolado
+                m_num = re.search(r'\b\d+\b', base_clean)
+                if m_num:
+                    version = m_num.group(0)
+                    prefix = base_clean[:m_num.start()]
+                else:
+                    raise Exception(f"Não foi possível extrair versão de: '{name}'")
+
+            # reaproveita lógica existente
+            tokens = re.split(r'[^a-zA-Z0-9]+', prefix)
+            tokens = [t for t in tokens if t]
+
+            extra = tokens[-1] if tokens else None
+
+            return version, extra
 
         version = re.sub(
             r'\.{2,}', '.',
@@ -1173,7 +1182,7 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
     # 🔒 FINAL
     # =========================================================
     if ext:
-        return f"{base_name}.{ext}"
+        return f"{base_name}.{ext}"   
 
     return base_name
 
@@ -1745,10 +1754,7 @@ def fetch_and_parse(url):
 
     cached = _parser_cache_get(url)
     if cached is not None:
-        return cached
-
-    
-    import json
+        return cached    
 
     req = urllib.request.Request(url, headers={"User-Agent": "sync-engine"})
 
@@ -1940,10 +1946,7 @@ def resolve_syncdownload_cached(sync_path):
     forced_extension = None
 
     if spec and "github.com" in url.lower() and not __IGNORAR_GITHUB:
-        try:
-            
-            import json
-
+        try:                    
             parts = [p.strip().lower() for p in spec.split(",") if p.strip()]
 
             ext = None
@@ -2308,8 +2311,6 @@ def _normalize_color(color: str):
 
     return style, base_color
 
-from rich.progress import Progress, TextColumn, BarColumn, DownloadColumn, TransferSpeedColumn, TimeRemainingColumn
-
 def get_op_icon(op_type, direction=None):
     if op_type == "hash":
         return "🔍⬅" if direction == "source" else "🔍➜"
@@ -2425,6 +2426,16 @@ def origin_to_destination(path, retry, dry_run):
             show_message(f"Adicionado para retentativa: {rel_path}", "w")
             failed_files.append(path)
 
+
+def resolve_if_dsl(value, context=None):
+    """
+    Resolve valor caso seja expressão DSL (${...})
+    Mantém compatibilidade total com strings normais
+    """
+    if isinstance(value, str) and "${" in value:
+        return resolve_parser_expression(value, context_name=context)
+    return value
+
 def recursive_directory_iteration(root, action, retry, dry_run):
     """
     Descrição: Itera diretórios recursivamente aplicando ação.
@@ -2480,8 +2491,7 @@ def apply_root_hidden_attribute():
 
         try:
             # Apenas aplica no item (não recursivo)
-            if os.name == "nt":
-                import ctypes
+            if os.name == "nt":                
                 FILE_ATTRIBUTE_HIDDEN = 0x02
 
                 attrs = ctypes.windll.kernel32.GetFileAttributesW(dest_full_path)
@@ -2908,9 +2918,7 @@ def process_single_syncdownload(path, dry_run):
                     # =========================================================
                     # 🔒 METADATA ESPECIAL (.gz → conteúdo)
                     # =========================================================
-                    try:
-                        import hashlib
-
+                    try:                        
                         def _hash_file(p):
                             h = hashlib.sha256()
                             with open(p, "rb") as f:
@@ -2986,6 +2994,11 @@ def process_single_syncdownload(path, dry_run):
     # =========================================================
     canonical = resolved.get("custom_filename")
 
+    # 🔒 BLOQUEIO DE PLACEHOLDER NÃO RESOLVIDO
+    if isinstance(canonical, str) and ("{}" in canonical or "{" in canonical):
+        show_message(f"Canonical inválido (placeholder não resolvido): {canonical}", "w")
+        canonical = None
+
     if canonical:
         base = os.path.splitext(canonical)[0]
         ext = os.path.splitext(final_dest_path)[1]
@@ -3035,8 +3048,17 @@ def process_single_syncdownload(path, dry_run):
         try:
             # 🔒 fase preremotehash
             run_phase("preremotehash")
+        
+            resolved_hash_input = resolve_if_dsl(
+                remote_hash_url,
+                context="remote_hash_url"
+            )
 
-            remote_hash = fetch_remote_hash(remote_hash_url)
+            # 🔒 se DSL retornar hash direto → usa direto
+            if isinstance(resolved_hash_input, str) and re.fullmatch(r'[a-fA-F0-9]{64}', resolved_hash_input.strip()):
+                remote_hash = resolved_hash_input.strip().lower()
+            else:
+                remote_hash = fetch_remote_hash(resolved_hash_input)
 
             # 🔒 fase posremotehash
             run_phase("posremotehash")
