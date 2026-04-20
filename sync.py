@@ -1372,14 +1372,9 @@ def manage_sync_metadata(final_dest_path, url, expected_hash):
         # =====================================================
         # 5. VALIDAÇÃO DE HASH LOCAL (.sha256)
         # =====================================================
-        if not os.path.exists(sha_file):
-            show_message("Sem .sha256 → fallback leve", "d")
-
-            try:
-                show_message("Sem .sha256 → confiando apenas em .syncado", "d")
-                return False
-            except:
-                return True
+        if not os.path.exists(sha_file):            
+            show_message("Sem .sha256, somente .syncado presente → reprocessamento obrigatório", "d")               
+            return True
 
         with open(sha_file, "r", encoding="utf-8") as f:
             line = f.readline().strip()
