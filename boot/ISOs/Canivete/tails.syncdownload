@@ -1,4 +1,4 @@
 .img,amd64|${"https://tails.net/install/v2/Tails/amd64/stable/latest.json"}.installations.installation-paths[@type="iso"].target-files.url
 
 tails-{}
-.img,amd64|${"https://tails.net/install/v2/Tails/amd64/stable/latest.json"}.installations.installation-paths[@type="iso"].target-files.url
+.img,amd64|${"https://tails.net/install/v2/Tails/amd64/stable/latest.json"}.installations.installation-paths[@type="iso"].target-files.sha256
