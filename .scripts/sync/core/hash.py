@@ -4,17 +4,28 @@ BIBLIOTECA hash.py, PARTE DE SYNC ENGINE — PARSER SYNCDOWNLOAD
 CONTEXTO GLOBAL DO PROJETO
 ==========================
 
-  Estrutura geral dos componentes da bilbioteca:
-    - common.py: Funções e variáveis globais compartilhadas por múltiplos scripts.
-    - copy.py: Funções relacionadas a operações de cópia.
-    - download.py: Funções relacionadas a downloads.
-    - parserSyncDownload.py: Processamento técnico dos arquivos de extensão ".syncdownload".
-    - parserDSL.py: Lógica e processamento de parser DSL.
-    - loggerAndProgress.py: Gestão de logs e barras de progresso.
-    - clear.py: Rotinas de limpeza.
-    - hash.py: Lógica e processamento de hashs
-    - main.py: Script orquestrador que gerencia o fluxo entre os módulos acima.
-
+Estrutura geral dos componentes do projeto SYNC:
+sync/
+│
+├── main.py                        # Orquestrador principal: controla fluxo completo (cleanup → downloads → cópia → retry → pós-processamento)
+├── constants.py                   # Variáveis globais e constantes: paths, regex, flags e estruturas compartilhadas do sistema│
+│
+├── core/
+│   ├── syncdownload_resolver.py   # Resolve arquivos .syncdownload: parsing, seleção de URL final, nome determinístico e cache de resolução
+│   ├── syncdownload_processor.py  # Executa pipeline de cada .syncdownload: valida cache, decide download, aplica scripts e sincroniza destino
+│   ├── download_manager.py        # Gerencia downloads: execução com progresso, timeout, reutilização em memória e gravação no cache
+│   ├── cache_validation.py        # Validação de integridade: hash, metadata (.sha256/.syncado) e regras de consistência de arquivos
+│   ├── cleanup.py                 # Limpeza do destino: remove órfãos e protege arquivos válidos com base em .syncdownload e regras globais
+│   ├── file_operations.py         # Operações de arquivo: cópia, criação de diretórios, espelhamento e manipulação segura no filesystem
+│   ├── metadata.py                # Geração e gerenciamento de metadata: arquivos .sha256, .syncado e vínculos com origem/download
+│   └── retry.py                   # Lógica de retentativa: controle de falhas, reprocessamento e política de repetição do pipeline
+│
+└── utils/
+    ├── progress.py                # Barra de progresso e métricas de transferência (download/cópia) com controle visual padronizado
+    ├── naming.py                  # Normalização e comparação de nomes: identificação de produto, canonicalização e deduplicação
+    ├── dsl.py                     # Parser DSL: resolução de expressões dinâmicas (${...}) em parâmetros de .syncdownload
+    └── logging.py                 # Sistema de logging: mensagens estruturadas, níveis (info/warn/error/debug) e formatação visual
+  
   Abstrações de Origens:  
     Interface lógica equivalente p/ todos providers (GitHub, GitLab, SF, etc.).
     Extensível. Mesma lógica de decisão, validação, metadata. Preferir APIs

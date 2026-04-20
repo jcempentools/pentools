@@ -223,11 +223,98 @@ def hash_file(filename, label):
         show_message(f"Erro ao calcular hash de {filename}: {e}", "e")
         return None
     
-def resolve_if_dsl(value, context=None):
+def resolve_data_path(obj, path, context_name=None):
     """
-    Resolve valor caso seja expressão DSL (${...})
-    Mantém compatibilidade total com strings normais
+    Resolve caminho aninhado com suporte a:
+    - índice: [0]
+    - filtro: [@campo="valor"]
     """
-    if isinstance(value, str) and "${" in value:
-        return resolve_parser_expression(value, context_name=context)
-    return value
+
+    current = obj
+
+    tokens = re.split(r'\.(?![^\[]*\])', path)
+
+    for token in tokens:
+        # match: campo[index] OU campo[@attr="value"]
+        m = re.match(r'([a-zA-Z0-9_\-]+)(\[(.*?)\])?', token)
+
+        if not m:
+            raise Exception(f"Parser DSL inválido: {token}")
+
+        key = m.group(1)
+        selector = m.group(3)  # conteúdo dentro []
+
+        # --- acesso base (dict OU lista) ---
+        if isinstance(current, dict):
+            current = current.get(key)
+
+        elif isinstance(current, list):
+            # 🔒 tenta resolver key dentro de lista (estrutura comum em APIs)
+            next_list = []
+
+            for item in current:
+                if isinstance(item, dict) and key in item:
+                    next_list.append(item.get(key))
+
+            if not next_list:
+                raise Exception(
+                    f"Parser DSL: chave '{key}' não encontrada em lista | origem: {context_name}"
+                )
+
+            # 🔒 flatten simples se possível
+            if len(next_list) == 1:
+                current = next_list[0]
+            else:
+                current = next_list
+
+        else:
+            raise Exception(
+                f"Parser DSL: estrutura inválida (esperado dict/list) | origem: {context_name}"
+            )
+
+        # --- sem seletor ---
+        if selector is None:
+            continue
+
+        # --- índice numérico ---
+        if re.match(r'^\d+$', selector):
+            if not isinstance(current, list):
+                raise Exception("Parser DSL: índice aplicado em estrutura não-lista")
+
+            current = current[int(selector)]
+            continue
+
+        # --- filtro estilo [@campo="valor"] ---
+        m_filter = re.match(r'@([a-zA-Z0-9_\-]+)\s*=\s*["\']([^"\']+)["\']', selector)
+
+        if m_filter:
+            attr = m_filter.group(1)
+            value = m_filter.group(2)
+
+            # 🔒 garante lista (mesmo se veio item único)
+            if isinstance(current, dict):
+                current = [current]
+
+            if not isinstance(current, list):
+                raise Exception("Parser DSL: filtro aplicado em estrutura não-lista")
+
+            match_item = None
+
+            for item in current:
+                if isinstance(item, dict):
+                    v = item.get(attr)
+
+                    # 🔒 comparação tolerante (string)
+                    if v is not None and str(v).strip() == value:
+                        match_item = item
+                        break
+
+            if match_item is None:
+                raise Exception(f"Parser DSL: nenhum match para {attr}={value}")
+
+            current = match_item
+            continue
+
+        raise Exception(f"Parser DSL: seletor inválido [{selector}]")
+
+    return current

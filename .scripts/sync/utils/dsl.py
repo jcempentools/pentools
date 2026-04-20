@@ -155,3 +155,35 @@ def resolve_if_dsl(value, context=None):
     if isinstance(value, str) and "${" in value:
         return resolve_parser_expression(value, context_name=context)
     return value
+
+def fetch_and_parse(url):
+    """
+    Descrição: Fetch + parse automático (JSON/YAML fallback JSON only)
+    Parâmetros:
+    - url (str): URL de origem.
+    Retorno:
+    - dict: Dados parseados    
+    """
+
+    cached = _parser_cache_get(url)
+    if cached is not None:
+        return cached    
+
+    req = urllib.request.Request(url, headers={"User-Agent": "sync-engine"})
+
+    with http_open(req) as response:
+        raw = response.read()
+
+        content_type = response.headers.get("Content-Type", "").lower()
+
+        if "json" in content_type:
+            data = json.loads(raw.decode())
+        else:
+            # fallback seguro → tenta JSON
+            try:
+                data = json.loads(raw.decode())
+            except Exception:
+                raise Exception("Parser DSL: formato não suportado")
+
+    _parser_cache_set(url, data)
+    return data
