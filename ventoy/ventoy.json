@@ -13,7 +13,7 @@
   },
   "menu_alias": [
     {
-      "image": "/boot/ISOs/Canivete/windows-HBCD_PE_x64.iso",
+      "image": "/boot/ISOs/1.Canivete/windows-HBCD_PE_x64.iso",
       "alias": "Hiren's BootCD PE"
     },
     {
@@ -21,55 +21,59 @@
       "alias": "Boot Network (ipxe)"
     },
     {
-      "dir": "/boot/ISOs/Canivete",
+      "dir": "/boot/ISOs/1.Canivete",
       "alias": "> Canivete Suiço"
     },
     {
-      "dir": "/boot/ISOs/Canivete/miniOS",
+      "dir": "/boot/ISOs/1.Canivete/miniOS",
       "alias": "> miniOS"
     },
     {
-      "dir": "/boot/ISOs/Utilitarios",
-      "alias": "> Utilitários"
+      "dir": "/boot/ISOs/4.Advanced",
+      "alias": "> Avançado"
     },
     {
-      "dir": "/boot/ISOs/Utilitarios/Disco",
+      "dir": "/boot/ISOs/4.Advanced/Diagnostics",
+      "alias": "> Diagnósticos"
+    },
+    {
+      "dir": "/boot/ISOs/4.Advanced/Disco",
       "alias": "> HDs"
     },
     {
-      "dir": "/boot/ISOs/Utilitarios/Imagem",
+      "dir": "/boot/ISOs/4.Advanced/Imagem",
       "alias": "> Imagens"
     },
     {
-      "dir": "/boot/ISOs/Installs",
+      "dir": "/boot/ISOs/2.Installs",
       "alias": "> Instalações e LiveCDs"
     },
     {
-      "dir": "/boot/ISOs/Installs/Windows",
+      "dir": "/boot/ISOs/2.Installs/Windows",
       "alias": "> Windows"
     },
     {
-      "dir": "/boot/ISOs/Installs/Linux",
+      "dir": "/boot/ISOs/2.Installs/Linux",
       "alias": "> Linux"
     },
     {
-      "dir": "/boot/ISOs/Installs/BB",
+      "dir": "/boot/ISOs/2.Installs/BB",
       "alias": "> BB"
     },
     {
-      "dir": "/boot/ISOs/GamesMedias",
+      "dir": "/boot/ISOs/3.GamesMedias",
       "alias": "> Games e Mídias"
     },
     {
-      "dir": "/boot/ISOs/GamesMedias/LibreELEC",
+      "dir": "/boot/ISOs/3.GamesMedias/LibreELEC",
       "alias": "> LibreELEC"
     },
     {
-      "dir": "/boot/ISOs/GamesMedias/Batocera",
+      "dir": "/boot/ISOs/3.GamesMedias/Batocera",
       "alias": "> Batocera"
     },
     {
-      "dir": "/boot/ISOs/Installs/Linux/PC-Muito-Velho",
+      "dir": "/boot/ISOs/2.Installs/Linux/PC-Muito-Velho",
       "alias": "Salvar Aquele PC Velhíssimo"
     }
   ],
@@ -90,15 +94,15 @@
       "class": "windows"
     },
     {
-      "dir": "/boot/ISOs/Installs/Windows",
+      "dir": "/boot/ISOs/2.Installs/Windows",
       "class": "windows"
     },
     {
-      "dir": "/boot/ISOs/Utilitarios/Imagem",
+      "dir": "/boot/ISOs/4.Advanced/Imagem",
       "class": "recovery"
     },
     {
-      "dir": "/boot/ISOs/Utilitarios",
+      "dir": "/boot/ISOs/4.Advanced",
       "class": "maleta"
     },
     {
@@ -142,8 +146,12 @@
       "class": "AomeiBackupper"
     },
     {
-      "dir": "/boot/ISOs/Utilitarios/Disco",
+      "dir": "/boot/ISOs/4.Advanced/Disco",
       "class": "disk"
+    },
+    {
+      "dir": "/boot/ISOs/4.Advanced/Diagnostics",
+      "class": "diagnostics"
     },
     {
       "key": "rescuezilla",
@@ -158,7 +166,7 @@
       "class": "aomeipartition"
     },
     {
-      "dir": "/boot/ISOs/Installs",
+      "dir": "/boot/ISOs/2.Installs",
       "class": "install"
     },
     {
@@ -170,7 +178,7 @@
       "class": "kaspersky"
     },
     {
-      "dir": "/boot/ISOs/Installs/Linux",
+      "dir": "/boot/ISOs/2.Installs/Linux",
       "class": "linux"
     },
     {
@@ -198,15 +206,15 @@
       "class": "drparted"
     },
     {
-      "dir": "/boot/ISOs/Canivete",
+      "dir": "/boot/ISOs/1.Canivete",
       "class": "canivete"
     },
     {
-      "dir": "/boot/ISOs/Canivete/miniOS",
+      "dir": "/boot/ISOs/1.Canivete/miniOS",
       "class": "minios"
     },
     {
-      "dir": "/boot/ISOs/Installs/BB",
+      "dir": "/boot/ISOs/2.Installs/BB",
       "class": "bb"
     },
     {
@@ -214,15 +222,15 @@
       "class": "linux"
     },
     {
-      "dir": "/boot/ISOs/GamesMedias",
+      "dir": "/boot/ISOs/3.GamesMedias",
       "class": "gamemedia"
     },
     {
-      "dir": "/boot/ISOs/GamesMedias/LibreELEC",
+      "dir": "/boot/ISOs/3.GamesMedias/LibreELEC",
       "class": "libreelec"
     },
     {
-      "dir": "/boot/ISOs/GamesMedias/Batocera",
+      "dir": "/boot/ISOs/3.GamesMedias/Batocera",
       "class": "batocera"
     },
     {
@@ -254,13 +262,13 @@
       "class": "legacyos"
     },
     {
-      "dir": "/boot/ISOs/Installs/Linux/PC-Muito-Velho",
+      "dir": "/boot/ISOs/2.Installs/Linux/PC-Muito-Velho",
       "class": "velho"
     }
   ],
   "auto_install": [
     {
-      "parent": "/boot/ISOs/Installs/Windows",
+      "parent": "/boot/ISOs/2.Installs/Windows",
       "template": ["/boot/autonome/windows/Instalar/Automatizado.xml"]
     }
   ]
