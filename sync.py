@@ -2637,18 +2637,44 @@ def process_single_syncdownload(path, dry_run):
         ext = os.path.splitext(origin_cached_path)[1].lower()
 
         has_sha = os.path.exists(origin_cached_path + ".sha256")
-        has_syncado = os.path.exists(origin_cached_path + ".syncado")        
+        has_syncado = os.path.exists(origin_cached_path + ".syncado")
 
-        if ext in (".iso", ".img"):
-            if has_sha:
-                valid_metadata = True
-            else:
-                show_message(f"Cache sem .sha256 → inválido (tratado como inexistente): {filename}", "w")
+        # =========================================================
+        # 🔒 NOVA REGRA: HASH DIRETO (linha 2 OU linha 4) SUBSTITUI METADATA
+        # =========================================================
+        hash_override_valid = False
+
+        try:
+            if expected_hash:
+                current_hash = hash_file(origin_cached_path, "Cache")
+                if current_hash and current_hash == expected_hash.lower():
+                    hash_override_valid = True
+
+            elif remote_hash_url:
+                remote_hash = fetch_remote_hash(remote_hash_url)
+                current_hash = hash_file(origin_cached_path, "Cache")
+
+                if current_hash and current_hash == remote_hash:
+                    hash_override_valid = True
+
+        except Exception:
+            hash_override_valid = False
+
+        if hash_override_valid:
+            show_message(f"Cache válido via hash direto (sem metadata): {filename}", "k")
+            valid_metadata = True
+
         else:
-            if has_syncado:
-                valid_metadata = True
+            if ext in (".iso", ".img"):
+                if has_sha:
+                    valid_metadata = True
+                else:
+                    show_message(f"Cache sem .sha256 → inválido (tratado como inexistente): {filename}", "w")
             else:
-                show_message(f"Cache sem .syncado → inválido (tratado como inexistente): {filename}", "w")
+                if has_syncado:
+                    valid_metadata = True
+                else:
+                    show_message(f"Cache sem .syncado → inválido (tratado como inexistente): {filename}", "w")
 
         # =========================================================
         # 🔒 FORÇA REPROCESSAMENTO COMO SE NÃO EXISTISSE
@@ -2674,19 +2700,35 @@ def process_single_syncdownload(path, dry_run):
             # =========================================================
             show_message(f"Forçando reprocessamento imediato: {filename}", "i")
 
-            need_download = True           
+            need_download = True      
 
             # 🔒 segue fluxo normal (download obrigatório)
         else:
-            if is_cached_file_valid(origin_cached_path, expected_hash):
+            if is_cached_file_valid(origin_cached_path, expected_hash) or hash_override_valid:
                 show_message(f"Cache válido na origem: {filename}", "k")
 
                 # =========================================================
-                # 🔒 STATUS DO DESTINO
+                # 🔒 STATUS DO DESTINO (COM SUPORTE A HASH DIRETO)
                 # =========================================================
                 dest_exists = os.path.exists(final_dest_path)
-                dest_valid = dest_exists and is_cached_file_valid(final_dest_path, expected_hash)
 
+                dest_valid = False
+
+                if dest_exists:
+                    try:
+                        if expected_hash:
+                            dest_valid = hash_file(final_dest_path, "Destino") == expected_hash.lower()
+                        elif remote_hash_url:
+                            remote_hash = fetch_remote_hash(remote_hash_url)
+                            dest_valid = hash_file(final_dest_path, "Destino") == remote_hash
+                        else:
+                            dest_valid = is_cached_file_valid(final_dest_path, expected_hash)
+                    except Exception:
+                        dest_valid = False
+
+                # =========================================================
+                # 🔒 REGRA CRÍTICA: BASTA UM DOS DOIS ESTAR VÁLIDO
+                # =========================================================
                 if dest_valid:
                     show_message(f"Cache válido no destino: {filename}", "k")
                     show_message(f"Sincronizado (sem ação): {filename}", "d")
@@ -2694,19 +2736,21 @@ def process_single_syncdownload(path, dry_run):
                     return
 
                 if dest_exists and not dest_valid:
-                    show_message(f"Destino inválido → cópia necessária: {filename}", "w")
+                    show_message(f"Destino inválido → será sobrescrito via espelhamento: {filename}", "w")
                 elif not dest_exists:
                     show_message(f"Destino inexistente → cópia necessária: {filename}", "i")
 
                 # =========================================================
-                # 🔒 DECISÕES
+                # 🔒 ESPALHAMENTO (SEM DOWNLOAD)
                 # =========================================================
-                show_message(f"Download não necessário: {filename}", "d")
+                show_message(f"Download não necessário (hash já válido): {filename}", "d")
 
                 if not dry_run:
                     copy_file_with_progress(origin_cached_path, final_dest_path)
 
-                    # 🔒 propaga metadata também
+                    # 🔒 gera metadata se inexistente
+                    generate_sync_metadata(origin_cached_path, resolved["url"])
+
                     for ext_meta in (".sha256", ".syncado"):
                         src_meta = origin_cached_path + ext_meta
                         dst_meta = final_dest_path + ext_meta
@@ -2717,7 +2761,7 @@ def process_single_syncdownload(path, dry_run):
                             except Exception:
                                 pass
 
-                    show_message(f"Arquivo sincronizado via cache: {filename}", "s")
+                    show_message(f"Arquivo sincronizado via espelhamento: {filename}", "s")
                     show_message(f"Sync completo: {filename}", "s")
 
                     if os.path.exists(final_dest_path):
