@@ -1,69 +1,102 @@
 """
-BIBLIOTECA hash.py, PARTE DE SYNC ENGINE — PARSER SYNCDOWNLOAD
+SYNC ENGINE — hash.py
+PARSER SYNCDOWNLOAD | BIBLIOTECA
 
-CONTEXTO GLOBAL DO PROJETO
-==========================
+SUMÁRIO E ESCOPO
+================
+[1] CONTEXTO GLOBAL DO PROJETO (normativo e vinculante)
+[2] DIRETRIZES E PRINCÍPIOS COMPARTILHADOS
+[3] REGRAS E RESTRIÇÕES DO ECOSSISTEMA
+[4] DEFINIÇÕES DESTA BIBLIOTECA (deste script)
 
-Estrutura geral dos componentes do projeto SYNC:
+Nota: Este cabeçalho documenta EXCLUSIVAMENTE o contexto e as regras do projeto.
+As regras específicas desta biblioteca serão definidas na seção [4].
+
+---------------------------------------------------------------------
+
+[1] CONTEXTO GLOBAL DO PROJETO
+==============================
+
+Arquitetura SYNC:
 sync/
 │
-├── main.py                        # Orquestrador principal: controla fluxo completo (cleanup → downloads → cópia → retry → pós-processamento)
-├── constants.py                   # Variáveis globais e constantes: paths, regex, flags e estruturas compartilhadas do sistema│
-│
+├── main.py                        # Orquestração do pipeline (cleanup → download → cópia → retry → pós)
+├── commons.py                     # globais: funções, paths, regex, flags, estruturas compartilhas 
+│                                    entre dois ou mais scripts
 ├── core/
-│   ├── syncdownload_resolver.py   # Resolve arquivos .syncdownload: parsing, seleção de URL final, nome determinístico e cache de resolução
-│   ├── syncdownload_processor.py  # Executa pipeline de cada .syncdownload: valida cache, decide download, aplica scripts e sincroniza destino
-│   ├── download_manager.py        # Gerencia downloads: execução com progresso, timeout, reutilização em memória e gravação no cache
-│   ├── cache_validation.py        # Validação de integridade: hash, metadata (.sha256/.syncado) e regras de consistência de arquivos
-│   ├── cleanup.py                 # Limpeza do destino: remove órfãos e protege arquivos válidos com base em .syncdownload e regras globais
-│   ├── file_operations.py         # Operações de arquivo: cópia, criação de diretórios, espelhamento e manipulação segura no filesystem
-│   ├── metadata.py                # Geração e gerenciamento de metadata: arquivos .sha256, .syncado e vínculos com origem/download
-│   └── retry.py                   # Lógica de retentativa: controle de falhas, reprocessamento e política de repetição do pipeline
+│   ├── syncdownload.parser.py     # Parsing .syncdownload, resolução de URL e nome determinístico
+│   ├── syncdownload.processor.py  # Pipeline por item: decisão, cache, download, sync
+│   ├── download_manager.py        # Execução de downloads: progresso, timeout, cache
+│   ├── cache_validation.py        # Integridade: hash + metadata (.sha256/.syncado)
+│   ├── cleanup.py                 # Remoção segura de órfãos com base em regras globais
+│   ├── file_operations.py         # Operações de filesystem seguras e determinísticas
+│   ├── metadata.py                # Geração e vínculo de metadata persistente
+│   └── retry.py                   # Política de retentativa e reprocessamento
 │
 └── utils/
-    ├── progress.py                # Barra de progresso e métricas de transferência (download/cópia) com controle visual padronizado
-    ├── naming.py                  # Normalização e comparação de nomes: identificação de produto, canonicalização e deduplicação
-    ├── dsl.py                     # Parser DSL: resolução de expressões dinâmicas (${...}) em parâmetros de .syncdownload
-    └── logging.py                 # Sistema de logging: mensagens estruturadas, níveis (info/warn/error/debug) e formatação visual
-  
-  Abstrações de Origens:  
-    Interface lógica equivalente p/ todos providers (GitHub, GitLab, SF, etc.).
-    Extensível. Mesma lógica de decisão, validação, metadata. Preferir APIs
-    oficiais. Evitar parsing HTML/XML heurístico.
+    ├── progress.py                # Progressbar padronizada (rich)
+    ├── naming.py                  # Normalização/canonicalização/dedup
+    ├── dsl.py                     # Parser de expressões dinâmicas (${...})
+    └── logging.py                 # Logging estruturado e padronizado
 
-  Diretrizes Técnicas:  
-    - HEAD (metadata) e GET (download) separados
-    - Hash rápido (xxhash) + SHA256 (integridade)
-    - Cache: memória + persistente na origem
-    - Metadata não bloqueia atualização de versão
-    - Timeout de rede obrigatório por inatividade; logging rotativo
+Abstração de Origens:
+- Interface unificada para providers (GitHub, GitLab, etc.)
+- Preferência por APIs oficiais; vedado parsing heurístico (HTML/XML)
 
-  GUI/UX:  
-    Preservar progressbar inline (rich.progress). Atualização em linha sem
-    flooding. Feedback visual p/ hash, download, retry, cópia.
+---------------------------------------------------------------------
 
-  Estilo de Implementação:  
-    Funções pequenas, especialistas, reutilizáveis. NÃO duplicar lógica.
-    Centralização obrigatória de: normalização, decisão de versão, nome final,
-    validação, download. Nomeação consistente. Evitar side-effects e hardcode.
-    Baixo acoplamento.
-
-  Restrições/vedações:
-    - Não duplicar lógica
-    - Não usar parsing HTML se houver API
-    - Não remover arquivos sem validação
-    - Não fazer purge agressivo só por nome
-    - Não quebrar coerência origem↔destino
-    - Não alterar UX da progressbar sem decisão explícita
-    - Não quebrar compatibilidade de metadata    
-    - Divergência de hash remoto → retry obrigatório
-    - Execução de script não pode interferir na integridade do sync
-    - Sempre importar e utilizar as implementações das bibliotecas participantes
-      do projeto, sem  se intrometer em atribuições de outros scripts da
-      do projeto incuindo, imlementar o que é atribuição de outros scripts
-
-DEFINIÇÕES DESTA BIBLIOTECA
+[2] DIRETRIZES E PRINCÍPIOS
 ===========================
+
+Técnicos:
+- Separação obrigatória: HEAD (metadata) × GET (download)
+- Integridade via SHA256
+- Cache híbrido: memória + persistente
+- Metadata não bloqueia atualização
+- Timeout por inatividade + logging rotativo
+
+Execução:
+- Idempotente, determinística, síncrona e ordenada
+- Decisão incremental (cache + validação)
+- Retry automático (falhas transitórias); abort seguro (inconsistência)
+
+UX:
+- Progressbar inline, sem flooding
+- Feedback contínuo: hash, download, retry, cópia
+
+Implementação:
+- Funções pequenas, especializadas, reutilizáveis
+- Baixo acoplamento, imutabilidade, sem duplicação
+- Centralização: naming, versão, validação, download
+- Sem side-effects e sem hardcode
+- Diff-friendly (mudanças mínimas e rastreáveis)
+
+---------------------------------------------------------------------
+
+[3] REGRAS E RESTRIÇÕES
+=======================
+
+Regras:
+- Dedup por nome canônico (primário) e hash (fallback)
+- Preservar versão válida mais recente
+- Nome lógico estável; filename pode variar
+- Coerência obrigatória origem ↔ destino
+- Remoção apenas com validação lógica
+
+Restrições:
+- Proibido duplicar lógica ou invadir responsabilidade de outros módulos
+- Proibido parsing HTML se houver API
+- Proibido purge agressivo por nome
+- Proibido quebrar metadata ou UX definida
+- Divergência de hash remoto exige retry
+- Preservar arquivos sem equivalente na origem/.syncdownload
+
+---------------------------------------------------------------------
+
+[4] DEFINIÇÕES DESTA BIBLIOTECA (deste script)
+==============================================
+
+
 """
 
 # =========================
