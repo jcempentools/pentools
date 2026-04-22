@@ -1,5 +1,5 @@
 """
-SYNC ENGINE — hash.py
+SYNC ENGINE
 PARSER SYNCDOWNLOAD | BIBLIOTECA
 
 SUMÁRIO E ESCOPO
@@ -7,7 +7,7 @@ SUMÁRIO E ESCOPO
 [1] CONTEXTO GLOBAL DO PROJETO (normativo e vinculante)
 [2] DIRETRIZES E PRINCÍPIOS COMPARTILHADOS
 [3] REGRAS E RESTRIÇÕES DO ECOSSISTEMA
-[4] DEFINIÇÕES DESTA BIBLIOTECA (deste script)
+[4] DEFINIÇÕES DESTA BIBLIOTECA (específico deste script)
 
 Nota: Este cabeçalho documenta EXCLUSIVAMENTE o contexto e as regras do projeto.
 As regras específicas desta biblioteca serão definidas na seção [4].
@@ -93,8 +93,8 @@ Restrições:
 
 ---------------------------------------------------------------------
 
-[4] DEFINIÇÕES DESTA BIBLIOTECA (deste script)
-==============================================
+[4] DEFINIÇÕES DESTA BIBLIOTECA (específico deste script)
+=========================================================
 
 
 """
