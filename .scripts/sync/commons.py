@@ -103,11 +103,8 @@ Restrições:
 import codecs
 import os
 import random
-import re
 import sys
-import hashlib
-
-from sync.utils.progress import create_progress
+from rich.console import Console
 
 # VARIÁVEIS GLOBAIS
 ORIGIN_PATH = ...
@@ -221,3 +218,4 @@ NOISE_TOKENS = {
 }
 
 # MAPEAMENTO DE FUNÇÕES
+# (nenhuma)

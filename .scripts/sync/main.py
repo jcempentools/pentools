@@ -100,13 +100,13 @@ Restrições:
 """
 
 # IMPORTS
+from sync.commons import *
+
 import sys
 import os
 import time
-
-from sync.commons import *
 from sync.core.cleanup import destination_cleanup
-from sync.core.syncdownload.processor import process_syncdownloads
+from sync.core.syncdownload_processor import process_syncdownloads
 from sync.core.file_operations import recursive_directory_iteration
 from sync.core.file_operations import origin_to_destination
 from sync.core.retry import retry_sync
