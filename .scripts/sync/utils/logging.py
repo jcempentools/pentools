@@ -99,7 +99,10 @@ Restrições:
 """
 
 # IMPORTS
+import datetime
+
 from sync.commons import *
+from sync.utils.progress import _normalize_color
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)

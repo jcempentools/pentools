@@ -100,16 +100,14 @@ Restrições:
 """
 
 # IMPORTS
+import codecs
 import os
+import random
 import re
-import json
 import sys
-import time
-import shutil
-import gzip
 import hashlib
-import ctypes
-import urllib.request
+
+from sync.utils.progress import create_progress
 
 # VARIÁVEIS GLOBAIS
 ORIGIN_PATH = ...
@@ -130,12 +128,6 @@ PROVIDERS = {}
 
 __PARSER_CACHE = {}
 PARSER_CACHE_TTL = 60  # segundos
-
-# Registro seguro de providers (evita NameError)
-try:
-    PROVIDERS["github.com"] = resolve_github
-except NameError:
-    pass  # provider não disponível
 
 __IGNORAR_GITHUB = False
 
@@ -229,38 +221,3 @@ NOISE_TOKENS = {
 }
 
 # MAPEAMENTO DE FUNÇÕES
-
-def hash_file(filename, label):
-    """
-    Descrição: Calcula hash (xxhash ou SHA256) de arquivo com cache.
-    Parâmetros:
-    - filename (str|Path): Caminho do arquivo.
-    - label (str): Rótulo para exibição.
-    Retorno:
-    - str|None: Hash calculado ou None em erro.
-    """    
-    filename = str(filename) if isinstance(filename, Path) else filename
-    if os.path.isdir(filename):
-        return 1        
-    cached_hash = hash_cache.get(filename)
-    if cached_hash:
-        return cached_hash
-    try:
-        file_size = os.path.getsize(filename)
-        with open(filename, 'rb') as file:
-            # Detecta se deve usar SHA256 (quando houver metadata ou validação crítica)
-            use_sha256 = filename.lower().endswith((".iso", ".img")) or os.path.exists(filename + ".sha256")
-
-            hasher = hashlib.sha256() if use_sha256 else xxhash.xxh3_64()
-            file_name = os.path.basename(filename)  
-            with create_progress("bold yellow") as progress:
-                task = progress.add_task("", total=file_size, label=label, name=file_name)
-                while chunk := file.read(65536):
-                    hasher.update(chunk)
-                    progress.update(task, advance=len(chunk))
-        res = hasher.hexdigest()
-        hash_cache[filename] = res
-        return res.lower()
-    except Exception as e:
-        show_message(f"Erro ao calcular hash de {filename}: {e}", "e")
-        return None

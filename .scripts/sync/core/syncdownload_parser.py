@@ -804,7 +804,7 @@ import re
 import json
 
 from sync.commons import *
-from sync.utils.dsl import resolve_parser_expression
+from sync.utils.dsl import extract_parser_url, has_parser_expression, resolve_parser_expression
 from sync.utils.naming import normalize_tokens
 
 from sync.core.file_operations import resolve_final_filename

@@ -100,9 +100,12 @@ Restrições:
 
 # IMPORTS
 import os
+import subprocess
+import tempfile
 
 from sync.commons import *
 from sync.utils.logging import show_message
+from sync.core.file_operations import _resolve_effective_remote_name
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)

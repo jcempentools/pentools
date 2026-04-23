@@ -99,9 +99,15 @@ Restrições:
 """
 
 # IMPORTS
+import json
 import re
 
+import time
+import urllib
+
 from sync.commons import *
+from sync.commons import __PARSER_CACHE
+from sync.core.download_manager import http_open   
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)

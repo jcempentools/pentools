@@ -107,12 +107,12 @@ import hashlib
 
 from sync.commons import *
 
-from sync.core.syncdownload.parser import resolve_download_context
+from sync.core.syncdownload_parser import resolve_download_context
 from sync.core.cache_validation import is_cached_file_valid
 from sync.core.download_manager import download_file_with_progress
 from sync.core.metadata import generate_sync_metadata
 from sync.core.metadata import manage_sync_metadata
-from sync.core.file_operations import copy_file_with_progress
+from sync.core.file_operations import copy_file_with_progress, parse_syncdownload_scripts
 from sync.core.file_operations import purge_similar_installers_safe
 
 from sync.utils.naming import normalize_product_name

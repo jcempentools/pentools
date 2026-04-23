@@ -102,6 +102,7 @@ Restrições:
 import re
 
 from sync.commons import *
+from sync.commons import _product_cache
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)

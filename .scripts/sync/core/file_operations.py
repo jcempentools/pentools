@@ -104,11 +104,16 @@ import re
 import shutil
 import ctypes
 
+import urllib
+
 from sync.commons import *
 from sync.utils.naming import normalize_product_name
 from sync.utils.naming import normalize_canonical_name
 from sync.utils.naming import is_same_product
-from sync.utils.logging import show_message
+from sync.utils.logging import get_op_icon, show_message
+from sync.utils.dsl import has_parser_expression, resolve_parser_expression
+from sync.core.cache_validation import is_cached_file_valid
+from sync.core.download_manager import http_open
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)
