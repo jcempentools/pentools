@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 
 # Caminho fixo
 $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$pythonScript = Join-Path $scriptPath 'sync.py'
+$pythonScript = Join-Path $scriptPath './.scripts/sync/main.py'
 
 # Verifica se Python está instalado
 function Test-PythonInstalled {

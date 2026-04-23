@@ -99,122 +99,70 @@ Restrições:
 """
 
 # IMPORTS
+import os
+import re
+
 from sync.commons import *
+from sync.utils.naming import normalize_product_name
+from sync.utils.naming import is_same_product
+from sync.utils.logging import show_message
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)
 
 # MAPEAMENTO DE FUNÇÕES
 
-def show_message(txt, tipo=None, cor="white", bold=True, inline=False):
-    """show_message(txt, tipo=None, cor="white", bold=True, inline=False)
-    Descrição: Exibe mensagem formatada e registra log.
-    Parâmetros:
-    - txt (str): Texto da mensagem.
-    - tipo (str|None): Tipo/nível da mensagem.
-    - cor (str): Cor do texto.
-    - bold (bool): Aplica negrito.
-    - inline (bool): Atualização inline no terminal.
-    Retorno:
-    - None
-    """
-    global _log_iniciado, retent_loop_count
 
-    def limpar_formatacao_rich(mensagem):
-        mensagem = re.sub(r'\[(\w[^\]]*)\](.*?)\[/\1\]', r'\2', mensagem)
-        mensagem = re.sub(r'\[(\w[^\]]*)\](.*?)\[/\]', r'\2', mensagem)
-        return mensagem.strip()
+def is_cached_file_valid(path, expected_hash):
+    if not os.path.exists(path):
+        return False
 
-    def truncar_log_se_necessario():
-        if not os.path.isfile(LOG_FILE):
-            return
-        tamanho = os.path.getsize(LOG_FILE)
-        if tamanho <= MAX_LOG_SIZE:
-            return
-        with open(LOG_FILE, 'rb') as f:
-            f.seek(-MAX_LOG_SIZE, os.SEEK_END)
-            conteudo = f.read()
-            primeiro_nl = conteudo.find(b'\n')
-            conteudo = conteudo[primeiro_nl + 1:] if primeiro_nl != -1 else conteudo
-        with open(LOG_FILE, 'wb') as f:
-            f.write(conteudo)
+    ext = os.path.splitext(path)[1].lower()
+    sha_file = path + ".sha256"
+    sync_file = path + ".syncado"
 
-    tipos_demo = {
-        "i": ("I", "cyan"), "e": ("E", "bright_magenta"), "w": ("W", "yellow"),
-        "d": ("D", "bright_black"), "s": ("✓", "green"), "k": ("✓", "dodger_blue2"),
-        "+": ("+", "bright_green"), "-": ("-", "bright_red"),
-    }
+    # =========================================================
+    # 1. HASH EXTERNO (linha 2) → prioridade máxima
+    # =========================================================
+    if expected_hash:
+        current_hash = hash_file(path, "Cache")
+        return current_hash == expected_hash.lower()
 
-    aliases = {
-        "info": "i", "error": "e", "warn": "w", "warning": "w",
-        "debug": "d", "success": "s", "sucesso": "s",
-        "ok": "k", "added": "+", "add": "+",
-        "removed": "-", "remove": "-", "del": "-"
-    }
+    # =========================================================
+    # 2. ARQUIVOS DE IMAGEM → USAR SHA256 SE EXISTIR
+    # =========================================================
+    if ext in (".iso", ".img") and os.path.exists(sha_file):
+        try:
+            with open(sha_file, "r", encoding="utf-8") as f:
+                saved_hash = f.readline().split()[0]
 
-    if tipo is not None:
-        tipo_str = aliases.get(str(tipo).lower(), str(tipo).lower())
-        marcador, cor_definida = tipos_demo.get(tipo_str, ("?", "white"))
-        cor = cor_definida
-        txt = f"[{marcador}] {txt}"
+            current_hash = hash_file(path, "Cache")
+            return current_hash == saved_hash.lower()
+        except:
+            return False
 
-    if retent_loop_count > 0:
-        txt = f"(Retry: {retent_loop_count}) {txt}"
+    # =========================================================
+    # 3. .SYNCADO → VALIDAÇÃO DE EXISTÊNCIA / COERÊNCIA
+    # =========================================================
+    if os.path.exists(sync_file):
+        try:
+            with open(sync_file, "r", encoding="utf-8") as f:
+                stored_name = f.read().strip()
 
-    style_extra, base_color = _normalize_color(cor)
+            current_name = os.path.basename(path)
 
-    # 🔒 evita duplicação de bold
-    final_style = []
+            stored_base = normalize_product_name(stored_name)
+            current_base = normalize_product_name(current_name)
 
-    if bold and "bold" not in style_extra:
-        final_style.append("bold")
+            # 🔒 comparação por produto (não nome bruto)
+            if is_same_product(stored_base, current_base):
+                return True
 
-    if style_extra:
-        final_style.append(style_extra)
+            return False
+        except:
+            return False
 
-    final_style.append(base_color)
-
-    style = " ".join(final_style).strip()
-
-    if inline:
-        terminal_width = os.get_terminal_size().columns
-        console.print(' ' * terminal_width, end='\r')
-    
-    console.print(f"[{style}]{txt}[/{style}]", end=f"{'\r' if inline else '\n'}")
-
-    mensagem_limpa = limpar_formatacao_rich(txt)
-    timestamp = datetime.now().strftime("[%H:%M:%S] ")
-    truncar_log_se_necessario()
-    
-    with open(LOG_FILE, 'a', encoding='utf-8') as f_log:
-        if not _log_iniciado:
-            f_log.write("\n")
-            f_log.write(f"[   ] {timestamp} " + "-" * 40 + "\n")
-            f_log.write(f"[   ] {timestamp} Início execução ID '{ID_EXECUCAO}', {datetime.now().strftime('%Y-%m-%d')}\n")
-            _log_iniciado = True
-        f_log.write(f"[{ID_EXECUCAO}] {timestamp} {mensagem_limpa}\n")
-
-def show_inline(txt, tipo, cor="white", bold=True):
-    """show_inline(txt, tipo, cor="white", bold=True)
-    Descrição: Exibe mensagem inline no console.
-    Parâmetros:
-    - txt (str): Texto da mensagem.
-    - tipo (str): Tipo da mensagem.
-    - cor (str): Cor do texto.
-    - bold (bool): Aplica negrito.
-    Retorno:
-    - None
-    """    
-    show_message(txt, tipo, cor, bold, True)
-
-def get_op_icon(op_type, direction=None):
-    if op_type == "hash":
-        return "🔍⬅" if direction == "source" else "🔍➜"
-
-    if op_type == "download":
-        return "⬇⬇"
-
-    if op_type == "copy":
-        return "➜➜"
-
-    return "  "  # fallback 2 chars
+    # =========================================================
+    # 4. FALLBACK FINAL
+    # =========================================================
+    return os.path.getsize(path) > 0

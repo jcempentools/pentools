@@ -2,7 +2,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PYTHON_SCRIPT="$SCRIPT_DIR/sync.py"
+PYTHON_SCRIPT="$SCRIPT_DIR/.scripts/sync/main.py"
 
 # Detecta distro e gerenciador de pacotes
 if command -v apt-get &>/dev/null; then

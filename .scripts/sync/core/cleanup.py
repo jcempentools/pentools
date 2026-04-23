@@ -1,82 +1,117 @@
 """
-BIBLIOTECA clear.py, PARTE DE SYNC ENGINE — PARSER SYNCDOWNLOAD
+SYNC ENGINE
+PARSER SYNCDOWNLOAD | BIBLIOTECA
 
-CONTEXTO GLOBAL DO PROJETO
-==========================
+SUMÁRIO E ESCOPO
+================
+[1] CONTEXTO GLOBAL DO PROJETO (normativo e vinculante)
+[2] DIRETRIZES E PRINCÍPIOS COMPARTILHADOS
+[3] REGRAS E RESTRIÇÕES DO ECOSSISTEMA
+[4] DEFINIÇÕES DESTA BIBLIOTECA (específico deste script)
 
-  Estrutura geral dos componentes da bilbioteca:
-    - common.py: Funções e variáveis globais compartilhadas por múltiplos scripts.
-    - copy.py: Funções relacionadas a operações de cópia.
-    - download.py: Funções relacionadas a downloads.
-    - parserSyncDownload.py: Processamento técnico dos arquivos de extensão ".syncdownload".
-    - parserDSL.py: Lógica e processamento de parser DSL.
-    - loggerAndProgress.py: Gestão de logs e barras de progresso.
-    - clear.py: Rotinas de limpeza.
-    - hash.py: Lógica e processamento de hashs
-    - main.py: Script orquestrador que gerencia o fluxo entre os módulos acima.
+Nota: Este cabeçalho documenta EXCLUSIVAMENTE o contexto e as regras do projeto.
+As regras específicas desta biblioteca serão definidas na seção [4].
 
-  Abstrações de Origens:  
-    Interface lógica equivalente p/ todos providers (GitHub, GitLab, SF, etc.).
-    Extensível. Mesma lógica de decisão, validação, metadata. Preferir APIs
-    oficiais. Evitar parsing HTML/XML heurístico.
+---------------------------------------------------------------------
 
-  Diretrizes Técnicas:  
-    - HEAD (metadata) e GET (download) separados
-    - Hash rápido (xxhash) + SHA256 (integridade)
-    - Cache: memória + persistente na origem
-    - Metadata não bloqueia atualização de versão
-    - Timeout de rede obrigatório por inatividade; logging rotativo
+[1] CONTEXTO GLOBAL DO PROJETO
+==============================
 
-  GUI/UX:  
-    Preservar progressbar inline (rich.progress). Atualização em linha sem
-    flooding. Feedback visual p/ hash, download, retry, cópia.
+Arquitetura SYNC:
+sync/
+│
+├── main.py                        # Orquestração do pipeline (cleanup → download → cópia → retry → pós)
+├── commons.py                     # globais: funções, paths, regex, flags, estruturas compartilhas 
+│                                    entre dois ou mais scripts
+├── core/
+│   ├── syncdownload.parser.py     # Parsing .syncdownload, resolução de URL e nome determinístico
+│   ├── syncdownload.processor.py  # Pipeline por item: decisão, cache, download, sync
+│   ├── download_manager.py        # Execução de downloads: progresso, timeout, cache
+│   ├── cache_validation.py        # Integridade: hash + metadata (.sha256/.syncado)
+│   ├── cleanup.py                 # Remoção segura de órfãos com base em regras globais
+│   ├── file_operations.py         # Operações de filesystem seguras e determinísticas
+│   ├── metadata.py                # Geração e vínculo de metadata persistente
+│   └── retry.py                   # Política de retentativa e reprocessamento
+│
+└── utils/
+    ├── progress.py                # Progressbar padronizada (rich)
+    ├── naming.py                  # Normalização/canonicalização/dedup
+    ├── dsl.py                     # Parser de expressões dinâmicas (${...})
+    └── logging.py                 # Logging estruturado e padronizado
 
-  Estilo de Implementação:  
-    Funções pequenas, especialistas, reutilizáveis. NÃO duplicar lógica.
-    Centralização obrigatória de: normalização, decisão de versão, nome final,
-    validação, download. Nomeação consistente. Evitar side-effects e hardcode.
-    Baixo acoplamento.
+Abstração de Origens:
+- Interface unificada para providers (GitHub, GitLab, etc.)
+- Preferência por APIs oficiais; vedado parsing heurístico (HTML/XML)
 
-  Restrições/vedações:
-    - Não duplicar lógica
-    - Não usar parsing HTML se houver API
-    - Não remover arquivos sem validação
-    - Não fazer purge agressivo só por nome
-    - Não quebrar coerência origem↔destino
-    - Não alterar UX da progressbar sem decisão explícita
-    - Não quebrar compatibilidade de metadata
-    - Linha4 de .syncdownload inválida ou hash não extraível → abortar
-    - Divergência de hash remoto → retry obrigatório
-    - Execução de script não pode interferir na integridade do sync
-    - Sempre importar e utilizar as implementações das bibliotecas participantes
-      do projeto, sem  se intrometer em atribuições de outros scripts da
-      do projeto incuindo, imlementar o que é atribuição de outros scripts
+---------------------------------------------------------------------
 
-DEFINIÇÕES DESTA BIBLIOTECA
+[2] DIRETRIZES E PRINCÍPIOS
 ===========================
-============================================================
-ETAPA 1 DO PIPELINE: Limpeza controlada do destino e cache.
 
-REGRAS ESPECÍFICAS:
-- Remover apenas itens inexistentes na origem.
-- Respeitar arquivos referenciados por .syncdownload.
-- Proteger arquivos válidos por: existência, metadados e similaridade.
-- Purge atua no DESTINO e CACHE simultaneamente.
-- Preservar a versão final; usar heurística segura (nome + fallback hash).
-- NUNCA remover metadados de um arquivo que ainda existe e é válido.
-- Sem purge agressivo baseado apenas em nome.
+Técnicos:
+- Separação obrigatória: HEAD (metadata) × GET (download)
+- Integridade via SHA256
+- Cache híbrido: memória + persistente
+- Metadata não bloqueia atualização
+- Timeout por inatividade + logging rotativo
+
+Execução:
+- Idempotente, determinística, síncrona e ordenada
+- Decisão incremental (cache + validação)
+- Retry automático (falhas transitórias); abort seguro (inconsistência)
+
+UX:
+- Progressbar inline, sem flooding
+- Feedback contínuo: hash, download, retry, cópia
+
+Implementação:
+- Funções pequenas, especializadas, reutilizáveis
+- Baixo acoplamento, imutabilidade, sem duplicação
+- Centralização: naming, versão, validação, download
+- Sem side-effects e sem hardcode
+- Diff-friendly (mudanças mínimas e rastreáveis)
+
+---------------------------------------------------------------------
+
+[3] REGRAS E RESTRIÇÕES
+=======================
+
+Regras:
+- Dedup por nome canônico (primário) e hash (fallback)
+- Preservar versão válida mais recente
+- Nome lógico estável; filename pode variar
+- Coerência obrigatória origem ↔ destino
+- Remoção apenas com validação lógica
+
+Restrições:
+- Proibido duplicar lógica ou invadir responsabilidade de outros módulos
+- Proibido parsing HTML se houver API
+- Proibido purge agressivo por nome
+- Proibido quebrar metadata ou UX definida
+- Divergência de hash remoto exige retry
+- Preservar arquivos sem equivalente na origem/.syncdownload
+
+---------------------------------------------------------------------
+
+[4] DEFINIÇÕES DESTA BIBLIOTECA (específico deste script)
+=========================================================
+
 """
 
-# =========================
 # IMPORTS
-# =========================
-from common import *
-from parserSyncDownload import *
-from loggerAndProgress import *
+import os
+import re
 
-# =========================
+from sync.commons import *
+from sync.core.syncdownload.parser import resolve_syncdownload_cached
+from sync.utils.naming import normalize_product_name
+from sync.utils.naming import is_same_product
+from sync.utils.logging import show_message
+
+# VARIÁVEIS GLOBAIS
+# (usa commons)
+
 # MAPEAMENTO DE FUNÇÕES
-# =========================
 
 def destination_cleanup(root, dry_run=False):
     """
@@ -247,134 +282,3 @@ def destination_cleanup(root, dry_run=False):
             except Exception as e:
                 show_message(f"Erro ao acessar subdiretório {dest_full_path}: {e}", "e")
 
-def purge_similar_installers_safe(dest_dir, target_name, canonical_name=None):
-    """
-    Descrição: Remove versões antigas de forma segura.
-    Parâmetros:
-    - dest_dir (str): Diretório destino.
-    - target_name (str): Arquivo alvo.
-    Retorno:
-    - None
-    """    
-    target_full = os.path.join(dest_dir, target_name)
-
-    if not os.path.exists(target_full):
-        return
-
-    # 🔒 prioridade: nome canônico da linha 3
-    if canonical_name:
-        target_base = normalize_canonical_name(canonical_name)
-    else:
-        target_base = normalize_product_name(target_name)
-
-    if not target_base:
-        return
-
-    # =========================================================
-    # 🔒 MODO ESTRITO (quando há subtipo explícito no canônico)
-    # =========================================================
-    strict_mode = False
-
-    if canonical_name:
-        canonical_clean = normalize_canonical_name(canonical_name)
-        if canonical_clean and "-" in canonical_clean:
-            strict_mode = True        
-
-    candidates = []
-
-    for f in sorted(os.listdir(dest_dir)):
-        full = os.path.join(dest_dir, f)
-
-        if not os.path.isfile(full):
-            continue
-
-        if f.lower().endswith((".sha256", ".syncado", ".syncdownload")):
-            continue
-
-        base = normalize_product_name(f)
-
-        # =========================================================
-        # 🔒 PRIORIDADE: comparação canônica (linha 3)
-        # =========================================================
-        candidate_canonical = normalize_canonical_name(f)
-
-        if candidate_canonical and target_base:
-            if candidate_canonical == target_base:
-                candidates.append(f)
-                continue
-
-            # 🔒 modo estrito → não permite fallback
-            if strict_mode:
-                continue
-
-        # =========================================================
-        # fallback (compatibilidade antiga)
-        # =========================================================
-        base = normalize_product_name(f)
-
-        if is_same_product(base, target_base):
-            candidates.append(f)
-            
-    if len(candidates) <= 1:
-        return
-
-    # 🔒 mantém target + 1 fallback válido
-    keep = [target_name]
-
-    for f in candidates:
-        if f == target_name:
-            continue
-
-        full = os.path.join(dest_dir, f)
-
-        if is_cached_file_valid(full, None):
-            keep.append(f)
-            break
-
-    for f in candidates:
-        if f not in keep:
-            try:
-                os.remove(os.path.join(dest_dir, f))
-                show_message(f"Removido excedente: {f}", "-", cor="yellow")
-            except Exception as e:
-                show_message(f"Erro ao remover {f}: {e}", "e")                
-
-def apply_root_hidden_attribute():
-    """
-    Descrição: Aplica atributo oculto no root do destino (Windows).
-    Parâmetros:
-    - None
-    Retorno:
-    - None
-    """        
-    try:
-        origin_root_items = set(os.listdir(ORIGIN_PATH))
-    except Exception as e:
-        show_message(f"Erro ao listar origem (root): {e}", "e")
-        return
-
-    exceptions = {"NÃO FORMATAR", "Drivers", "apps"}
-
-    for item in os.listdir(destination_path):
-        dest_full_path = os.path.join(destination_path, item)
-
-        # Apenas itens no root que também existem na origem
-        if item not in origin_root_items:
-            continue
-
-        # Exceções explícitas
-        if item in exceptions:
-            continue
-
-        try:
-            # Apenas aplica no item (não recursivo)
-            if os.name == "nt":                
-                FILE_ATTRIBUTE_HIDDEN = 0x02
-
-                attrs = ctypes.windll.kernel32.GetFileAttributesW(dest_full_path)
-                if attrs != -1 and not (attrs & FILE_ATTRIBUTE_HIDDEN):
-                    ctypes.windll.kernel32.SetFileAttributesW(dest_full_path, attrs | FILE_ATTRIBUTE_HIDDEN)
-                    show_message(f"Ocultado: {item}", "d")
-
-        except Exception as e:
-            show_message(f"Falha ao ocultar {item}: {e}", "e")            

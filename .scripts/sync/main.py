@@ -99,44 +99,21 @@ Restrições:
 
 """
 
-# =========================
 # IMPORTS
-# =========================
-from common import *
-from loggerAndProgress import *
-from clear import *
-from copy import *
-from parserSyncDownload import *
+import sys
+import os
+import time
 
-# =========================
+from sync.commons import *
+from sync.core.cleanup import destination_cleanup
+from sync.core.syncdownload.processor import process_syncdownloads
+from sync.core.file_operations import recursive_directory_iteration
+from sync.core.file_operations import origin_to_destination
+from sync.core.retry import retry_sync
+from sync.core.file_operations import apply_root_hidden_attribute
+from sync.utils.logging import show_message
+
 # MAPEAMENTO DE FUNÇÕES
-# =========================
-
-def recursive_directory_iteration(root, action, retry, dry_run):
-    """
-    Descrição: Itera diretórios recursivamente aplicando ação.
-    Parâmetros:
-    - root (str): Diretório base.
-    - action (callable): Função a aplicar.
-    - retry (bool): Flag de retentativa.
-    - dry_run (bool): Simulação.
-    Retorno:
-    - None
-    """
-    try:
-        items = os.listdir(root)
-    except OSError as e:
-        show_message(f"Erro ao acessar {root}: {e}", "e")
-        return
-
-    for item in items:
-        full_path = os.path.join(root, item)
-        if re.search(IGNORED_PATHS, full_path, re.IGNORECASE):
-            continue
-        
-        action(full_path, retry, dry_run)
-        if os.path.isdir(full_path):
-            recursive_directory_iteration(full_path, action, retry, dry_run)
 
 def main():
     """
