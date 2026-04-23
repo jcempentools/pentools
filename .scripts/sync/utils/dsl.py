@@ -96,6 +96,77 @@ Restrições:
 [4] DEFINIÇÕES DESTA BIBLIOTECA (específico deste script)
 =========================================================
 
+Biblioteca Parser DSL - Abstração universal de origens via resolução declarativa de URLs dinâmicas.
+
+Synopsis:
+    Biblioteca para resolução declarativa de endpoints dinâmicos a partir de APIs remotas
+    (JSON, YAML, XML), sem parsing heurístico ou scraping. Permite que manifestos definam
+    URLs auto-atualizáveis via navegação de objetos.
+
+Description:
+    Componente especializado em resolver expressões DSL que navegam por estruturas de dados
+    obtidas remotamente, retornando valores como strings (URLs ou metadados).
+
+Sintaxe DSL (Estrutura Navegacional):
+    - Padrão Base:
+        ${"URL_API"}.path.subcampo[index].valor
+
+    - Delimitadores:
+        URL de origem obrigatoriamente entre ${"..."} ou ${'...'}.
+
+    - Deep Nesting: Suporte a acesso a membros (.campo) e índices de arrays ([0]).
+
+    - Hibridismo:
+        Compatível com strings de metadados (ex: ".exe,x64 | ${DSL}"), onde o pipe "|"
+        atua como separador entre o metadado estático e a expressão DSL dinâmica.
+
+    - Índices Semânticos:
+        Deve resolver também índices semânticos, ex.: [@attr="img"] e [@attr='img']
+        onde "attr" indica o nome de qualquer atributo (ex. src, name, href...) que deve
+        casar com o valor de exemplo 'img'. DSL retorna a primeira ocorrência de casar.
+
+Pipeline de Resolução:
+    1. DETECÇÃO:
+        Identificação de expressões DSL via `has_parser_expression()`.
+    2. FETCH:
+        Requisição remota com identificação automática de tipo (JSON/YAML/XML).
+    3. NAVEGAÇÃO:
+        Resolução determinística do path sobre o objeto retornado.
+    4. CONVERSÃO:
+        Retorno obrigatório do valor final como `str` (URL).
+    5. ENCADEAMENTO/ANINHAMENTO/PROFUNDIDADE:
+        - Suporte a até `MAX_PROFUNDIDADE` (default 7) e `MAX_ENCADEAMENTOS` (default 3)
+          níveis de aninhamento de expressões DSL.
+        - Timeout por demanda inicial (conjunto total de resoluções aninhadas+encadeadas):
+          `MAX_BUSCA_TIMEOUT` (default 30s).
+        - Timeout global (todas as resoluções do runtime):
+          `MAX_TIMEOUT_GLOBAL` (default 90s).
+
+Gestão de Cache & Performance:
+    - Escopo: Cache em memória persistente na sessão (`__PARSER_CACHE`).
+    - TTL (Time-To-Live): 60 segundos por entrada (URL + Path).
+    - Objetivo: Minimização de tráfego e latência em execuções repetitivas.
+
+Restrições Específicas (Hard Rules):
+    - VEDAÇÃO: Proibido parsing de HTML ou técnicas de Scraping.
+    - VEDAÇÃO: Proibida execução de código arbitrário (bloqueio de `eval`/`exec`).
+    - VEDAÇÃO: Proibido encadeamento de múltiplas expressões DSL (limitar deept em 10).
+    - VEDAÇÃO: Operação estritamente de leitura (idempotência HTTP GET).
+
+Fail-Safe & Tratamento de Erros:
+    - Falhas (404, Timeout, Path Inválido) retornam obrigatoriamente `None`.
+    - Isolamento: Erros de parsing não devem interromper o fluxo do Orquestrador.
+    - Log: Erros registrados via 'show_message' ou callback de telemetria.
+
+Constants:
+    MAX_PROFUNDIDADE (int): 7
+    MAX_ENCADEAMENTOS (int): 3
+    MAX_BUSCA_TIMEOUT (int): 30  # segundos (conjunto total aninhadas+encadeadas)
+    MAX_TIMEOUT_GLOBAL (int): 90  # segundos
+    CACHE_TTL (int): 60  # segundos
+
+Raises: Nenhuma exceção é propagada externamente. Falhas retornam `None`.
+
 """
 
 # IMPORTS
@@ -110,7 +181,6 @@ from sync.commons import __PARSER_CACHE
 from sync.core.download_manager import http_open   
 
 # VARIÁVEIS GLOBAIS
-# (usa commons)
 
 # MAPEAMENTO DE FUNÇÕES
 
