@@ -106,6 +106,7 @@ from sync.commons import *
 from sync.utils.naming import normalize_product_name
 from sync.utils.naming import is_same_product
 from sync.utils.logging import show_message
+from sync.core.cache_validation import hash_file
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)

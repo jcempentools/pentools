@@ -100,6 +100,7 @@ Restrições:
 
 # IMPORTS
 import datetime
+import re
 
 from sync.commons import *
 from sync.utils.progress import _normalize_color

@@ -103,6 +103,7 @@ Restrições:
 import codecs
 import os
 import random
+import re
 import sys
 from rich.console import Console
 

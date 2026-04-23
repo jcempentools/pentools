@@ -99,13 +99,17 @@ Restrições:
 """
 
 # IMPORTS
+import hashlib
 import os
 from pathlib import Path
 import re
 
+import xxhash
+
 from sync.commons import *
 from sync.utils.naming import normalize_product_name, is_same_product
 from sync.utils.logging import show_message
+from sync.utils.progress import create_progress
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)
