@@ -101,13 +101,19 @@ Restrições:
 4.1 DEFINIÇÃO FORMAL (SINTAXE)
 ---------------------------------------------------------------------
 
-syncdownload := line1 [line2] [line3] [line4] {script_block}
+syncdownload := line1 [line2] [line3] [line4] [line5] {script_block}
 
 line1 := <url_or_dsl> | <spec> "|" <url_or_dsl>
 line2 := <hash_literal>
 line3 := <custom_filename>
 line4 := <remote_hash_source>
+line5 := <files_in_container>
 script_block := ">>>" <ext> ["," <phase>] <newline> {content}
+
+4.1.A Onde:
+ <spec> = <ext>[,<tag>...]
+ <tag>  = x64, x86, arm32, arm64, amd32, arm, live...
+ <ext>  = extensão precedida por ponto (.iso, .exe, .msi...)
 
 Restrições:
 
@@ -195,12 +201,21 @@ Persistência:
 - NÃO persistir como metadata primária
 
 ---------------------------------------------------------------------
+
+LINHA 5 — TRATAMENTO de ARQUIVOS INSERIDOS EM CONTAINERS
+
+- A linha cinco define um vetor com notação estilo json, que
+  define um ou mais aquivos que serão extraídos do container
+
+    >> VIDE item 3 de "4.5 PIPELINE DE DOWNLOAD".
+
+---------------------------------------------------------------------
 4.3 SUBSCRIPTS EMBUTIDOS
 ---------------------------------------------------------------------
 
 Definição:
 
-A partir da linha 5, o arquivo pode conter zero, um ou múltiplos blocos de script.
+A partir da linha 6, o arquivo pode conter zero, um ou múltiplos blocos de script.
 
 Formato:
 
@@ -488,11 +503,23 @@ Fluxo obrigatório:
 
 3. Seleção do artefato:
 
-    - Identificar arquivos com extensão <sub-ext>
-    - Se múltiplos candidatos:
-        → aplicar heurística determinística:
-            - match com nome canônico (linha3)
-            - fallback: maior consistência semântica (não tamanho arbitrário)
+    3.1. Se existir linha 5 válida:
+        - a linha cinco define um vetor com notação estilo json, que
+          define um ou mais aquivos que serão extraídos do container
+            [ 
+                [
+                    "<vetor>" # conforme regras 4.1.A,
+                    "<canonico>" # conforme regras da LINHA 3
+                ]
+                ,...
+            ]        
+    
+    3.2. Se não existir linha 5 válida:
+        - Identificar arquivos com extensão <sub-ext>
+        - Se múltiplos candidatos:
+            → aplicar heurística determinística:
+                - match com nome canônico (linha3)
+                - fallback: maior consistência semântica (não tamanho arbitrário)
 
 4. Validação de hash:
 
