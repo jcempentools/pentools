@@ -176,9 +176,9 @@ import re
 import time
 import urllib
 
-from sync.commons import *
-from sync.commons import __PARSER_CACHE
-from sync.core.download_manager import http_open   
+from sync_local.commons import *
+from sync_local.commons import __PARSER_CACHE
+from sync_local.core.download_manager import http_open   
 
 # VARIÁVEIS GLOBAIS
 

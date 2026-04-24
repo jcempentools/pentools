@@ -102,11 +102,11 @@ Restrições:
 import os
 import re
 
-from sync.commons import *
-from sync.core.syncdownload_parser import resolve_syncdownload_cached
-from sync.utils.naming import normalize_product_name
-from sync.utils.naming import is_same_product
-from sync.utils.logging import show_message
+from sync_local.commons import *
+from sync_local.core.syncdownload_parser import resolve_syncdownload_cached
+from sync_local.utils.naming import normalize_product_name
+from sync_local.utils.naming import is_same_product
+from sync_local.utils.logging import show_message
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)

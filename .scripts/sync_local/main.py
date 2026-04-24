@@ -100,18 +100,25 @@ Restrições:
 """
 
 # IMPORTS
-from sync.commons import *
-
 import sys
 import os
+
+# 🔒 garante que o root do projeto esteja no PYTHONPATH
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from sync_local.commons import *
 import time
-from sync.core.cleanup import destination_cleanup
-from sync.core.syncdownload_processor import process_syncdownloads
-from sync.core.file_operations import recursive_directory_iteration
-from sync.core.file_operations import origin_to_destination
-from sync.core.retry import retry_sync
-from sync.core.file_operations import apply_root_hidden_attribute
-from sync.utils.logging import show_message
+from sync_local.core.cleanup import destination_cleanup
+from sync_local.core.syncdownload_processor import process_syncdownloads
+from sync_local.core.file_operations import recursive_directory_iteration
+from sync_local.core.file_operations import origin_to_destination
+from sync_local.core.retry import retry_sync
+from sync_local.core.file_operations import apply_root_hidden_attribute
+from sync_local.utils.logging import show_message
 
 # MAPEAMENTO DE FUNÇÕES
 
@@ -122,7 +129,7 @@ def main():
     global destination_path, failed_files, retent_loop_count
 
     if len(sys.argv) < 2:
-        show_message("Uso: python sync.py <caminho_destino> [dry-run]", "e")
+        show_message("Uso: python sync_local.py <caminho_destino> [dry-run]", "e")
         return
 
     destination_path = os.path.abspath(sys.argv[1])

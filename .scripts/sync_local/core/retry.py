@@ -101,8 +101,8 @@ Restrições:
 # IMPORTS
 import time
 
-from sync.commons import *
-from sync.utils.logging import show_message
+from sync_local.commons import *
+from sync_local.utils.logging import show_message
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)

@@ -106,16 +106,16 @@ import ctypes
 
 import urllib
 
-from sync.commons import *
-from sync.utils.naming import normalize_product_name
-from sync.utils.naming import normalize_canonical_name
-from sync.utils.naming import is_same_product
-from sync.utils.logging import get_op_icon, show_message
-from sync.utils.dsl import has_parser_expression, resolve_parser_expression
-from sync.core.cache_validation import is_cached_file_valid
-from sync.core.download_manager import http_open                            
-from sync.core.cache_validation import  hash_file
-from sync.utils.progress import create_progress
+from sync_local.commons import *
+from sync_local.utils.naming import normalize_product_name
+from sync_local.utils.naming import normalize_canonical_name
+from sync_local.utils.naming import is_same_product
+from sync_local.utils.logging import get_op_icon, show_message
+from sync_local.utils.dsl import has_parser_expression, resolve_parser_expression
+from sync_local.core.cache_validation import is_cached_file_valid
+from sync_local.core.download_manager import http_open                            
+from sync_local.core.cache_validation import  hash_file
+from sync_local.utils.progress import create_progress
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)

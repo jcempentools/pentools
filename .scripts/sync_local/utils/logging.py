@@ -102,8 +102,8 @@ Restrições:
 import datetime
 import re
 
-from sync.commons import *
-from sync.utils.progress import _normalize_color
+from sync_local.commons import *
+from sync_local.utils.progress import _normalize_color
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)

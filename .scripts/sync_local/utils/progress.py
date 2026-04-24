@@ -101,7 +101,7 @@ Restrições:
 # IMPORTS
 from rich.progress import Progress, TextColumn, BarColumn, DownloadColumn, TransferSpeedColumn, TimeRemainingColumn
 
-from sync.commons import *
+from sync_local.commons import *
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)

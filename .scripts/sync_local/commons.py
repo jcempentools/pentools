@@ -133,7 +133,7 @@ __IGNORAR_GITHUB = False
 ID_EXECUCAO = ''.join(random.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in range(3))
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-LOG_FILE = os.path.join(SCRIPT_DIR, "sync.log")
+LOG_FILE = os.path.join(SCRIPT_DIR, "sync_local.log")
 MAX_LOG_SIZE = 5 * 1024 * 1024  # 5 MB
 
 # evita falso positivo em arquivos pequenos (boot, configs embutidos, etc.)

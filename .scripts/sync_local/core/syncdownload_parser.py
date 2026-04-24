@@ -830,14 +830,14 @@ FIM DO CONTRATO
 import re
 import json
 
-from sync.commons import *
-from sync.utils.dsl import extract_parser_url, has_parser_expression, resolve_parser_expression
-from sync.utils.naming import normalize_tokens    
-from sync.commons import __IGNORAR_GITHUB
-from sync.core.file_operations import resolve_final_filename
-from sync.core.download_manager import http_open
-from sync.core.file_operations import resolve_final_url
-from sync.core.file_operations import parse_syncdownload
+from sync_local.commons import *
+from sync_local.utils.dsl import extract_parser_url, has_parser_expression, resolve_parser_expression
+from sync_local.utils.naming import normalize_tokens    
+from sync_local.commons import __IGNORAR_GITHUB
+from sync_local.core.file_operations import resolve_final_filename
+from sync_local.core.download_manager import http_open
+from sync_local.core.file_operations import resolve_final_url
+from sync_local.core.file_operations import parse_syncdownload
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)

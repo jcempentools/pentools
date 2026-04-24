@@ -104,11 +104,11 @@ import os
 import subprocess
 import tempfile
 
-from sync.commons import *
-from sync.utils.logging import get_op_icon, show_message
-from sync.core.file_operations import _resolve_effective_remote_name
-from sync.utils.progress import create_progress
-from sync.core.cache_validation import hash_file
+from sync_local.commons import *
+from sync_local.utils.logging import get_op_icon, show_message
+from sync_local.core.file_operations import _resolve_effective_remote_name
+from sync_local.utils.progress import create_progress
+from sync_local.core.cache_validation import hash_file
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)

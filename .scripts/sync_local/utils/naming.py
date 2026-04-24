@@ -101,8 +101,8 @@ Restrições:
 # IMPORTS
 import re
 
-from sync.commons import *
-from sync.commons import _product_cache
+from sync_local.commons import *
+from sync_local.commons import _product_cache
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)

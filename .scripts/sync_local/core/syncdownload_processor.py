@@ -105,22 +105,22 @@ import gzip
 import shutil
 import hashlib
 
-from sync.commons import *
+from sync_local.commons import *
 
-from sync.core.syncdownload_parser import resolve_download_context
-from sync.core.cache_validation import is_cached_file_valid
-from sync.core.download_manager import download_file_with_progress
-from sync.core.metadata import generate_sync_metadata, hash_file
-from sync.core.metadata import manage_sync_metadata
-from sync.core.metadata import execute_sync_script
-from sync.core.file_operations import copy_file_with_progress, parse_syncdownload_scripts
-from sync.core.file_operations import purge_similar_installers_safe
-from sync.core.download_manager import fetch_remote_hash
-from sync.utils.naming import normalize_product_name
-from sync.utils.naming import normalize_canonical_name
-from sync.utils.naming import is_same_product
-from sync.utils.dsl import resolve_if_dsl
-from sync.utils.logging import show_message
+from sync_local.core.syncdownload_parser import resolve_download_context
+from sync_local.core.cache_validation import is_cached_file_valid
+from sync_local.core.download_manager import download_file_with_progress
+from sync_local.core.metadata import generate_sync_metadata, hash_file
+from sync_local.core.metadata import manage_sync_metadata
+from sync_local.core.metadata import execute_sync_script
+from sync_local.core.file_operations import copy_file_with_progress, parse_syncdownload_scripts
+from sync_local.core.file_operations import purge_similar_installers_safe
+from sync_local.core.download_manager import fetch_remote_hash
+from sync_local.utils.naming import normalize_product_name
+from sync_local.utils.naming import normalize_canonical_name
+from sync_local.utils.naming import is_same_product
+from sync_local.utils.dsl import resolve_if_dsl
+from sync_local.utils.logging import show_message
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)
