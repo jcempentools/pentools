@@ -108,7 +108,7 @@ from sync_local.utils.naming import normalize_product_name
 from sync_local.utils.naming import is_same_product
 from sync_local.utils.logging import show_message
 from sync_local.core.cache_validation import hash_file
-from sync_local.utils.logging import create_progress
+from sync_local.utils.progress import create_progress
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)
