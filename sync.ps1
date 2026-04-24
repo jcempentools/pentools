@@ -54,8 +54,8 @@ function Get-SyncPyDependencies {
   ForEach-Object {
     if ($_ -match '^import\s+(\S+)' -or $_ -match '^from\s+(\S+)') {
       ($matches[1].Split('.')[0])
-    }
-  } | Sort-Object -Unique
+    }  
+  } | Where-Object { $_ -ne 'sync_local' } | Sort-Object -Unique
 }
 
 # Instala dependências ausentes

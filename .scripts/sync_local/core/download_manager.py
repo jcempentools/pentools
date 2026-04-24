@@ -100,7 +100,6 @@ Restrições:
 
 # IMPORTS
 import os
-import re
 
 from sync_local.commons import *
 from sync_local.utils.naming import normalize_product_name
@@ -113,6 +112,72 @@ from sync_local.core.cache_validation import hash_file
 
 # MAPEAMENTO DE FUNÇÕES
 
+def fetch_remote_hash(remote_hash_url):
+    """
+    Extrai hash remoto conforme contrato:
+    - aceita conteúdo bruto
+    - aceita formato "<hash>  filename"
+    - infere tipo por tamanho
+    """
+
+    try:
+        req = urllib.request.Request(remote_hash_url)
+        with http_open(req) as response:
+            content = response.read().decode(errors="ignore")
+
+        # 🔒 extrai primeiro hash válido
+        match = re.search(r'\b([a-fA-F0-9]{32}|[a-fA-F0-9]{64})\b', content)
+
+        if not match:
+            raise Exception("Hash remoto não extraível")
+
+        return match.group(1).lower()
+
+    except Exception as e:
+        raise Exception(f"Falha ao obter hash remoto: {e}")
+
+def download_file_with_progress(url, dst):
+    """
+    Descrição: Download de arquivo com progressbar unificada.
+    Parâmetros:
+    - url (str): URL do arquivo.
+    - dst (str): Caminho destino.
+    Retorno:
+    - None
+    """
+
+    req = urllib.request.Request(url)
+
+    with http_open(req) as response:
+        total_size = response.headers.get("Content-Length")
+        total_size = int(total_size) if total_size else None        
+
+        with open(dst, 'wb') as out_file:
+            with create_progress("cyan") as progress:
+                task = progress.add_task(
+                    "",
+                    total=total_size,
+                    name=os.path.basename(dst)
+                )
+
+                last_progress = time.time()
+                READ_TIMEOUT = 60  # segundos sem receber dados
+
+                while True:
+                    chunk = response.read(65536)
+
+                    if chunk:
+                        out_file.write(chunk)
+                        last_progress = time.time()
+
+                        if total_size:
+                            progress.update(task, advance=len(chunk))
+                    else:
+                        break
+
+                    # 🔒 timeout por inatividade (não depende do tamanho total)
+                    if time.time() - last_progress > READ_TIMEOUT:
+                        raise TimeoutError("Download stalled (no data received)")     
 
 def is_cached_file_valid(path, expected_hash):
     if not os.path.exists(path):

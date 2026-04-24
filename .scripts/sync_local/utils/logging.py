@@ -99,14 +99,14 @@ Restrições:
 """
 
 # IMPORTS
-import datetime
+from datetime import datetime
 import re
 
 from sync_local.commons import *
 from sync_local.utils.progress import _normalize_color
 
 # VARIÁVEIS GLOBAIS
-# (usa commons)
+_log_iniciado = False
 
 # MAPEAMENTO DE FUNÇÕES
 

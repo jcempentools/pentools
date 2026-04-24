@@ -734,7 +734,8 @@ Restrições:
 
 Assinatura:
 
-    http_open(url_or_req: str | Request, timeout: int = 15) -> HTTPResponse
+    http_open(url_or_req: str | Request, timeout: int = 15) -> HTTPResponse    
+    - disponibilizada em ../commons.py
 
 Descrição:
 
@@ -787,7 +788,7 @@ REGRAS DE USO
 --------------
 
 - HEAD requests:
-    → devem ser feitos via http_open(Request(method="HEAD"))
+    → devem ser feitos via http_open(Request(method="HEAD"))    
 
 - GET simples (conteúdo leve):
     → http_open(url)

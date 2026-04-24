@@ -141,7 +141,6 @@ MIN_SIZE_BYTES = 2 * 1024 * 1024  # 2MB
 
 SyncDonwloadExtensions = ["exe", "msi", "iso", "img", "img.gz", "iso.gz"]
 
-_log_iniciado = False
 retent_loop_count = 0
 
 # Listas de controle
@@ -219,4 +218,27 @@ NOISE_TOKENS = {
 }
 
 # MAPEAMENTO DE FUNÇÕES
-# (nenhuma)
+
+def http_open(url_or_req, timeout=15):
+    """
+    Wrapper centralizado para acesso HTTP.
+
+    Garantias:
+    - Timeout SEMPRE aplicado
+    - Aceita str (URL) ou Request
+    - Não implementa retry (delegado para retry_sync)
+    - Compatível com HEAD/GET via Request
+
+    Parâmetros:
+    - url_or_req (str|Request): URL ou objeto Request.
+    - timeout (int): Timeout em segundos.
+    Retorno:
+    - HTTPResponse: Objeto de resposta.
+    """
+
+    if isinstance(url_or_req, str):
+        req = urllib.request.Request(url_or_req)
+    else:
+        req = url_or_req
+
+    return urllib.request.urlopen(req, timeout=timeout)
