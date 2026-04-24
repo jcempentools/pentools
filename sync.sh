@@ -2,7 +2,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PYTHON_SCRIPT="$SCRIPT_DIR/.scripts/sync/main.py"
+# `sync_local` EVITA CONFLITO DE NOME EM BIBLIOTECA PYTON
+PYTHON_SCRIPT="$SCRIPT_DIR/.scripts/sync_local/main.py"
 
 # Detecta distro e gerenciador de pacotes
 if command -v apt-get &>/dev/null; then

@@ -110,6 +110,7 @@ PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+# BUG FIX: `sync_local` EVITA CONFLITO DE NOME EM BIBLIOTECA PYTON
 from sync_local.commons import *
 import time
 from sync_local.core.cleanup import destination_cleanup
