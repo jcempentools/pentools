@@ -100,6 +100,7 @@ Restrições:
 
 # IMPORTS
 import os
+import urllib
 
 from sync_local.commons import *
 from sync_local.utils.naming import normalize_product_name

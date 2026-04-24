@@ -166,6 +166,7 @@ sync_resolve_cache = {}
 download_registry = {}
 
 # Caminhos
+# 🔒 destino é sempre um root (uma unidade/partition), já origem pode não ser
 destination_path = "?"
 ORIGIN_PATH = os.path.normpath(SCRIPT_DIR).rstrip(os.path.sep) + os.path.sep
 
