@@ -17,6 +17,7 @@
 *.exe
 *.syncado
 *.sha256
+__pycache__
 
 # === Arquivos Compactados ===
 *.zip
