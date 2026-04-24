@@ -836,12 +836,13 @@ from sync_local.utils.dsl import extract_parser_url, has_parser_expression, reso
 from sync_local.utils.naming import normalize_tokens    
 from sync_local.commons import __IGNORAR_GITHUB
 from sync_local.core.file_operations import resolve_final_filename
-from sync_local.core.download_manager import http_open
+from sync_local.core.download_manager import http_open, show_message
 from sync_local.core.file_operations import resolve_final_url
-from sync_local.core.file_operations import parse_syncdownload
 
 # VARIÁVEIS GLOBAIS
-# (usa commons)
+
+# Cache de resolução de .syncdownload (pré-processamento)
+sync_resolve_cache = {}
 
 # MAPEAMENTO DE FUNÇÕES
 def resolve_syncdownload_cached(sync_path):
@@ -1059,3 +1060,103 @@ def resolve_provider(url):
         if domain in url:
             return handler(url)
     return url
+
+def parse_syncdownload(file_path):
+    """
+    Descrição: Lê e interpreta arquivo .syncdownload.
+    Parâmetros:
+    - file_path (str): Caminho do arquivo.
+    Retorno:
+    - tuple: (url, expected_hash, custom_name)
+    """    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            raw_lines = [l.rstrip('\n') for l in f.readlines()]
+
+        if not raw_lines:
+            return None, None, None
+
+        # Preserva posição das linhas (não remove vazias)
+        url = raw_lines[0].strip() if len(raw_lines) > 0 else None
+
+        # --- Parser DSL resolution ---
+        try:
+            if has_parser_expression(url):
+                resolved = resolve_parser_expression(
+                    url,
+                    context_name=os.path.basename(file_path)
+                )
+
+                if not isinstance(resolved, str):
+                    raise Exception("Parser DSL não retornou URL válida")
+
+                url = resolved
+
+        except Exception as e:
+            show_message(f"Erro ao resolver parser DSL: {e}", "e")
+            return None, None, None
+
+        # 🔒 GARANTIA: URL final válida
+        if not url or not isinstance(url, str):
+            show_message(f"URL inválida no .syncdownload: {file_path}", "e")
+            return None, None, None
+
+        if "${" in url:
+            show_message(f"URL inválida após parser: {url}", "e")
+            return None, None, None
+
+    except Exception as e:
+        show_message(f"Erro ao ler .syncdownload {file_path}: {e}", "e")
+        return None, None, None
+
+    expected_hash = raw_lines[1].strip() if len(raw_lines) > 1 and raw_lines[1].strip() else None
+    custom_name = raw_lines[2].strip() if len(raw_lines) > 2 and raw_lines[2].strip() else None
+
+    # 🔒 linha 4 — hash remoto (NÃO persiste, uso obrigatório em memória)
+    remote_hash_url = raw_lines[3].strip() if len(raw_lines) > 3 and raw_lines[3].strip() else None
+
+    return url, expected_hash, custom_name, remote_hash_url     
+
+def parse_syncdownload_scripts(file_path):
+    """
+    Extrai blocos >>>ext[,fase] do .syncdownload
+    Retorno: list[{ext, phase, content}]
+    """
+
+    blocks = []
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        current = None
+
+        for line in lines[4:]:  # 🔒 começa após linha 4
+            line = line.rstrip("\n")
+
+            m = re.match(r'^>>>\s*([a-zA-Z0-9]+)(?:\s*,\s*([a-zA-Z0-9]+))?', line)
+
+            if m:
+                if current:
+                    blocks.append(current)
+
+                ext = m.group(1)
+                phase = (m.group(2) or "start").lower()
+
+                current = {
+                    "ext": ext,
+                    "phase": phase,
+                    "content": []
+                }
+                continue
+
+            if current:
+                current["content"].append(line)
+
+        if current:
+            blocks.append(current)
+
+    except Exception:
+        return []
+
+    return blocks

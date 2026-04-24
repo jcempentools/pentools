@@ -177,10 +177,13 @@ import time
 import urllib
 
 from sync_local.commons import *
-from sync_local.commons import __PARSER_CACHE
 from sync_local.core.download_manager import http_open   
 
 # VARIÁVEIS GLOBAIS
+
+# --- [Parser DSL Resolver] ---
+__PARSER_CACHE = {}
+PARSER_CACHE_TTL = 60  # segundos
 
 # MAPEAMENTO DE FUNÇÕES
 

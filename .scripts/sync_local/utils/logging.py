@@ -108,6 +108,9 @@ from sync_local.utils.progress import _normalize_color
 # VARIÁVEIS GLOBAIS
 _log_iniciado = False
 
+# Inicializa o console para mensagens estilizadas
+console = Console()
+
 # MAPEAMENTO DE FUNÇÕES
 
 def show_message(txt, tipo=None, cor="white", bold=True, inline=False):

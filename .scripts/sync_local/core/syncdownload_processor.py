@@ -123,7 +123,8 @@ from sync_local.utils.dsl import resolve_if_dsl
 from sync_local.utils.logging import show_message
 
 # VARIÁVEIS GLOBAIS
-# (usa commons)
+# Cache global de downloads já realizados (url -> path destino)
+download_registry = {}
 
 # MAPEAMENTO DE FUNÇÕES
 def process_single_syncdownload(path, dry_run):

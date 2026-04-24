@@ -112,7 +112,9 @@ from sync_local.utils.logging import show_message
 from sync_local.utils.progress import create_progress
 
 # VARIÁVEIS GLOBAIS
-# (usa commons)
+
+# Dicionário para armazenar hashes temporários em RAM
+hash_cache = {}
 
 # MAPEAMENTO DE FUNÇÕES
 

@@ -107,11 +107,210 @@ from sync_local.core.syncdownload_parser import resolve_syncdownload_cached
 from sync_local.utils.naming import normalize_product_name
 from sync_local.utils.naming import is_same_product
 from sync_local.utils.logging import show_message
+from sync_local.core.file_operations import hash_file, is_cached_file_valid, normalize_canonical_name
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)
 
 # MAPEAMENTO DE FUNÇÕES
+
+def purge_similar_installers(dest_dir, target_name):
+    """
+    Remove versões antigas de um mesmo produto, preservando:
+    - o arquivo alvo (recém baixado ou selecionado)
+    - exatamente 1 versão final válida
+
+    Estratégia:
+    - agrupa por nome canônico
+    - filtra apenas instaladores válidos
+    - preserva o target
+    - remove apenas excedentes
+    
+    Parâmetros:
+    - dest_dir (str): Diretório destino.
+    - target_name (str): Arquivo alvo.
+    Retorno:
+    - None    
+    """
+
+    target_base = normalize_product_name(target_name)
+
+    if not target_base:
+        return
+
+    candidates = []
+
+    for f in sorted(os.listdir(dest_dir)):
+        full = os.path.join(dest_dir, f)
+
+        if not os.path.isfile(full):
+            continue
+        
+        # 🔒 Nunca tocar em metadata ou arquivos de controle
+        if f.lower().endswith((".sha256", ".syncado", ".syncdownload")):
+            continue
+
+        base = normalize_product_name(f)
+
+        same_product = is_same_product(base, target_base)
+
+        # --- fallback controlado por hash ---
+        if not same_product:
+            try:
+                ext = os.path.splitext(full)[1].lower()
+
+                # apenas tipos relevantes (instaladores / imagens grandes)
+                ALLOWED_HASH_DEDUP_EXT = {
+                    ".exe", ".msi", ".zip", ".7z", ".rar",
+                    ".iso", ".img"
+                }
+
+                if ext in ALLOWED_HASH_DEDUP_EXT:
+                    size = os.path.getsize(full)                    
+
+                    if size >= MIN_SIZE_BYTES:
+                        target_full = os.path.join(dest_dir, target_name)
+
+                        if os.path.exists(target_full):
+                            if hash_file(full, "Destino") == hash_file(target_full, "Destino"):
+                                same_product = True
+
+            except Exception:
+                pass
+
+        if not same_product:
+            continue
+
+        candidates.append(f)
+
+    # 🔒 Segurança: precisa ter mais de 1 candidato
+    if len(candidates) <= 1:
+        return
+
+    target_full = os.path.join(dest_dir, target_name)
+
+    # 🔒 Só permite purge se o alvo (latest) EXISTE fisicamente
+    if not os.path.exists(target_full):
+        show_message(f"Purga abortada: alvo ainda não existe fisicamente ({target_name})", "d")
+        return
+
+    # 🔒 Garante que o target está presente no grupo
+    if target_name not in candidates:
+        show_message(f"Purga abortada: alvo não encontrado entre candidatos ({target_name})", "w")
+        return
+    
+    # 🔒 mantém target + 1 fallback válido
+    keep = [target_name]
+
+    for f in candidates:
+        if f == target_name:
+            continue
+
+        full = os.path.join(dest_dir, f)
+
+        if is_cached_file_valid(full, None):
+            keep.append(f)
+            break
+
+    for f in candidates:
+        if f not in keep:
+            try:
+                os.remove(os.path.join(dest_dir, f))
+                show_message(f"Removido excedente: {f}", "-", cor="yellow")
+            except Exception as e:
+                show_message(f"Erro ao remover {f}: {e}", "e")
+
+def purge_similar_installers_safe(dest_dir, target_name, canonical_name=None):
+    """
+    Descrição: Remove versões antigas de forma segura.
+    Parâmetros:
+    - dest_dir (str): Diretório destino.
+    - target_name (str): Arquivo alvo.
+    Retorno:
+    - None
+    """    
+    target_full = os.path.join(dest_dir, target_name)
+
+    if not os.path.exists(target_full):
+        return
+
+    # 🔒 prioridade: nome canônico da linha 3
+    if canonical_name:
+        target_base = normalize_canonical_name(canonical_name)
+    else:
+        target_base = normalize_product_name(target_name)
+
+    if not target_base:
+        return
+
+    # =========================================================
+    # 🔒 MODO ESTRITO (quando há subtipo explícito no canônico)
+    # =========================================================
+    strict_mode = False
+
+    if canonical_name:
+        canonical_clean = normalize_canonical_name(canonical_name)
+        if canonical_clean and "-" in canonical_clean:
+            strict_mode = True        
+
+    candidates = []
+
+    for f in sorted(os.listdir(dest_dir)):
+        full = os.path.join(dest_dir, f)
+
+        if not os.path.isfile(full):
+            continue
+
+        if f.lower().endswith((".sha256", ".syncado", ".syncdownload")):
+            continue
+
+        base = normalize_product_name(f)
+
+        # =========================================================
+        # 🔒 PRIORIDADE: comparação canônica (linha 3)
+        # =========================================================
+        candidate_canonical = normalize_canonical_name(f)
+
+        if candidate_canonical and target_base:
+            if candidate_canonical == target_base:
+                candidates.append(f)
+                continue
+
+            # 🔒 modo estrito → não permite fallback
+            if strict_mode:
+                continue
+
+        # =========================================================
+        # fallback (compatibilidade antiga)
+        # =========================================================
+        base = normalize_product_name(f)
+
+        if is_same_product(base, target_base):
+            candidates.append(f)
+            
+    if len(candidates) <= 1:
+        return
+
+    # 🔒 mantém target + 1 fallback válido
+    keep = [target_name]
+
+    for f in candidates:
+        if f == target_name:
+            continue
+
+        full = os.path.join(dest_dir, f)
+
+        if is_cached_file_valid(full, None):
+            keep.append(f)
+            break
+
+    for f in candidates:
+        if f not in keep:
+            try:
+                os.remove(os.path.join(dest_dir, f))
+                show_message(f"Removido excedente: {f}", "-", cor="yellow")
+            except Exception as e:
+                show_message(f"Erro ao remover {f}: {e}", "e")        
 
 def destination_cleanup(root, dry_run=False):
     """

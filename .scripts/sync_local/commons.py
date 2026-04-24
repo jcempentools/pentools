@@ -106,28 +106,13 @@ import random
 import re
 import sys
 from rich.console import Console
+import urllib
 
 # VARIÁVEIS GLOBAIS
-ORIGIN_PATH = ...
-destination_path = None
 
-IGNORED_PATHS = ...
 __IGNORAR_GITHUB = False
-
-sync_resolve_cache = {}
-download_registry = {}
-failed_files = []
-
-retent_loop_count = 0
 
 PROVIDERS = {}
-
-# --- [Parser DSL Resolver] ---
-
-__PARSER_CACHE = {}
-PARSER_CACHE_TTL = 60  # segundos
-
-__IGNORAR_GITHUB = False
 
 # Variável global para o ID da execução
 ID_EXECUCAO = ''.join(random.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in range(3))
@@ -149,21 +134,6 @@ failed_files = []    # Arquivos que falharam na cópia
 
 sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
 sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
-
-# Inicializa o console para mensagens estilizadas
-console = Console()
-
-# Cache de proteção global .syncdownload
-_sync_global_map = None
-
-# Dicionário para armazenar hashes temporários em RAM
-hash_cache = {}
-
-# Cache de resolução de .syncdownload (pré-processamento)
-sync_resolve_cache = {}
-
-# Cache global de downloads já realizados (url -> path destino)
-download_registry = {}
 
 # Caminhos
 # 🔒 destino é sempre um root (uma unidade/partition), já origem pode não ser

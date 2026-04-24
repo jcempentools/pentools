@@ -113,7 +113,7 @@ from sync_local.utils.naming import is_same_product
 from sync_local.utils.logging import get_op_icon, show_message
 from sync_local.utils.dsl import has_parser_expression, resolve_parser_expression
 from sync_local.core.cache_validation import is_cached_file_valid
-from sync_local.core.download_manager import http_open                            
+from sync_local.core.download_manager import http_open, resolve_final_url                            
 from sync_local.core.cache_validation import  hash_file
 from sync_local.utils.progress import create_progress
 
@@ -227,99 +227,7 @@ def apply_root_hidden_attribute():
 
         except Exception as e:
             show_message(f"Falha ao ocultar {item}: {e}", "e")            
-
-
-def purge_similar_installers_safe(dest_dir, target_name, canonical_name=None):
-    """
-    Descrição: Remove versões antigas de forma segura.
-    Parâmetros:
-    - dest_dir (str): Diretório destino.
-    - target_name (str): Arquivo alvo.
-    Retorno:
-    - None
-    """    
-    target_full = os.path.join(dest_dir, target_name)
-
-    if not os.path.exists(target_full):
-        return
-
-    # 🔒 prioridade: nome canônico da linha 3
-    if canonical_name:
-        target_base = normalize_canonical_name(canonical_name)
-    else:
-        target_base = normalize_product_name(target_name)
-
-    if not target_base:
-        return
-
-    # =========================================================
-    # 🔒 MODO ESTRITO (quando há subtipo explícito no canônico)
-    # =========================================================
-    strict_mode = False
-
-    if canonical_name:
-        canonical_clean = normalize_canonical_name(canonical_name)
-        if canonical_clean and "-" in canonical_clean:
-            strict_mode = True        
-
-    candidates = []
-
-    for f in sorted(os.listdir(dest_dir)):
-        full = os.path.join(dest_dir, f)
-
-        if not os.path.isfile(full):
-            continue
-
-        if f.lower().endswith((".sha256", ".syncado", ".syncdownload")):
-            continue
-
-        base = normalize_product_name(f)
-
-        # =========================================================
-        # 🔒 PRIORIDADE: comparação canônica (linha 3)
-        # =========================================================
-        candidate_canonical = normalize_canonical_name(f)
-
-        if candidate_canonical and target_base:
-            if candidate_canonical == target_base:
-                candidates.append(f)
-                continue
-
-            # 🔒 modo estrito → não permite fallback
-            if strict_mode:
-                continue
-
-        # =========================================================
-        # fallback (compatibilidade antiga)
-        # =========================================================
-        base = normalize_product_name(f)
-
-        if is_same_product(base, target_base):
-            candidates.append(f)
-            
-    if len(candidates) <= 1:
-        return
-
-    # 🔒 mantém target + 1 fallback válido
-    keep = [target_name]
-
-    for f in candidates:
-        if f == target_name:
-            continue
-
-        full = os.path.join(dest_dir, f)
-
-        if is_cached_file_valid(full, None):
-            keep.append(f)
-            break
-
-    for f in candidates:
-        if f not in keep:
-            try:
-                os.remove(os.path.join(dest_dir, f))
-                show_message(f"Removido excedente: {f}", "-", cor="yellow")
-            except Exception as e:
-                show_message(f"Erro ao remover {f}: {e}", "e")                
+        
 
 def copy_file_with_progress(src, dst):
     """
@@ -675,171 +583,6 @@ def resolve_final_filename(url, path, custom_name=None, forced_extension=None):
 
     return base_name
 
-def resolve_final_url(url, timeout=10):
-    """
-    Descrição: Resolve URL final após redirect via HEAD.
-    Parâmetros:
-    - url (str): URL original.
-    - timeout (int): Timeout.
-    Retorno:
-    - tuple: (url_final, headers)
-    """    
-    try:
-        req = urllib.request.Request(url, method="HEAD")
-        with http_open(req, timeout=timeout) as response:
-            return response.geturl(), response.headers
-    except Exception:
-        return None, {}
-
-def parse_syncdownload_scripts(file_path):
-    """
-    Extrai blocos >>>ext[,fase] do .syncdownload
-    Retorno: list[{ext, phase, content}]
-    """
-
-    blocks = []
-
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-
-        current = None
-
-        for line in lines[4:]:  # 🔒 começa após linha 4
-            line = line.rstrip("\n")
-
-            m = re.match(r'^>>>\s*([a-zA-Z0-9]+)(?:\s*,\s*([a-zA-Z0-9]+))?', line)
-
-            if m:
-                if current:
-                    blocks.append(current)
-
-                ext = m.group(1)
-                phase = (m.group(2) or "start").lower()
-
-                current = {
-                    "ext": ext,
-                    "phase": phase,
-                    "content": []
-                }
-                continue
-
-            if current:
-                current["content"].append(line)
-
-        if current:
-            blocks.append(current)
-
-    except Exception:
-        return []
-
-    return blocks
-
-def purge_similar_installers(dest_dir, target_name):
-    """
-    Remove versões antigas de um mesmo produto, preservando:
-    - o arquivo alvo (recém baixado ou selecionado)
-    - exatamente 1 versão final válida
-
-    Estratégia:
-    - agrupa por nome canônico
-    - filtra apenas instaladores válidos
-    - preserva o target
-    - remove apenas excedentes
-    
-    Parâmetros:
-    - dest_dir (str): Diretório destino.
-    - target_name (str): Arquivo alvo.
-    Retorno:
-    - None    
-    """
-
-    target_base = normalize_product_name(target_name)
-
-    if not target_base:
-        return
-
-    candidates = []
-
-    for f in sorted(os.listdir(dest_dir)):
-        full = os.path.join(dest_dir, f)
-
-        if not os.path.isfile(full):
-            continue
-        
-        # 🔒 Nunca tocar em metadata ou arquivos de controle
-        if f.lower().endswith((".sha256", ".syncado", ".syncdownload")):
-            continue
-
-        base = normalize_product_name(f)
-
-        same_product = is_same_product(base, target_base)
-
-        # --- fallback controlado por hash ---
-        if not same_product:
-            try:
-                ext = os.path.splitext(full)[1].lower()
-
-                # apenas tipos relevantes (instaladores / imagens grandes)
-                ALLOWED_HASH_DEDUP_EXT = {
-                    ".exe", ".msi", ".zip", ".7z", ".rar",
-                    ".iso", ".img"
-                }
-
-                if ext in ALLOWED_HASH_DEDUP_EXT:
-                    size = os.path.getsize(full)                    
-
-                    if size >= MIN_SIZE_BYTES:
-                        target_full = os.path.join(dest_dir, target_name)
-
-                        if os.path.exists(target_full):
-                            if hash_file(full, "Destino") == hash_file(target_full, "Destino"):
-                                same_product = True
-
-            except Exception:
-                pass
-
-        if not same_product:
-            continue
-
-        candidates.append(f)
-
-    # 🔒 Segurança: precisa ter mais de 1 candidato
-    if len(candidates) <= 1:
-        return
-
-    target_full = os.path.join(dest_dir, target_name)
-
-    # 🔒 Só permite purge se o alvo (latest) EXISTE fisicamente
-    if not os.path.exists(target_full):
-        show_message(f"Purga abortada: alvo ainda não existe fisicamente ({target_name})", "d")
-        return
-
-    # 🔒 Garante que o target está presente no grupo
-    if target_name not in candidates:
-        show_message(f"Purga abortada: alvo não encontrado entre candidatos ({target_name})", "w")
-        return
-    
-    # 🔒 mantém target + 1 fallback válido
-    keep = [target_name]
-
-    for f in candidates:
-        if f == target_name:
-            continue
-
-        full = os.path.join(dest_dir, f)
-
-        if is_cached_file_valid(full, None):
-            keep.append(f)
-            break
-
-    for f in candidates:
-        if f not in keep:
-            try:
-                os.remove(os.path.join(dest_dir, f))
-                show_message(f"Removido excedente: {f}", "-", cor="yellow")
-            except Exception as e:
-                show_message(f"Erro ao remover {f}: {e}", "e")
 
 def _resolve_filename_from_url(url, fallback_path=None):
     """    
@@ -972,62 +715,6 @@ def _resolve_effective_remote_name(url):
 
     return fallback
 
-def parse_syncdownload(file_path):
-    """
-    Descrição: Lê e interpreta arquivo .syncdownload.
-    Parâmetros:
-    - file_path (str): Caminho do arquivo.
-    Retorno:
-    - tuple: (url, expected_hash, custom_name)
-    """    
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            raw_lines = [l.rstrip('\n') for l in f.readlines()]
-
-        if not raw_lines:
-            return None, None, None
-
-        # Preserva posição das linhas (não remove vazias)
-        url = raw_lines[0].strip() if len(raw_lines) > 0 else None
-
-        # --- Parser DSL resolution ---
-        try:
-            if has_parser_expression(url):
-                resolved = resolve_parser_expression(
-                    url,
-                    context_name=os.path.basename(file_path)
-                )
-
-                if not isinstance(resolved, str):
-                    raise Exception("Parser DSL não retornou URL válida")
-
-                url = resolved
-
-        except Exception as e:
-            show_message(f"Erro ao resolver parser DSL: {e}", "e")
-            return None, None, None
-
-        # 🔒 GARANTIA: URL final válida
-        if not url or not isinstance(url, str):
-            show_message(f"URL inválida no .syncdownload: {file_path}", "e")
-            return None, None, None
-
-        if "${" in url:
-            show_message(f"URL inválida após parser: {url}", "e")
-            return None, None, None
-
-    except Exception as e:
-        show_message(f"Erro ao ler .syncdownload {file_path}: {e}", "e")
-        return None, None, None
-
-    expected_hash = raw_lines[1].strip() if len(raw_lines) > 1 and raw_lines[1].strip() else None
-    custom_name = raw_lines[2].strip() if len(raw_lines) > 2 and raw_lines[2].strip() else None
-
-    # 🔒 linha 4 — hash remoto (NÃO persiste, uso obrigatório em memória)
-    remote_hash_url = raw_lines[3].strip() if len(raw_lines) > 3 and raw_lines[3].strip() else None
-
-    return url, expected_hash, custom_name, remote_hash_url     
-
 def similarity_score(a, b):
     """
     Descrição: Calcula similaridade simples entre dois nomes.
@@ -1041,3 +728,57 @@ def similarity_score(a, b):
         return 0
 
     return 1.0 if a == b else 0 
+
+def is_cached_file_valid(path, expected_hash):
+    if not os.path.exists(path):
+        return False
+
+    ext = os.path.splitext(path)[1].lower()
+    sha_file = path + ".sha256"
+    sync_file = path + ".syncado"
+
+    # =========================================================
+    # 1. HASH EXTERNO (linha 2) → prioridade máxima
+    # =========================================================
+    if expected_hash:
+        current_hash = hash_file(path, "Cache")
+        return current_hash == expected_hash.lower()
+
+    # =========================================================
+    # 2. ARQUIVOS DE IMAGEM → USAR SHA256 SE EXISTIR
+    # =========================================================
+    if ext in (".iso", ".img") and os.path.exists(sha_file):
+        try:
+            with open(sha_file, "r", encoding="utf-8") as f:
+                saved_hash = f.readline().split()[0]
+
+            current_hash = hash_file(path, "Cache")
+            return current_hash == saved_hash.lower()
+        except:
+            return False
+
+    # =========================================================
+    # 3. .SYNCADO → VALIDAÇÃO DE EXISTÊNCIA / COERÊNCIA
+    # =========================================================
+    if os.path.exists(sync_file):
+        try:
+            with open(sync_file, "r", encoding="utf-8") as f:
+                stored_name = f.read().strip()
+
+            current_name = os.path.basename(path)
+
+            stored_base = normalize_product_name(stored_name)
+            current_base = normalize_product_name(current_name)
+
+            # 🔒 comparação por produto (não nome bruto)
+            if is_same_product(stored_base, current_base):
+                return True
+
+            return False
+        except:
+            return False
+
+    # =========================================================
+    # 4. FALLBACK FINAL
+    # =========================================================
+    return os.path.getsize(path) > 0

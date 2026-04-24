@@ -100,6 +100,7 @@ Restrições:
 
 # IMPORTS
 import os
+import time
 import urllib
 
 from sync_local.commons import *
@@ -107,6 +108,7 @@ from sync_local.utils.naming import normalize_product_name
 from sync_local.utils.naming import is_same_product
 from sync_local.utils.logging import show_message
 from sync_local.core.cache_validation import hash_file
+from sync_local.utils.logging import create_progress
 
 # VARIÁVEIS GLOBAIS
 # (usa commons)
@@ -180,56 +182,19 @@ def download_file_with_progress(url, dst):
                     if time.time() - last_progress > READ_TIMEOUT:
                         raise TimeoutError("Download stalled (no data received)")     
 
-def is_cached_file_valid(path, expected_hash):
-    if not os.path.exists(path):
-        return False
 
-    ext = os.path.splitext(path)[1].lower()
-    sha_file = path + ".sha256"
-    sync_file = path + ".syncado"
-
-    # =========================================================
-    # 1. HASH EXTERNO (linha 2) → prioridade máxima
-    # =========================================================
-    if expected_hash:
-        current_hash = hash_file(path, "Cache")
-        return current_hash == expected_hash.lower()
-
-    # =========================================================
-    # 2. ARQUIVOS DE IMAGEM → USAR SHA256 SE EXISTIR
-    # =========================================================
-    if ext in (".iso", ".img") and os.path.exists(sha_file):
-        try:
-            with open(sha_file, "r", encoding="utf-8") as f:
-                saved_hash = f.readline().split()[0]
-
-            current_hash = hash_file(path, "Cache")
-            return current_hash == saved_hash.lower()
-        except:
-            return False
-
-    # =========================================================
-    # 3. .SYNCADO → VALIDAÇÃO DE EXISTÊNCIA / COERÊNCIA
-    # =========================================================
-    if os.path.exists(sync_file):
-        try:
-            with open(sync_file, "r", encoding="utf-8") as f:
-                stored_name = f.read().strip()
-
-            current_name = os.path.basename(path)
-
-            stored_base = normalize_product_name(stored_name)
-            current_base = normalize_product_name(current_name)
-
-            # 🔒 comparação por produto (não nome bruto)
-            if is_same_product(stored_base, current_base):
-                return True
-
-            return False
-        except:
-            return False
-
-    # =========================================================
-    # 4. FALLBACK FINAL
-    # =========================================================
-    return os.path.getsize(path) > 0
+def resolve_final_url(url, timeout=10):
+    """
+    Descrição: Resolve URL final após redirect via HEAD.
+    Parâmetros:
+    - url (str): URL original.
+    - timeout (int): Timeout.
+    Retorno:
+    - tuple: (url_final, headers)
+    """    
+    try:
+        req = urllib.request.Request(url, method="HEAD")
+        with http_open(req, timeout=timeout) as response:
+            return response.geturl(), response.headers
+    except Exception:
+        return None, {}
