@@ -3,8 +3,8 @@ $ErrorActionPreference = 'Stop'
 
 # Caminho fixo
 $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Definition
-# `sync_local` EVITA CONFLITO DE NOME EM BIBLIOTECA PYTON
-$pythonScript = Join-Path $scriptPath './.scripts/sync_local/main.py'
+# `CanonSync` EVITA CONFLITO DE NOME EM BIBLIOTECA PYTON
+$pythonScript = Join-Path $scriptPath './.scripts/CanonSync/main.py'
 
 # Verifica se Python está instalado
 function Test-PythonInstalled {
@@ -55,7 +55,7 @@ function Get-SyncPyDependencies {
     if ($_ -match '^import\s+(\S+)' -or $_ -match '^from\s+(\S+)') {
       ($matches[1].Split('.')[0])
     }  
-  } | Where-Object { $_ -ne 'sync_local' } | Sort-Object -Unique
+  } | Where-Object { $_ -ne 'CanonSync' } | Sort-Object -Unique
 }
 
 # Instala dependências ausentes
