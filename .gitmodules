@@ -1,3 +1,6 @@
 [submodule ".scripts/CanonSync"]
 	path = .scripts/CanonSync
 	url = https://github.com/jcempro/CanonSync
+[submodule ".scripts/DSLens"]
+	path = .scripts/DSLens
+	url = https://github.com/jcempro/DSLens
