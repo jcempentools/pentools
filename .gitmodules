@@ -1,0 +1,3 @@
+[submodule ".scripts/CanonSync"]
+	path = .scripts/CanonSync
+	url = https://github.com/jcempro/CanonSync
