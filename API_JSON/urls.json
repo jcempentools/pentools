@@ -4,8 +4,8 @@
     "hash": "https://mirrors.edge.kernel.org/linuxmint/stable/22.3/sha256sum.txt"
   },
   "batocera": {
-    "url": "https://mirrors.o2switch.fr/batocera/x86_64/stable/last/batocera-x86_64-42-20251006.img.gz",
-    "hash": "https://mirrors.o2switch.fr/batocera/x86_64/stable/last/batocera-x86_64-42-20251006.img.gz.sha256"
+    "url": "https://mirrors.o2switch.fr/batocera/x86_64/stable/last/batocera-x86_64-43-20260430.img.gz",
+    "hash": "https://mirrors.o2switch.fr/batocera/x86_64/stable/last/batocera-x86_64-43-20260430.img.gz.sha256"
   },
   "libreelec": {
     "url": "https://releases.libreelec.tv/LibreELEC-Generic.x86_64-12.2.1.img.gz",
